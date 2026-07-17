@@ -16,13 +16,19 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install dependencies
+      # Install project dependencies — temporarily exclude @mondaycom/apps-cli
+      # because its postinstall (patch-package) always fails in CI environments.
+      # We install the CLI separately below with parse-gitignore pre-seeded.
+      - name: Install project dependencies
         working-directory: boost-sdr-os/quickstart-react
         run: |
-          # Install without running any postinstall scripts to avoid apps-cli patch-package failure
-          npm install --legacy-peer-deps --ignore-scripts
-          # Run only the scripts we actually need
-          node node_modules/esbuild/install.js
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json'));
+            delete pkg.devDependencies['@mondaycom/apps-cli'];
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));
+          "
+          npm install --legacy-peer-deps
 
       - name: Build
         working-directory: boost-sdr-os/quickstart-react
@@ -30,10 +36,23 @@ jobs:
           VITE_MONDAY_API_TOKEN: ${{ secrets.VITE_MONDAY_API_TOKEN }}
         run: npm run deploy:build
 
+      # Install the Monday CLI in an isolated directory.
+      # parse-gitignore must be installed FIRST so it is present when
+      # @mondaycom/apps-cli's postinstall (patch-package) runs.
+      - name: Install Monday CLI
+        run: |
+          mkdir /tmp/cli
+          cd /tmp/cli
+          echo '{"name":"cli-tmp","version":"1.0.0"}' > package.json
+          npm install parse-gitignore@2.0.0
+          npm install @mondaycom/apps-cli@4.9.2
+          echo "/tmp/cli/node_modules/.bin" >> $GITHUB_PATH
+
       - name: Deploy to Monday hosting
         working-directory: boost-sdr-os/quickstart-react
         env:
           MAPPS_ACCESS_TOKEN: ${{ secrets.MAPPS_ACCESS_TOKEN }}
+          MONDAY_APP_VERSION_ID: ${{ secrets.MONDAY_APP_VERSION_ID }}
         run: |
           echo "{\"accessToken\":\"$MAPPS_ACCESS_TOKEN\"}" > .mappsrc
-          npm run deploy:push
+          mapps code:push --client-side -d build -i $MONDAY_APP_VERSION_ID
