@@ -1,0 +1,16 @@
+# Monday CLI
+.mappsrc
+
+# Dependencies
+node_modules/
+
+# Build output
+build/
+dist/
+
+# Local env — contains personal API tokens, never commit
+.env.local
+.env.*.local
+
+# Editor
+.DS_Store
