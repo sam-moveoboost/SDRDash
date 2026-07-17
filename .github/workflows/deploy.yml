@@ -18,7 +18,11 @@ jobs:
 
       - name: Install dependencies
         working-directory: boost-sdr-os/quickstart-react
-        run: npm install --legacy-peer-deps
+        run: |
+          # Install without running any postinstall scripts to avoid apps-cli patch-package failure
+          npm install --legacy-peer-deps --ignore-scripts
+          # Run only the scripts we actually need
+          node node_modules/esbuild/install.js
 
       - name: Build
         working-directory: boost-sdr-os/quickstart-react
