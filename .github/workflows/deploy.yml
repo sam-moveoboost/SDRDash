@@ -44,8 +44,7 @@ jobs:
           mkdir /tmp/cli
           cd /tmp/cli
           echo '{"name":"cli-tmp","version":"1.0.0"}' > package.json
-          npm install parse-gitignore@2.0.0
-          npm install @mondaycom/apps-cli@4.9.2
+          npm install parse-gitignore@2.0.0 @mondaycom/apps-cli@4.9.2
           echo "/tmp/cli/node_modules/.bin" >> $GITHUB_PATH
 
       - name: Deploy to Monday hosting
