@@ -36,15 +36,15 @@ jobs:
           VITE_MONDAY_API_TOKEN: ${{ secrets.VITE_MONDAY_API_TOKEN }}
         run: npm run deploy:build
 
-      # Install the Monday CLI in an isolated directory.
-      # parse-gitignore must be installed FIRST so it is present when
-      # @mondaycom/apps-cli's postinstall (patch-package) runs.
+      # Install the Monday CLI with --ignore-scripts to skip the broken
+      # patch-package postinstall. The code:push --client-side command only
+      # uploads a zip to Monday's CDN and never touches parse-gitignore at runtime.
       - name: Install Monday CLI
         run: |
           mkdir /tmp/cli
           cd /tmp/cli
           echo '{"name":"cli-tmp","version":"1.0.0"}' > package.json
-          npm install parse-gitignore@2.0.0 @mondaycom/apps-cli@4.9.2
+          npm install --ignore-scripts @mondaycom/apps-cli@4.9.2
           echo "/tmp/cli/node_modules/.bin" >> $GITHUB_PATH
 
       - name: Deploy to Monday hosting
