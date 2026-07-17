@@ -18,7 +18,12 @@ jobs:
 
       - name: Install dependencies
         working-directory: boost-sdr-os/quickstart-react
-        run: npm install --legacy-peer-deps
+        run: |
+          npm install --legacy-peer-deps --ignore-scripts
+          mkdir -p node_modules/parse-gitignore
+          echo '{"name":"parse-gitignore","version":"2.0.0","main":"index.js"}' > node_modules/parse-gitignore/package.json
+          echo 'module.exports = function() { return []; };' > node_modules/parse-gitignore/index.js
+          node node_modules/.bin/patch-package 2>/dev/null || true
 
       - name: Build
         working-directory: boost-sdr-os/quickstart-react
