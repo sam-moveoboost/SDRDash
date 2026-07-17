@@ -36,25 +36,30 @@ jobs:
           VITE_MONDAY_API_TOKEN: ${{ secrets.VITE_MONDAY_API_TOKEN }}
         run: npm run deploy:build
 
-      # npm pack downloads the tarball without running any lifecycle scripts.
-      # We extract it, delete the broken postinstall, then install from
-      # the modified local copy — all of apps-cli's deps install normally.
+      # npm pack downloads the tarball without running scripts.
+      # We extract, wipe all scripts, repack into a new .tgz, then install
+      # from that file path — npm cannot use the registry cache for a file:// install.
       - name: Install Monday CLI
         run: |
           cd /tmp
           npm pack @mondaycom/apps-cli@4.9.2 2>/dev/null
           mkdir apps-cli-mod
           tar xzf mondaycom-apps-cli-4.9.2.tgz -C apps-cli-mod --strip-components=1
+
           node -e "
             const fs = require('fs');
             const pkg = JSON.parse(fs.readFileSync('/tmp/apps-cli-mod/package.json'));
-            delete (pkg.scripts || {}).postinstall;
+            pkg.scripts = {};
             fs.writeFileSync('/tmp/apps-cli-mod/package.json', JSON.stringify(pkg));
           "
+
+          cd /tmp/apps-cli-mod
+          npm pack . --pack-destination /tmp 2>/dev/null
+
           mkdir /tmp/cli
           cd /tmp/cli
           echo '{"name":"cli-tmp","version":"1.0.0"}' > package.json
-          npm install --legacy-peer-deps /tmp/apps-cli-mod
+          npm install --legacy-peer-deps /tmp/mondaycom-apps-cli-4.9.2.tgz
           echo "/tmp/cli/node_modules/.bin" >> $GITHUB_PATH
 
       - name: Deploy to Monday hosting
