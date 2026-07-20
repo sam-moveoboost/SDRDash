@@ -7,10 +7,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: windows-latest
-    defaults:
-      run:
-        shell: bash
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -21,7 +18,14 @@ jobs:
 
       - name: Install project dependencies
         working-directory: boost-sdr-os/quickstart-react
-        run: npm install --legacy-peer-deps
+        run: |
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json'));
+            delete (pkg.devDependencies || {})['@mondaycom/apps-cli'];
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));
+          "
+          npm install --legacy-peer-deps
 
       - name: Build
         working-directory: boost-sdr-os/quickstart-react
@@ -30,7 +34,25 @@ jobs:
         run: npm run deploy:build
 
       - name: Install Monday CLI
-        run: npm install -g @mondaycom/apps-cli@4.9.2
+        run: |
+          cd /tmp
+          npm pack @mondaycom/apps-cli@4.9.2 2>/dev/null
+          mkdir apps-cli-mod
+          tar xzf mondaycom-apps-cli-4.9.2.tgz -C apps-cli-mod --strip-components=1
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('/tmp/apps-cli-mod/package.json'));
+            pkg.scripts = {};
+            fs.writeFileSync('/tmp/apps-cli-mod/package.json', JSON.stringify(pkg));
+          "
+          mv apps-cli-mod package
+          tar czf mondaycom-apps-cli-modified.tgz package/
+          mv package apps-cli-mod
+          mkdir /tmp/cli
+          cd /tmp/cli
+          echo '{"name":"cli-tmp","version":"1.0.0"}' > package.json
+          npm install --legacy-peer-deps /tmp/mondaycom-apps-cli-modified.tgz
+          echo "/tmp/cli/node_modules/.bin" >> $GITHUB_PATH
 
       - name: Deploy to Monday hosting
         working-directory: boost-sdr-os/quickstart-react
