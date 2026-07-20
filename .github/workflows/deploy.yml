@@ -7,7 +7,10 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
 
     steps:
       - uses: actions/checkout@v4
@@ -16,19 +19,9 @@ jobs:
         with:
           node-version: '20'
 
-      # Install project dependencies — temporarily exclude @mondaycom/apps-cli
-      # because its postinstall (patch-package) always fails in CI environments.
-      # We install the CLI separately below with parse-gitignore pre-seeded.
       - name: Install project dependencies
         working-directory: boost-sdr-os/quickstart-react
-        run: |
-          node -e "
-            const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('package.json'));
-            delete pkg.devDependencies['@mondaycom/apps-cli'];
-            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));
-          "
-          npm install --legacy-peer-deps
+        run: npm install --legacy-peer-deps
 
       - name: Build
         working-directory: boost-sdr-os/quickstart-react
@@ -36,41 +29,8 @@ jobs:
           VITE_MONDAY_API_TOKEN: ${{ secrets.VITE_MONDAY_API_TOKEN }}
         run: npm run deploy:build
 
-      # npm pack downloads the original tarball (no scripts run during pack).
-      # We extract it, wipe all lifecycle scripts, then repack using tar directly
-      # in npm's expected format (files under package/ prefix). Installing from
-      # a named .tgz file path bypasses any registry/cache lookup.
       - name: Install Monday CLI
-        run: |
-          cd /tmp
-          npm pack @mondaycom/apps-cli@4.9.2 2>/dev/null
-
-          mkdir apps-cli-mod
-          tar xzf mondaycom-apps-cli-4.9.2.tgz -C apps-cli-mod --strip-components=1
-
-          node -e "
-            const fs = require('fs');
-            const pkg = JSON.parse(fs.readFileSync('/tmp/apps-cli-mod/package.json'));
-            console.log('Removing scripts:', JSON.stringify(pkg.scripts));
-            pkg.scripts = {};
-            fs.writeFileSync('/tmp/apps-cli-mod/package.json', JSON.stringify(pkg));
-            console.log('Scripts after wipe:', JSON.stringify(JSON.parse(fs.readFileSync('/tmp/apps-cli-mod/package.json')).scripts));
-          "
-
-          # Repack with tar directly (no npm pack quirks) using npm's package/ prefix format
-          mv apps-cli-mod package
-          tar czf mondaycom-apps-cli-modified.tgz package/
-          mv package apps-cli-mod
-
-          echo "=== scripts in modified tarball ==="
-          tar xOf mondaycom-apps-cli-modified.tgz package/package.json \
-            | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).scripts));"
-
-          mkdir /tmp/cli
-          cd /tmp/cli
-          echo '{"name":"cli-tmp","version":"1.0.0"}' > package.json
-          npm install --legacy-peer-deps /tmp/mondaycom-apps-cli-modified.tgz
-          echo "/tmp/cli/node_modules/.bin" >> $GITHUB_PATH
+        run: npm install -g @mondaycom/apps-cli@4.9.2
 
       - name: Deploy to Monday hosting
         working-directory: boost-sdr-os/quickstart-react
