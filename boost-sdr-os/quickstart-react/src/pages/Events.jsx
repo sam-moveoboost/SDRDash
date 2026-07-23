@@ -52,8 +52,9 @@ export default function Events() {
   }, []);
 
   // Events filtered to selected year for the leaderboard
-  const leaderboardEvents = useMemo(() => {
-    const start = year === 2026 ? `${year}-09-01` : `${year}-01-01`;
+  // All events in the selected year — used for Opportunity Insights
+  const yearEvents = useMemo(() => {
+    const start = `${year}-01-01`;
     const end   = `${year}-12-31`;
     return events.filter(e => e.startDate && e.startDate >= start && e.startDate <= end);
   }, [events, year]);
@@ -129,14 +130,13 @@ export default function Events() {
           )
         }
 
-        {/* Opportunity Insights — filtered by selected year */}
+        {/* Opportunity Insights — full year, no Sep 1 cutoff */}
         <div className="font-display text-[13px] font-semibold tracking-[.04em] uppercase text-muted mb-3.5 flex items-center gap-2.5 after:content-[''] after:flex-1 after:h-px after:bg-line">
           Opportunity Insights · {year}
-          {year === 2026 && <span className="text-[11px] normal-case font-normal ml-1">(from 1 Sep)</span>}
         </div>
         {loading
           ? <div className="bg-card border border-line rounded-2xl h-48 animate-pulse mb-8" />
-          : <div className="mb-8"><EventInsights events={leaderboardEvents} userMap={userMap} /></div>
+          : <div className="mb-8"><EventInsights events={yearEvents} userMap={userMap} /></div>
         }
 
 
