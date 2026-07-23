@@ -375,15 +375,19 @@ export async function fetchWorkspaceUsers() {
 }
 
 // ── UK opportunity search (for event linking) ─────────────────────
-// search_value filters by item name; region filtered client-side to avoid
-// status-index ambiguity in server-side rules for color columns.
+// Uses column_id:"name" with contains_text — the correct Monday API approach.
+// search_value is NOT a valid ItemsQuery field. UK filtered client-side
+// because combining a status-column rule with contains_text via operator:and
+// returns empty results in Monday's API.
 export async function searchUKOpportunities(term) {
   if (!term || term.trim().length < 2) return [];
   const safe = term.replace(/["\n\r\\]/g, ' ').trim();
   const data = await gql(`
     query {
       boards(ids: ["${BOARDS.OPPORTUNITIES}"]) {
-        items_page(limit: 50, query_params: { search_value: "${safe}" }) {
+        items_page(limit: 50, query_params: {
+          rules: [{ column_id: "name", compare_value: ["${safe}"], operator: contains_text }]
+        }) {
           items {
             id name
             column_values(ids: ["color_mkxerb02"]) { id text }
