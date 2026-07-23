@@ -500,7 +500,8 @@ const EVENT_FIELDS = `
     "dropdown_mm5g237s",
     "text_mm5gf376",
     "text_mm5gj1xb",
-    "link_mm5gn10g"
+    "link_mm5gn10g",
+    "board_relation_mm5hvv3n"
   ]) { id text value }
 `;
 
@@ -511,21 +512,25 @@ function parseEventItem(item) {
   const range  = json('timerange_mm5hahhc');
   const people = json('multiple_person_mm5hnbf2');
   const link   = json('link_mm5gn10g');
+  const rel    = json('board_relation_mm5hvv3n');
   return {
-    id:                item.id,
-    name:              item.name,
-    startDate:         range?.from ?? null,
-    endDate:           range?.to   ?? null,
-    location:          text('text_mm5gwa0a'),
-    attendOrHostText:  text('color_mm5g1ye5'),
-    eventTypeText:     text('color_mm5hm4ye'),
-    bookingStatusText: text('color_mm5g6xz0'),
-    scaleText:         text('color_mm5h7kxk'),
-    sector:            text('dropdown_mm5g237s'),
-    visitorCost:       text('text_mm5gf376'),
-    standCost:         text('text_mm5gj1xb'),
-    website:           link?.url ?? text('link_mm5gn10g'),
-    attendeeIds:       (people?.personsAndTeams ?? []).map(p => String(p.id)),
+    id:                   item.id,
+    name:                 item.name,
+    startDate:            range?.from ?? null,
+    endDate:              range?.to   ?? null,
+    location:             text('text_mm5gwa0a'),
+    attendOrHostText:     text('color_mm5g1ye5'),
+    eventTypeText:        text('color_mm5hm4ye'),
+    bookingStatusText:    text('color_mm5g6xz0'),
+    scaleText:            text('color_mm5h7kxk'),
+    sector:               text('dropdown_mm5g237s'),
+    visitorCost:          text('text_mm5gf376'),
+    standCost:            text('text_mm5gj1xb'),
+    website:              link?.url ?? text('link_mm5gn10g'),
+    attendeeIds:          (people?.personsAndTeams ?? []).map(p => String(p.id)),
+    linkedOpportunityIds: (rel?.linkedPulseIds ?? [])
+      .map(p => String(typeof p === 'object' ? p.linkedPulseId : p))
+      .filter(Boolean),
   };
 }
 

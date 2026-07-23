@@ -3,6 +3,7 @@ import { fetchEvents, fetchWorkspaceUsers } from '../api/monday';
 import EventCalendar from '../components/events/EventCalendar';
 import EventLeaderboard from '../components/events/EventLeaderboard';
 import EventModal from '../components/events/EventModal';
+import EventInsights from '../components/events/EventInsights';
 import ProgressBar from '../components/shared/ProgressBar';
 
 const YEAR_OPTIONS = [2025, 2026, 2027, 2028];
@@ -129,7 +130,17 @@ export default function Events() {
           )
         }
 
-        {/* Leaderboard — filtered by selected year */}
+        {/* Opportunity Insights — filtered by selected year */}
+        <div className="font-display text-[13px] font-semibold tracking-[.04em] uppercase text-muted mb-3.5 flex items-center gap-2.5 after:content-[''] after:flex-1 after:h-px after:bg-line">
+          Opportunity Insights · {year}
+          {year === 2026 && <span className="text-[11px] normal-case font-normal ml-1">(from 1 Sep)</span>}
+        </div>
+        {loading
+          ? <div className="bg-card border border-line rounded-2xl h-48 animate-pulse mb-8" />
+          : <div className="mb-8"><EventInsights events={leaderboardEvents} userMap={userMap} /></div>
+        }
+
+        {/* Attendance Leaderboard — filtered by selected year */}
         <div className="font-display text-[13px] font-semibold tracking-[.04em] uppercase text-muted mb-3.5 flex items-center gap-2.5 after:content-[''] after:flex-1 after:h-px after:bg-line">
           Attendance Leaderboard · {year}
           {year === 2026 && <span className="text-[11px] normal-case font-normal ml-1">(from 1 Sep)</span>}
