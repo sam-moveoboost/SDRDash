@@ -282,11 +282,14 @@ export default function EventModal({ event, users, onSave, onClose }) {
     setSaving(true);
     setError(null);
     try {
-      const formWithOpps = { ...form, linkedOpportunityIds: selectedOpps.map(o => o.id) };
+      const oppIds = selectedOpps.map(o => o.id);
+      const formWithOpps = { ...form, linkedOpportunityIds: oppIds };
       const saved = isEdit
         ? await updateEvent(event.id, formWithOpps)
         : await createEvent(formWithOpps);
-      onSave(saved);
+      // Merge selectedOpps into saved event — the mutation response never includes
+      // board_relation values, so we inject them here for correct local state.
+      onSave({ ...saved, linkedOpportunityIds: oppIds });
     } catch (err) {
       setError(err.message || 'Save failed. Please try again.');
       setSaving(false);

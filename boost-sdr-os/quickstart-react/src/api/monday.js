@@ -625,10 +625,26 @@ function buildEventColumnValues(form) {
   cv['text_mm5gj1xb'] = form.standCost   ?? '';
   if (form.sector)   cv['dropdown_mm5g237s'] = { labels: [form.sector] };
   if (form.website)  cv['link_mm5gn10g']    = { url: form.website, text: form.website };
-  if (form.linkedOpportunityIds?.length) {
-    cv['board_relation_mm5hvv3n'] = { item_ids: form.linkedOpportunityIds.map(Number) };
-  }
+  // board_relation is intentionally excluded — change_multiple_column_values silently
+  // ignores it. Use linkEventOpportunities() separately after the main mutation.
   return cv;
+}
+
+// board_relation columns are silently ignored by change_multiple_column_values.
+// This dedicated mutation uses change_column_value which does support them.
+async function linkEventOpportunities(itemId, opportunityIds) {
+  if (!opportunityIds?.length) return;
+  const value = JSON.stringify(JSON.stringify({ item_ids: opportunityIds.map(Number) }));
+  await gql(`
+    mutation {
+      change_column_value(
+        board_id: ${BOARDS.EVENTS},
+        item_id: ${itemId},
+        column_id: "board_relation_mm5hvv3n",
+        value: ${value}
+      ) { id }
+    }
+  `);
 }
 
 export async function createEvent(form) {
@@ -643,7 +659,11 @@ export async function createEvent(form) {
       ) { ${EVENT_FIELDS} }
     }
   `);
-  return parseEventItem(data.create_item);
+  const created = parseEventItem(data.create_item);
+  if (form.linkedOpportunityIds?.length) {
+    await linkEventOpportunities(created.id, form.linkedOpportunityIds);
+  }
+  return created;
 }
 
 export async function updateEvent(itemId, form) {
@@ -659,6 +679,9 @@ export async function updateEvent(itemId, form) {
       ) { ${EVENT_FIELDS} }
     }
   `);
+  if (form.linkedOpportunityIds !== undefined) {
+    await linkEventOpportunities(itemId, form.linkedOpportunityIds);
+  }
   return { ...parseEventItem(data.change_multiple_column_values), name: form.name };
 }
 
