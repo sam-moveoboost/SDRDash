@@ -115,7 +115,9 @@ export default function EventInsights({ events, userMap }) {
 
   const { totalOpps, withOpps, byType, byScale, byStatus, bySector, byPerson, topEvents } = stats;
 
-  const avgOpps = events.length > 0 ? (totalOpps / events.length).toFixed(1) : '0';
+  const todayStr = new Date().toISOString().split('T')[0];
+  const pastCount = events.filter(e => e.startDate && e.startDate <= todayStr).length;
+  const avgOpps = pastCount > 0 ? (totalOpps / pastCount).toFixed(1) : '0';
   const bestType   = byType[0]?.[0];
   const bestStatus = byStatus[0]?.[0];
 
@@ -147,7 +149,7 @@ export default function EventInsights({ events, userMap }) {
         <StatCard
           label="Avg opps per event"
           value={avgOpps}
-          sub="across all events tracked"
+          sub={`across ${pastCount} past event${pastCount !== 1 ? 's' : ''}`}
         />
         <StatCard
           label="Best event type"
