@@ -115,9 +115,10 @@ export default function EventInsights({ events, userMap }) {
 
   const { totalOpps, withOpps, byType, byScale, byStatus, bySector, byPerson, topEvents } = stats;
 
-  const todayStr = new Date().toISOString().split('T')[0];
-  const pastCount = events.filter(e => e.startDate && e.startDate <= todayStr).length;
-  const avgOpps = pastCount > 0 ? (totalOpps / pastCount).toFixed(1) : '0';
+  const decidedCount = events.filter(e =>
+    e.attendOrHostText === 'Decided: Attending' || e.attendOrHostText === 'Decided: Hosting'
+  ).length;
+  const avgOpps = decidedCount > 0 ? (totalOpps / decidedCount).toFixed(1) : '0';
   const bestType   = byType[0]?.[0];
   const bestStatus = byStatus[0]?.[0];
 
@@ -149,7 +150,7 @@ export default function EventInsights({ events, userMap }) {
         <StatCard
           label="Avg opps per event"
           value={avgOpps}
-          sub={`across ${pastCount} past event${pastCount !== 1 ? 's' : ''}`}
+          sub={decidedCount > 0 ? `across ${decidedCount} decided event${decidedCount !== 1 ? 's' : ''}` : 'No decided events yet'}
         />
         <StatCard
           label="Best event type"
