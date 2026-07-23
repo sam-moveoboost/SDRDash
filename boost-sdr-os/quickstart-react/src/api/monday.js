@@ -374,6 +374,25 @@ export async function fetchWorkspaceUsers() {
   return data.users ?? [];
 }
 
+// ── UK opportunity search (for event linking) ─────────────────────
+export async function searchUKOpportunities(term) {
+  if (!term || term.trim().length < 2) return [];
+  const safe = term.replace(/["\n\r\\]/g, ' ').trim();
+  const data = await gql(`
+    query {
+      boards(ids: ["${BOARDS.OPPORTUNITIES}"]) {
+        items_page(limit: 20, query_params: {
+          rules: [{ column_id: "color_mkxerb02", compare_value: ["UK"], operator: any_of }],
+          search_value: "${safe}"
+        }) {
+          items { id name }
+        }
+      }
+    }
+  `);
+  return data.boards[0]?.items_page?.items ?? [];
+}
+
 // ── Prospects (server-side filtered by person, then paginated) ────
 // userId null = no person filter (all prospects — use with caution on 7k board)
 const PROSPECT_FIELDS = `
@@ -570,6 +589,9 @@ function buildEventColumnValues(form) {
   cv['text_mm5gj1xb'] = form.standCost   ?? '';
   if (form.sector)   cv['dropdown_mm5g237s'] = { labels: [form.sector] };
   if (form.website)  cv['link_mm5gn10g']    = { url: form.website, text: form.website };
+  if (form.linkedOpportunityIds?.length) {
+    cv['board_relation_mm5hvv3n'] = { item_ids: form.linkedOpportunityIds.map(Number) };
+  }
   return cv;
 }
 

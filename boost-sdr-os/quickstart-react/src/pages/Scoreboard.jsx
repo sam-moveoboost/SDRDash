@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { fetchTeamRegister, fetchQualifiedMeetings, fetchAircallCalls, fetchOpportunities, fetchNewProspects } from '../api/monday';
+import React, { useEffect, useState, useMemo } from 'react';
+import { fetchTeamRegister, fetchQualifiedMeetings, fetchAircallCalls, fetchOpportunities, fetchNewProspects, fetchEvents, fetchWorkspaceUsers } from '../api/monday';
 import Leaderboard from '../components/scoreboard/Leaderboard';
 import MiniLeaderboard from '../components/scoreboard/MiniLeaderboard';
 import ActivityTracker from '../components/scoreboard/ActivityTracker';
@@ -7,6 +7,9 @@ import RepCallPanel from '../components/scoreboard/RepCallPanel';
 import StaleDealsModal from '../components/scoreboard/StaleDealsModal';
 import StatCard from '../components/shared/StatCard';
 import ProgressBar from '../components/shared/ProgressBar';
+import EventLeaderboard from '../components/events/EventLeaderboard';
+
+const LEADERBOARD_YEAR_OPTIONS = [2025, 2026, 2027, 2028];
 
 // ── Per-rep data helpers (ID-based matching) ───────────────────────
 
@@ -73,6 +76,12 @@ export default function Scoreboard({ region, month }) {
   const [selectedRep, setSelectedRep] = useState(null);
   const [showStaleModal, setShowStaleModal] = useState(false);
 
+  // Events leaderboard (independent — loads once, not tied to region/month)
+  const [loadingEvents, setLoadingEvents] = useState(true);
+  const [allEvents, setAllEvents]         = useState([]);
+  const [eventUserMap, setEventUserMap]   = useState({});
+  const [leaderboardYear, setLeaderboardYear] = useState(new Date().getFullYear());
+
   useEffect(() => {
     setLoadingPrimary(true);
     setLoadingSecondary(true);
@@ -109,6 +118,18 @@ export default function Scoreboard({ region, month }) {
     }
     load();
   }, [region, month, activityPeriod]);
+
+  useEffect(() => {
+    Promise.all([fetchEvents(), fetchWorkspaceUsers()])
+      .then(([evts, users]) => {
+        setAllEvents(evts);
+        const map = {};
+        users.forEach(u => { map[String(u.id)] = u; });
+        setEventUserMap(map);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingEvents(false));
+  }, []);
 
   if (error) return (
     <div className="max-w-5xl mx-auto px-7 py-10 text-red">
@@ -244,6 +265,36 @@ export default function Scoreboard({ region, month }) {
           <span className="h-px flex-1 bg-line" />
         </div>
         <ActivityTracker team={team} calls={calls} newProspects={newProspects} loading={loadingSecondary} period={activityPeriod} region={region} onRepClick={rep => setSelectedRep(rep)} />
+
+        {/* Attendance Leaderboard */}
+        <div className="mt-10 mb-3.5 flex items-center gap-2.5">
+          <span className="font-display text-[13px] font-semibold tracking-[.04em] uppercase text-muted">
+            Attendance Leaderboard · {leaderboardYear}
+            {leaderboardYear === 2026 && <span className="text-[11px] normal-case font-normal ml-1"> (from 1 Sep)</span>}
+          </span>
+          <div className="flex items-center gap-1 ml-auto">
+            <select
+              value={leaderboardYear}
+              onChange={e => setLeaderboardYear(Number(e.target.value))}
+              className="bg-canvas border border-line rounded-lg px-2.5 py-1 text-[12px] font-semibold cursor-pointer outline-none focus:border-teal transition-colors"
+            >
+              {LEADERBOARD_YEAR_OPTIONS.map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+          <span className="h-px flex-1 bg-line" />
+        </div>
+        {loadingEvents
+          ? <div className="bg-card border border-line rounded-2xl h-48 animate-pulse" />
+          : <EventLeaderboard
+              events={allEvents.filter(e => {
+                const start = leaderboardYear === 2026 ? `${leaderboardYear}-09-01` : `${leaderboardYear}-01-01`;
+                const end   = `${leaderboardYear}-12-31`;
+                return e.startDate && e.startDate >= start && e.startDate <= end;
+              })}
+              userMap={eventUserMap}
+              year={leaderboardYear}
+            />
+        }
 
       </div>
       {selectedRep && (

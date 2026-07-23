@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { fetchEvents, fetchWorkspaceUsers } from '../api/monday';
 import EventCalendar from '../components/events/EventCalendar';
-import EventLeaderboard from '../components/events/EventLeaderboard';
 import EventModal from '../components/events/EventModal';
 import EventInsights from '../components/events/EventInsights';
 import ProgressBar from '../components/shared/ProgressBar';
@@ -140,15 +139,6 @@ export default function Events() {
           : <div className="mb-8"><EventInsights events={leaderboardEvents} userMap={userMap} /></div>
         }
 
-        {/* Attendance Leaderboard — filtered by selected year */}
-        <div className="font-display text-[13px] font-semibold tracking-[.04em] uppercase text-muted mb-3.5 flex items-center gap-2.5 after:content-[''] after:flex-1 after:h-px after:bg-line">
-          Attendance Leaderboard · {year}
-          {year === 2026 && <span className="text-[11px] normal-case font-normal ml-1">(from 1 Sep)</span>}
-        </div>
-        {loading
-          ? <div className="bg-card border border-line rounded-2xl h-48 animate-pulse" />
-          : <EventLeaderboard events={leaderboardEvents} userMap={userMap} year={year} />
-        }
 
       </div>
 

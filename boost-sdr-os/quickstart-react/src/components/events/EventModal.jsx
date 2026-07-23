@@ -1,21 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { createEvent, updateEvent } from '../../api/monday';
+import { createEvent, updateEvent, fetchItemNames, searchUKOpportunities } from '../../api/monday';
 
 const ATTEND_HOST_OPTIONS  = ['Rec: Attend', 'Rec: Host', 'Decided: Attending', 'Decided: Hosting', 'Not Going'];
 const EVENT_TYPE_OPTIONS   = ['All Day Conference', 'Short Conference', 'In Person Networking', 'Online Networking', 'Other'];
-const BOOKING_STATUS_OPTIONS = ['To Review', 'Enquiry Sent', 'Booked', 'Skipping'];
+const BOOKING_STATUS_OPTIONS = ['Not Started', 'Contacted', 'On the Radar', 'Booked', 'Cancelled'];
 const SCALE_OPTIONS        = ['National', 'Local'];
-const SECTOR_OPTIONS       = [
-  'General Business', 'Construction', 'Retrofit', 'Events Organisers',
-  'Real Estate', 'Manufacturing/Engineering', 'Technology', 'Packaging',
-  'Renewable Energy', 'Facilities Management',
-];
+const SECTOR_OPTIONS       = ['Technology', 'Finance', 'Healthcare', 'Manufacturing', 'Retail', 'Other'];
 
-function field(form, key) { return form[key] ?? ''; }
-function set(setForm, key) { return e => setForm(f => ({ ...f, [key]: e.target.value })); }
-
+// ── Small helpers ─────────────────────────────────────────────────
 function Label({ children }) {
-  return <label className="block text-[11.5px] font-semibold text-muted uppercase tracking-wide mb-1">{children}</label>;
+  return <label className="block text-[11.5px] font-semibold text-muted uppercase tracking-wide mb-1.5">{children}</label>;
+}
+function set(setForm, key) {
+  return e => setForm(f => ({ ...f, [key]: e.target.value }));
 }
 function Input({ value, onChange, placeholder, type = 'text' }) {
   return (
@@ -75,7 +72,6 @@ function PeoplePicker({ attendeeIds, onChange, users }) {
 
   return (
     <div>
-      {/* Current attendees as chips */}
       {attendeeIds.length > 0 && (
         <div className="flex flex-wrap gap-1.5 mb-2">
           {attendeeIds.map(id => {
@@ -98,7 +94,6 @@ function PeoplePicker({ attendeeIds, onChange, users }) {
         </div>
       )}
 
-      {/* Search input */}
       <div className="relative" ref={dropRef}>
         <input
           ref={inputRef}
@@ -134,6 +129,97 @@ function PeoplePicker({ attendeeIds, onChange, users }) {
   );
 }
 
+// ── Opportunity search ────────────────────────────────────────────
+function OppSearch({ selectedOpps, onChange }) {
+  const [query, setQuery]     = useState('');
+  const [results, setResults] = useState([]);
+  const [open, setOpen]       = useState(false);
+  const [loading, setLoading] = useState(false);
+  const inputRef = useRef(null);
+  const dropRef  = useRef(null);
+
+  useEffect(() => {
+    function handleClick(e) {
+      if (!dropRef.current?.contains(e.target) && !inputRef.current?.contains(e.target)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  useEffect(() => {
+    if (query.trim().length < 2) { setResults([]); return; }
+    const timer = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const items = await searchUKOpportunities(query.trim());
+        setResults(items.filter(r => !selectedOpps.some(o => o.id === r.id)));
+      } catch {}
+      setLoading(false);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [query, selectedOpps]);
+
+  function add(opp) {
+    onChange([...selectedOpps, { id: opp.id, name: opp.name }]);
+    setQuery('');
+    setResults([]);
+    inputRef.current?.focus();
+  }
+  function remove(id) { onChange(selectedOpps.filter(o => o.id !== id)); }
+
+  return (
+    <div>
+      {selectedOpps.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {selectedOpps.map(opp => (
+            <span
+              key={opp.id}
+              className="flex items-center gap-1.5 px-2.5 py-1 bg-[#579bfc]/10 border border-[#579bfc]/20 rounded-full text-[12px] font-semibold text-[#1a4bc4]"
+            >
+              {opp.name}
+              <button onClick={() => remove(opp.id)} className="ml-0.5 text-muted hover:text-red transition-colors leading-none">&times;</button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="relative" ref={dropRef}>
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onFocus={() => query.trim().length >= 2 && setOpen(true)}
+          onChange={e => { setQuery(e.target.value); setOpen(true); }}
+          placeholder="Search UK opportunities…"
+          className="w-full px-3 py-2 bg-canvas border border-line rounded-lg text-[13.5px] outline-none focus:border-teal transition-colors"
+        />
+
+        {open && query.trim().length >= 2 && (
+          <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-card border border-line rounded-xl shadow-lg max-h-48 overflow-y-auto">
+            {loading && (
+              <div className="px-3 py-2.5 text-muted text-[12.5px]">Searching…</div>
+            )}
+            {!loading && results.length === 0 && (
+              <div className="px-3 py-2.5 text-muted text-[12.5px]">No UK opportunities found</div>
+            )}
+            {results.map(r => (
+              <button
+                key={r.id}
+                onMouseDown={e => { e.preventDefault(); add(r); setOpen(false); }}
+                className="w-full px-3 py-2.5 hover:bg-[#F0EBE2] text-left transition-colors text-[13px] font-medium text-ink"
+              >
+                {r.name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main modal ───────────────────────────────────────────────────
 export default function EventModal({ event, users, onSave, onClose }) {
   const isEdit = Boolean(event);
@@ -154,20 +240,28 @@ export default function EventModal({ event, users, onSave, onClose }) {
     attendeeIds:   event?.attendeeIds    ?? [],
   });
 
+  const [selectedOpps, setSelectedOpps] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState(null);
+
+  // Load existing linked opportunity names when editing
+  useEffect(() => {
+    if (event?.linkedOpportunityIds?.length) {
+      fetchItemNames(event.linkedOpportunityIds)
+        .then(items => setSelectedOpps(items.map(i => ({ id: i.id, name: i.name }))))
+        .catch(() => {});
+    }
+  }, []);
 
   async function handleSave() {
     if (!form.name.trim()) { setError('Event name is required.'); return; }
     setSaving(true);
     setError(null);
     try {
-      let saved;
-      if (isEdit) {
-        saved = await updateEvent(event.id, form);
-      } else {
-        saved = await createEvent(form);
-      }
+      const formWithOpps = { ...form, linkedOpportunityIds: selectedOpps.map(o => o.id) };
+      const saved = isEdit
+        ? await updateEvent(event.id, formWithOpps)
+        : await createEvent(formWithOpps);
       onSave(saved);
     } catch (err) {
       setError(err.message || 'Save failed. Please try again.');
@@ -175,7 +269,6 @@ export default function EventModal({ event, users, onSave, onClose }) {
     }
   }
 
-  // Close on backdrop click
   function handleBackdrop(e) { if (e.target === e.currentTarget) onClose(); }
 
   return (
@@ -200,13 +293,11 @@ export default function EventModal({ event, users, onSave, onClose }) {
         {/* Scrollable form body */}
         <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
 
-          {/* Event name */}
           <div>
             <Label>Event Name *</Label>
             <Input value={form.name} onChange={set(setForm, 'name')} placeholder="e.g. Manchester Tech Summit" />
           </div>
 
-          {/* Dates */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Start Date</Label>
@@ -218,7 +309,6 @@ export default function EventModal({ event, users, onSave, onClose }) {
             </div>
           </div>
 
-          {/* Location + Scale */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Location</Label>
@@ -230,7 +320,6 @@ export default function EventModal({ event, users, onSave, onClose }) {
             </div>
           </div>
 
-          {/* Event Type + Attend or Host */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Event Type</Label>
@@ -242,7 +331,6 @@ export default function EventModal({ event, users, onSave, onClose }) {
             </div>
           </div>
 
-          {/* Booking Status + Sector */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Booking Status</Label>
@@ -254,7 +342,6 @@ export default function EventModal({ event, users, onSave, onClose }) {
             </div>
           </div>
 
-          {/* Visitor Cost + Stand Cost */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Visitor Cost</Label>
@@ -266,13 +353,11 @@ export default function EventModal({ event, users, onSave, onClose }) {
             </div>
           </div>
 
-          {/* Website */}
           <div>
             <Label>Website</Label>
             <Input value={form.website} onChange={set(setForm, 'website')} placeholder="https://…" />
           </div>
 
-          {/* Attendees */}
           <div>
             <Label>Attendees</Label>
             <PeoplePicker
@@ -280,6 +365,11 @@ export default function EventModal({ event, users, onSave, onClose }) {
               onChange={ids => setForm(f => ({ ...f, attendeeIds: ids }))}
               users={users}
             />
+          </div>
+
+          <div>
+            <Label>Linked UK Opportunities</Label>
+            <OppSearch selectedOpps={selectedOpps} onChange={setSelectedOpps} />
           </div>
 
           {error && (
