@@ -607,6 +607,15 @@ export async function fetchEvents() {
   return (data.boards[0]?.items_page?.items ?? []).map(parseEventItem);
 }
 
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function sortableMonthLabel(dateStr) {
+  if (!dateStr) return null;
+  const [y, m] = dateStr.split('-').map(Number);
+  if (!y || !m) return null;
+  return `${y} ${String(m).padStart(2, '0')} ${MONTH_NAMES[m - 1]}`;
+}
+
 function buildEventColumnValues(form) {
   const cv = {};
   if (form.startDate && form.endDate) {
@@ -614,6 +623,8 @@ function buildEventColumnValues(form) {
   } else if (form.startDate) {
     cv['timerange_mm5hahhc'] = { from: form.startDate, to: form.startDate };
   }
+  const monthLabel = sortableMonthLabel(form.startDate);
+  if (monthLabel) cv['dropdown_mm5h62kd'] = { labels: [monthLabel] };
   if (form.attendeeIds?.length) {
     cv['multiple_person_mm5hnbf2'] = {
       personsAndTeams: form.attendeeIds.map(id => ({ id: parseInt(id, 10), kind: 'person' })),
