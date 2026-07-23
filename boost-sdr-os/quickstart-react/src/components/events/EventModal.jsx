@@ -1,11 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { createEvent, updateEvent, fetchItemNames, searchUKOpportunities } from '../../api/monday';
+import { createEvent, updateEvent, fetchItemNames, searchUKOpportunities, fetchEventColumnOptions } from '../../api/monday';
 
-const ATTEND_HOST_OPTIONS  = ['Rec: Attend', 'Rec: Host', 'Decided: Attending', 'Decided: Hosting', 'Not Going'];
-const EVENT_TYPE_OPTIONS   = ['All Day Conference', 'Short Conference', 'In Person Networking', 'Online Networking', 'Other'];
-const BOOKING_STATUS_OPTIONS = ['Not Started', 'Contacted', 'On the Radar', 'Booked', 'Cancelled'];
-const SCALE_OPTIONS        = ['National', 'Local'];
-const SECTOR_OPTIONS       = ['Technology', 'Finance', 'Healthcare', 'Manufacturing', 'Retail', 'Other'];
+const ATTEND_HOST_OPTIONS = ['Rec: Attend', 'Rec: Host', 'Decided: Attending', 'Decided: Hosting', 'Not Going'];
+const EVENT_TYPE_OPTIONS  = ['All Day Conference', 'Short Conference', 'In Person Networking', 'Online Networking', 'Other'];
+const SCALE_OPTIONS       = ['National', 'Local'];
 
 // ── Small helpers ─────────────────────────────────────────────────
 function Label({ children }) {
@@ -35,6 +33,25 @@ function Select({ value, onChange, options, placeholder = '— select —' }) {
       <option value="">{placeholder}</option>
       {options.map(o => <option key={o} value={o}>{o}</option>)}
     </select>
+  );
+}
+// Free-text input with dropdown suggestions — allows values not in the list
+function ComboInput({ value, onChange, options, placeholder, listId }) {
+  return (
+    <>
+      <input
+        type="text"
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        list={listId}
+        autoComplete="off"
+        className="w-full px-3 py-2 bg-canvas border border-line rounded-lg text-[13.5px] outline-none focus:border-teal transition-colors"
+      />
+      <datalist id={listId}>
+        {options.map(o => <option key={o} value={o} />)}
+      </datalist>
+    </>
   );
 }
 
@@ -240,17 +257,24 @@ export default function EventModal({ event, users, onSave, onClose }) {
     attendeeIds:   event?.attendeeIds    ?? [],
   });
 
-  const [selectedOpps, setSelectedOpps] = useState([]);
+  const [selectedOpps, setSelectedOpps]     = useState([]);
+  const [sectorOptions, setSectorOptions]   = useState([]);
+  const [bookingOptions, setBookingOptions] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState(null);
 
-  // Load existing linked opportunity names when editing
   useEffect(() => {
+    // Load existing linked opportunity names when editing
     if (event?.linkedOpportunityIds?.length) {
       fetchItemNames(event.linkedOpportunityIds)
         .then(items => setSelectedOpps(items.map(i => ({ id: i.id, name: i.name }))))
         .catch(() => {});
     }
+    // Fetch live column options from Monday
+    fetchEventColumnOptions('dropdown_mm5g237s')
+      .then(setSectorOptions).catch(() => {});
+    fetchEventColumnOptions('color_mm5g6xz0')
+      .then(setBookingOptions).catch(() => {});
   }, []);
 
   async function handleSave() {
@@ -334,11 +358,17 @@ export default function EventModal({ event, users, onSave, onClose }) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Booking Status</Label>
-              <Select value={form.bookingStatus} onChange={set(setForm, 'bookingStatus')} options={BOOKING_STATUS_OPTIONS} />
+              <Select value={form.bookingStatus} onChange={set(setForm, 'bookingStatus')} options={bookingOptions} />
             </div>
             <div>
               <Label>Sector</Label>
-              <Select value={form.sector} onChange={set(setForm, 'sector')} options={SECTOR_OPTIONS} />
+              <ComboInput
+                value={form.sector}
+                onChange={set(setForm, 'sector')}
+                options={sectorOptions}
+                placeholder="Select or type a sector…"
+                listId="modal-sector-options"
+              />
             </div>
           </div>
 

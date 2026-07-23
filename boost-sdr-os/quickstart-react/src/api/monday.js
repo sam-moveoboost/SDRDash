@@ -375,22 +375,54 @@ export async function fetchWorkspaceUsers() {
 }
 
 // ── UK opportunity search (for event linking) ─────────────────────
+// search_value filters by item name; region filtered client-side to avoid
+// status-index ambiguity in server-side rules for color columns.
 export async function searchUKOpportunities(term) {
   if (!term || term.trim().length < 2) return [];
   const safe = term.replace(/["\n\r\\]/g, ' ').trim();
   const data = await gql(`
     query {
       boards(ids: ["${BOARDS.OPPORTUNITIES}"]) {
-        items_page(limit: 20, query_params: {
-          rules: [{ column_id: "color_mkxerb02", compare_value: ["UK"], operator: any_of }],
-          search_value: "${safe}"
-        }) {
-          items { id name }
+        items_page(limit: 50, query_params: { search_value: "${safe}" }) {
+          items {
+            id name
+            column_values(ids: ["color_mkxerb02"]) { id text }
+          }
         }
       }
     }
   `);
-  return data.boards[0]?.items_page?.items ?? [];
+  return (data.boards[0]?.items_page?.items ?? []).filter(item => {
+    const region = item.column_values?.find(c => c.id === 'color_mkxerb02')?.text;
+    return region === 'UK';
+  });
+}
+
+// ── Event board column options ─────────────────────────────────────
+// Works for both status columns (labels is a numeric-keyed object of strings)
+// and dropdown columns (labels is an array of {id, name} objects).
+export async function fetchEventColumnOptions(columnId) {
+  const data = await gql(`
+    query {
+      boards(ids: ["${BOARDS.EVENTS}"]) {
+        columns(ids: ["${columnId}"]) { settings_str }
+      }
+    }
+  `);
+  const settingsStr = data.boards[0]?.columns?.[0]?.settings_str;
+  if (!settingsStr) return [];
+  try {
+    const s = JSON.parse(settingsStr);
+    // Dropdown: labels is an array of {id, name}
+    if (Array.isArray(s.labels)) {
+      return s.labels.map(l => l.name).filter(Boolean);
+    }
+    // Status/color: labels is a numeric-keyed object of label strings
+    if (s.labels && typeof s.labels === 'object') {
+      return Object.values(s.labels).filter(l => l && typeof l === 'string' && l.trim());
+    }
+  } catch {}
+  return [];
 }
 
 // ── Prospects (server-side filtered by person, then paginated) ────
