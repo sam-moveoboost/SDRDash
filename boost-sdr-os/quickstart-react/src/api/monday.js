@@ -542,6 +542,8 @@ export async function updateOpportunityColumn(itemId, columnId, value, fieldKey,
 }
 
 // ── Events board ──────────────────────────────────────────────────
+// Used by mutations — board_relation excluded because change_multiple_column_values
+// returns it as null. Fetch queries use linked_items instead (see fetchEvents).
 const EVENT_FIELDS = `
   id name
   column_values(ids: [
@@ -555,8 +557,7 @@ const EVENT_FIELDS = `
     "dropdown_mm5g237s",
     "text_mm5gf376",
     "text_mm5gj1xb",
-    "link_mm5gn10g",
-    "board_relation_mm5hvv3n"
+    "link_mm5gn10g"
   ]) { id text value }
 `;
 
@@ -567,7 +568,6 @@ function parseEventItem(item) {
   const range  = json('timerange_mm5hahhc');
   const people = json('multiple_person_mm5hnbf2');
   const link   = json('link_mm5gn10g');
-  const rel    = json('board_relation_mm5hvv3n');
   return {
     id:                   item.id,
     name:                 item.name,
@@ -583,9 +583,8 @@ function parseEventItem(item) {
     standCost:            text('text_mm5gj1xb'),
     website:              link?.url ?? text('link_mm5gn10g'),
     attendeeIds:          (people?.personsAndTeams ?? []).map(p => String(p.id)),
-    linkedOpportunityIds: (rel?.linkedPulseIds ?? [])
-      .map(p => String(typeof p === 'object' ? p.linkedPulseId : p))
-      .filter(Boolean),
+    // linked_items is populated by fetchEvents; mutations use optimistic update
+    linkedOpportunityIds: (item.linked_items ?? []).map(li => li.id),
   };
 }
 
@@ -594,7 +593,13 @@ export async function fetchEvents() {
     query {
       boards(ids: ["${BOARDS.EVENTS}"]) {
         items_page(limit: 500) {
-          items { ${EVENT_FIELDS} }
+          items {
+            ${EVENT_FIELDS}
+            linked_items(
+              link_to_item_column_id: "board_relation_mm5hvv3n",
+              linked_board_id: ${BOARDS.OPPORTUNITIES}
+            ) { id name }
+          }
         }
       }
     }
