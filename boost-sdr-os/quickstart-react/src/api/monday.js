@@ -73,6 +73,7 @@ export const BOARDS = {
   AIRCALL:       '5092898618',
   TEAM_REGISTER: '5098805673',
   ARCHIVE:       '5098805642',
+  EVENTS:        '5100871165',
 };
 
 // Fetch first page only — pagination added once basic queries confirmed working
@@ -189,7 +190,7 @@ export async function fetchQualifiedMeetings({ region, month }) {
 
   const LEAD_FIELDS = `
     id name updated_at
-    column_values(ids: ["lead_status", "multiple_person_mm2bjm2z", "date_mm4wkg8g", "color_mkz4y1yv"]) {
+    column_values(ids: ["lead_status", "multiple_person_mm2bjm2z", "date_mm4wkg8g", "color_mkz4y1yv", "color_mkxeqbfx"]) {
       id text value
     }
   `;
@@ -223,9 +224,12 @@ export async function fetchQualifiedMeetings({ region, month }) {
     pages++;
   }
 
+  const EXCLUDED_CHANNELS = new Set(['monday.com Channel', 'monday.com Sales', 'monday.com PS']);
+
   return allItems.filter(item => {
     const status = colText(item, 'lead_status');
     if (status !== 'Qualified/SQL' && status !== 'Qualified') return false;
+    if (EXCLUDED_CHANNELS.has(colText(item, 'color_mkxeqbfx'))) return false;
     if (region && region !== 'All') {
       if (colText(item, 'color_mkz4y1yv') !== region) return false;
     }
@@ -480,6 +484,119 @@ export async function updateOpportunityColumn(itemId, columnId, value, fieldKey,
     }
   `);
   return data.change_column_value;
+}
+
+// ── Events board ──────────────────────────────────────────────────
+const EVENT_FIELDS = `
+  id name
+  column_values(ids: [
+    "timerange_mm5hahhc",
+    "multiple_person_mm5hnbf2",
+    "color_mm5g1ye5",
+    "color_mm5hm4ye",
+    "color_mm5g6xz0",
+    "color_mm5h7kxk",
+    "text_mm5gwa0a",
+    "dropdown_mm5g237s",
+    "text_mm5gf376",
+    "text_mm5gj1xb",
+    "link_mm5gn10g"
+  ]) { id text value }
+`;
+
+function parseEventItem(item) {
+  const col  = id => item.column_values?.find(c => c.id === id);
+  const text = id => col(id)?.text ?? '';
+  const json = id => { try { return JSON.parse(col(id)?.value || 'null'); } catch { return null; } };
+  const range  = json('timerange_mm5hahhc');
+  const people = json('multiple_person_mm5hnbf2');
+  const link   = json('link_mm5gn10g');
+  return {
+    id:                item.id,
+    name:              item.name,
+    startDate:         range?.from ?? null,
+    endDate:           range?.to   ?? null,
+    location:          text('text_mm5gwa0a'),
+    attendOrHostText:  text('color_mm5g1ye5'),
+    eventTypeText:     text('color_mm5hm4ye'),
+    bookingStatusText: text('color_mm5g6xz0'),
+    scaleText:         text('color_mm5h7kxk'),
+    sector:            text('dropdown_mm5g237s'),
+    visitorCost:       text('text_mm5gf376'),
+    standCost:         text('text_mm5gj1xb'),
+    website:           link?.url ?? text('link_mm5gn10g'),
+    attendeeIds:       (people?.personsAndTeams ?? []).map(p => String(p.id)),
+  };
+}
+
+export async function fetchEvents() {
+  const data = await gql(`
+    query {
+      boards(ids: ["${BOARDS.EVENTS}"]) {
+        items_page(limit: 500) {
+          items { ${EVENT_FIELDS} }
+        }
+      }
+    }
+  `);
+  return (data.boards[0]?.items_page?.items ?? []).map(parseEventItem);
+}
+
+function buildEventColumnValues(form) {
+  const cv = {};
+  if (form.startDate && form.endDate) {
+    cv['timerange_mm5hahhc'] = { from: form.startDate, to: form.endDate };
+  } else if (form.startDate) {
+    cv['timerange_mm5hahhc'] = { from: form.startDate, to: form.startDate };
+  }
+  if (form.attendeeIds?.length) {
+    cv['multiple_person_mm5hnbf2'] = {
+      personsAndTeams: form.attendeeIds.map(id => ({ id: parseInt(id, 10), kind: 'person' })),
+    };
+  } else {
+    cv['multiple_person_mm5hnbf2'] = { personsAndTeams: [] };
+  }
+  if (form.attendOrHost)  cv['color_mm5g1ye5']   = { label: form.attendOrHost };
+  if (form.eventType)     cv['color_mm5hm4ye']   = { label: form.eventType };
+  if (form.bookingStatus) cv['color_mm5g6xz0']   = { label: form.bookingStatus };
+  if (form.scale)         cv['color_mm5h7kxk']   = { label: form.scale };
+  cv['text_mm5gwa0a'] = form.location  ?? '';
+  cv['text_mm5gf376'] = form.visitorCost ?? '';
+  cv['text_mm5gj1xb'] = form.standCost   ?? '';
+  if (form.sector)   cv['dropdown_mm5g237s'] = { labels: [form.sector] };
+  if (form.website)  cv['link_mm5gn10g']    = { url: form.website, text: form.website };
+  return cv;
+}
+
+export async function createEvent(form) {
+  const cvJson = JSON.stringify(JSON.stringify(buildEventColumnValues(form)));
+  const data = await gql(`
+    mutation {
+      create_item(
+        board_id: ${BOARDS.EVENTS},
+        group_id: "group_mm5ghera",
+        item_name: ${JSON.stringify(form.name)},
+        column_values: ${cvJson}
+      ) { ${EVENT_FIELDS} }
+    }
+  `);
+  return parseEventItem(data.create_item);
+}
+
+export async function updateEvent(itemId, form) {
+  // name is included in column_values for updates — Monday API supports "name" as a column key
+  const cv = { name: form.name, ...buildEventColumnValues(form) };
+  const cvJson = JSON.stringify(JSON.stringify(cv));
+  const data = await gql(`
+    mutation {
+      change_multiple_column_values(
+        board_id: ${BOARDS.EVENTS},
+        item_id: ${itemId},
+        column_values: ${cvJson}
+      ) { ${EVENT_FIELDS} }
+    }
+  `);
+  return { ...parseEventItem(data.change_multiple_column_values), name: form.name };
 }
 
 // ── Mutations ─────────────────────────────────────────────────────

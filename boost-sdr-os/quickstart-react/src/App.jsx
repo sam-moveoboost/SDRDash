@@ -3,6 +3,7 @@ import mondaySdk from 'monday-sdk-js';
 import { fetchCurrentUser } from './api/monday';
 import Scoreboard from './pages/Scoreboard';
 import Workflow from './pages/Workflow';
+import Events from './pages/Events';
 import './App.css';
 
 const monday = mondaySdk();
@@ -57,6 +58,7 @@ export default function App() {
           {[
             { id: 'scoreboard', label: 'Scoreboard' },
             { id: 'workflow',   label: 'My Work' },
+            { id: 'events',     label: 'Events' },
           ].map(t => (
             <button
               key={t.id}
@@ -118,6 +120,7 @@ export default function App() {
       <main>
         {tab === 'scoreboard' && <Scoreboard region={region} month={month} />}
         {tab === 'workflow'   && <Workflow   region={region} user={user} />}
+        {tab === 'events'     && <Events />}
       </main>
     </div>
   );
