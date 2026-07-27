@@ -224,11 +224,12 @@ export async function fetchQualifiedMeetings({ region, month }) {
     pages++;
   }
 
+  const QUALIFYING_STATUSES = ['Qualified Opportunity', 'Qualifed Lead No Opp'];
   const EXCLUDED_CHANNELS = new Set(['monday.com Channel', 'monday.com Sales', 'monday.com PS']);
 
   return allItems.filter(item => {
     const status = colText(item, 'lead_status');
-    if (status !== 'Qualified/SQL' && status !== 'Qualified') return false;
+    if (!QUALIFYING_STATUSES.includes(status)) return false;
     if (EXCLUDED_CHANNELS.has(colText(item, 'color_mkxeqbfx'))) return false;
     if (region && region !== 'All') {
       if (colText(item, 'color_mkz4y1yv') !== region) return false;
