@@ -43,9 +43,13 @@ async function mondayFetch(query) {
 // HTTP fetches is the main reason the Scoreboard was slow (~30 s instead of ~8 s).
 let _apiQueue = Promise.resolve();
 
-export function gql(query) {
+export function gql(query, { forceBridge = false } = {}) {
   // Direct fetch (HTTP) → fire immediately, no queue needed.
-  if (DIRECT_TOKEN) return mondayFetch(query);
+  // forceBridge skips this even when DIRECT_TOKEN is set — required for anything
+  // that must reflect the actual embedded viewer (e.g. "who am I"), since the
+  // direct token always resolves to whichever person's personal token it is,
+  // not whoever currently has the app open.
+  if (DIRECT_TOKEN && !forceBridge) return mondayFetch(query);
 
   // SDK postMessage bridge → must serialise.
   const call = () => monday.api(query).then(res => {
@@ -99,8 +103,10 @@ function colText(item, id) {
 }
 
 // ── Current user ──────────────────────────────────────────────────
+// Always goes through the SDK bridge (forceBridge) — this must reflect whoever
+// currently has the app open, not the fixed identity behind DIRECT_TOKEN.
 export async function fetchCurrentUser() {
-  const data = await gql(`query { me { id name email photo_thumb account { slug } } }`);
+  const data = await gql(`query { me { id name email photo_thumb account { slug } } }`, { forceBridge: true });
   return data.me;
 }
 
@@ -724,9 +730,12 @@ export const fetchProspectsByOwner = fetchProspects;
 // Fetches only the columns needed for display and person-matching so
 // we don't pull every column's full JSON blob for 1,000+ lead items.
 export async function fetchAllLeads() {
+  // lead_owner (Bizdev) and multiple_person_mm2bjm2z (SDR) are the two people
+  // columns on this board — both are fetched so "My Work" assignment matching
+  // (isAssignedToUser) can check either, not just the SDR column.
   const FIELDS = `
     id name updated_at
-    column_values(ids: ["lead_status", "color_mkz4y1yv", "multiple_person_mm2bjm2z"]) { id text value }
+    column_values(ids: ["lead_status", "color_mkz4y1yv", "multiple_person_mm2bjm2z", "lead_owner"]) { id text value }
   `;
 
   const first = await gql(`

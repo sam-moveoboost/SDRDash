@@ -4,6 +4,7 @@ import { fetchCurrentUser } from './api/monday';
 import Scoreboard from './pages/Scoreboard';
 import Workflow from './pages/Workflow';
 import Events from './pages/Events';
+import OpportunityScoreboard from './pages/OpportunityScoreboard';
 import './App.css';
 
 const monday = mondaySdk();
@@ -56,9 +57,10 @@ export default function App() {
 
         <nav className="flex gap-1 ml-2">
           {[
-            { id: 'scoreboard', label: 'Scoreboard' },
-            { id: 'workflow',   label: 'My Work' },
-            { id: 'events',     label: 'Events' },
+            { id: 'scoreboard',    label: 'Scoreboard' },
+            { id: 'workflow',      label: 'My Work' },
+            { id: 'opportunities', label: 'Pipeline' },
+            { id: 'events',        label: 'Events' },
           ].map(t => (
             <button
               key={t.id}
@@ -118,9 +120,10 @@ export default function App() {
 
       {/* Page content */}
       <main>
-        {tab === 'scoreboard' && <Scoreboard region={region} month={month} />}
-        {tab === 'workflow'   && <Workflow   region={region} user={user} />}
-        {tab === 'events'     && <Events />}
+        {tab === 'scoreboard'    && <Scoreboard region={region} month={month} />}
+        {tab === 'workflow'      && <Workflow   region={region} user={user} />}
+        {tab === 'opportunities' && <OpportunityScoreboard region={region} />}
+        {tab === 'events'        && <Events />}
       </main>
     </div>
   );
