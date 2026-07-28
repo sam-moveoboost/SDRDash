@@ -3,7 +3,7 @@ import { fetchOpportunities } from '../api/monday';
 import ProgressBar from '../components/shared/ProgressBar';
 import {
   parseOpportunity, quarterOf, quarterLabel, inQuarter, inYear,
-  groupBy, monthlyTrend, periodStats, formatMoney, formatByCurrency,
+  groupBy, monthlyTrend, periodStats, formatMoney, formatByCurrency, sumByCurrency,
 } from '../utils/opportunityMetrics';
 
 const PALETTE = ['#192D3F', '#8DC63A', '#E29A2E', '#579bfc', '#9d50dd', '#E0544A', '#4eccc6', '#254154', '#df2f4a', '#00c875'];
@@ -21,6 +21,31 @@ function MiniStat({ label, value, sub }) {
   );
 }
 
+function TotalPipelineBanner({ count, valueByCurrency, missingCloseDateCount }) {
+  return (
+    <div className="rounded-2xl bg-gradient-to-br from-teal to-teal-mid text-white p-6 mb-6 shadow-sm">
+      <div className="flex items-center justify-between flex-wrap gap-6">
+        <div>
+          <div className="text-white/70 text-[11px] font-semibold uppercase tracking-wide mb-1.5">
+            Total Current Pipeline
+          </div>
+          <div className="font-display font-bold text-[36px] leading-none">
+            {formatByCurrency(valueByCurrency)}
+          </div>
+          <div className="text-white/75 text-[13px] mt-2">
+            {count} open opportunit{count === 1 ? 'y' : 'ies'} — every deal not yet Won or Lost, regardless of timing
+          </div>
+        </div>
+        {missingCloseDateCount > 0 && (
+          <div className="text-white/70 text-[12px] max-w-[220px] text-right">
+            {missingCloseDateCount} of these have no Expected Close Date set, so they're excluded from the quarter/year timing stats below.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function PeriodCard({ title, stats }) {
   const winRateText = stats.winRate === null ? '—' : `${stats.winRate.toFixed(0)}%`;
   return (
@@ -28,7 +53,7 @@ function PeriodCard({ title, stats }) {
       <div className="font-display font-bold text-[16px] mb-5">{title}</div>
       <div className="grid grid-cols-2 gap-x-6 gap-y-5">
         <MiniStat
-          label="Open Pipeline"
+          label="Expected to Close"
           value={formatByCurrency(stats.openValueByCurrency)}
           sub={`${stats.openCount} opportunit${stats.openCount === 1 ? 'y' : 'ies'}`}
         />
@@ -200,6 +225,8 @@ export default function OpportunityScoreboard({ region }) {
   const trend = useMemo(() => monthlyTrend(opps, year), [opps, year]);
 
   const openOpps = useMemo(() => opps.filter(o => o.isOpen), [opps]);
+  const totalOpenValueByCurrency = useMemo(() => sumByCurrency(openOpps), [openOpps]);
+  const missingCloseDateCount = useMemo(() => openOpps.filter(o => !o.expectedClose).length, [openOpps]);
   const stageBreakdown  = useMemo(() => groupBy(openOpps, o => o.stage), [openOpps]);
   const typeBreakdown   = useMemo(() => groupBy(openOpps, o => o.typeOfDeal), [openOpps]);
   const sourceBreakdown = useMemo(() => groupBy(openOpps, o => o.source).slice(0, 8), [openOpps]);
@@ -230,7 +257,14 @@ export default function OpportunityScoreboard({ region }) {
           </p>
         </div>
 
-        {/* Quarter & Year period cards */}
+        {/* Total current pipeline — every open deal, no timing filter */}
+        <TotalPipelineBanner
+          count={openOpps.length}
+          valueByCurrency={totalOpenValueByCurrency}
+          missingCloseDateCount={missingCloseDateCount}
+        />
+
+        {/* Quarter & Year period cards — timing view, based on Expected Close Date */}
         <div className="grid grid-cols-2 gap-6 mb-6">
           <PeriodCard title={`This Quarter · ${quarterLabel(year, quarter)}`} stats={quarterStats} />
           <PeriodCard title={`This Year · ${year}`} stats={yearStats} />
