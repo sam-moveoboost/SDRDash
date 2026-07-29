@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { updateItemColumnValue, createOpportunity, BOARDS } from '../../api/monday';
+import React, { useState, useEffect } from 'react';
+import { updateItemColumnValue, createOpportunity, fetchItemColumnValues, BOARDS } from '../../api/monday';
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -185,6 +185,26 @@ export default function OpportunityDetailPanel({ item, isNew, boardCols, wsUsers
   const colOf = id => boardCols?.find(c => c.id === id);
   const labelsOf = id => parseSelectableLabels(colOf(id));
 
+  // Hourly Rate / PS Value (USD) are live formulas that can be recomputed on
+  // the board (by the FX Calculator automation, or edits made elsewhere)
+  // after this item was last loaded into the app's cached list — refetch
+  // them whenever an item is opened so the panel shows the board's current
+  // values instead of whatever was in the initial bulk fetch.
+  useEffect(() => {
+    if (!item.id) return; // nothing to poll yet for a not-yet-created opportunity
+    fetchItemColumnValues(item.id, [COL.HOURLY_RATE, COL.PS_VALUE_USD])
+      .then(fresh => {
+        if (!fresh.length) return;
+        const updatedCvs = (item.column_values ?? []).map(cv => {
+          const match = fresh.find(f => f.id === cv.id);
+          return match ? { ...cv, text: match.text, value: match.value } : cv;
+        });
+        onUpdate(item.id, updatedCvs);
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.id]);
+
   function set(id, value) {
     setEdits(prev => ({ ...prev, [id]: value }));
   }
@@ -251,11 +271,30 @@ export default function OpportunityDetailPanel({ item, isNew, boardCols, wsUsers
 
   async function handleCalculate() {
     setSaving(true);
-    setSavedMsg('');
+    setSavedMsg('Calculating…');
     try {
       await updateItemColumnValue(BOARDS.OPPORTUNITIES, item.id, COL.CALCULATE_TRIGGER, 'Calculate', 'status');
-      setSavedMsg('Calculate triggered ✓');
-      setTimeout(() => setSavedMsg(''), 3000);
+
+      // The FX conversion is computed by a board automation, not synchronously by
+      // this mutation — poll for the Hourly Rate / PS Value (USD) formula columns
+      // to actually change before giving up, since our local copy of the item is
+      // otherwise stuck at whatever it was when the board was first loaded.
+      const before = currentText(COL.PS_VALUE_USD);
+      let updated = false;
+      for (let attempt = 0; attempt < 6 && !updated; attempt++) {
+        await new Promise(r => setTimeout(r, 1500));
+        const fresh = await fetchItemColumnValues(item.id, [COL.HOURLY_RATE, COL.PS_VALUE_USD]);
+        if (!fresh.length) continue;
+        const updatedCvs = (item.column_values ?? []).map(cv => {
+          const match = fresh.find(f => f.id === cv.id);
+          return match ? { ...cv, text: match.text, value: match.value } : cv;
+        });
+        onUpdate(item.id, updatedCvs);
+        const freshPsUsd = fresh.find(f => f.id === COL.PS_VALUE_USD)?.text ?? '';
+        if (freshPsUsd && freshPsUsd !== before) updated = true;
+      }
+      setSavedMsg(updated ? 'Calculated ✓' : 'Triggered — still calculating, reopen shortly if it hasn\'t updated');
+      setTimeout(() => setSavedMsg(''), 4000);
     } catch (e) {
       setSavedMsg(`Error: ${e.message.slice(0, 100)}`);
     } finally {

@@ -521,6 +521,23 @@ export async function fetchItemNames(ids) {
   return data.items ?? [];
 }
 
+// Refetch a handful of columns for one item — used to poll for values that
+// update asynchronously via monday automations/formulas (e.g. the FX
+// Calculator recomputing Hourly Rate / PS Value (USD) after being triggered),
+// since the app otherwise only has the board snapshot from initial load.
+export async function fetchItemColumnValues(itemId, columnIds) {
+  const idsStr = columnIds.map(id => `"${id}"`).join(', ');
+  const data = await gql(`
+    query {
+      items(ids: [${itemId}]) {
+        id
+        column_values(ids: [${idsStr}]) { id text value }
+      }
+    }
+  `);
+  return data.items?.[0]?.column_values ?? [];
+}
+
 // ── Board column schema ───────────────────────────────────────────
 // settings_str included so status columns can render their label options as a dropdown
 export async function fetchBoardColumns(boardId) {
