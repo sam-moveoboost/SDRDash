@@ -324,6 +324,29 @@ export async function fetchOpportunities({ region }) {
   });
 }
 
+// columnValues must already be in Monday's per-column wire shape
+// (e.g. { label: "X" } for status, { date: "YYYY-MM-DD" } for date,
+// { personsAndTeams: [...] } for person, plain string for text/numeric).
+export async function createOpportunity(name, columnValues) {
+  const cvJson = JSON.stringify(JSON.stringify(columnValues ?? {}));
+  const data = await gql(`
+    mutation {
+      create_item(
+        board_id: ${BOARDS.OPPORTUNITIES},
+        item_name: ${JSON.stringify(name)},
+        column_values: ${cvJson}
+      ) {
+        id
+        name
+        created_at
+        updated_at
+        column_values { id text value }
+      }
+    }
+  `);
+  return data.create_item;
+}
+
 // ── New prospects added in a date range ──────────────────────────
 // Returns lightweight items: created_at + person column only.
 // Paginates up to 2,500 items (5 pages × 500). New items are typically

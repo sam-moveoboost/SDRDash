@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { updateItemColumnValue, BOARDS } from '../../api/monday';
+import { updateItemColumnValue, createOpportunity, BOARDS } from '../../api/monday';
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -161,8 +161,24 @@ function SectionLabel({ children }) {
 
 // ── Detail / edit panel ──────────────────────────────────────────────
 
-export default function OpportunityDetailPanel({ item, boardCols, wsUsers, accountSlug, onClose, onUpdate }) {
+const PEOPLE_COL_IDS = new Set([COL.BIZDEV, COL.SDR, COL.IC_CSM]);
+
+function buildColumnValue(type, value) {
+  if (type === 'multiple-person' || type === 'person') {
+    return { personsAndTeams: [{ id: parseInt(value, 10), kind: 'person' }] };
+  } else if (type === 'color' || type === 'status') {
+    return { label: String(value) };
+  } else if (type === 'dropdown') {
+    return { labels: [String(value)] };
+  } else if (type === 'date') {
+    return { date: String(value) };
+  }
+  return String(value);
+}
+
+export default function OpportunityDetailPanel({ item, isNew, boardCols, wsUsers, accountSlug, onClose, onUpdate, onCreate }) {
   const [edits, setEdits]       = useState({});
+  const [newName, setNewName]   = useState('');
   const [saving, setSaving]     = useState(false);
   const [savedMsg, setSavedMsg] = useState('');
 
@@ -213,6 +229,26 @@ export default function OpportunityDetailPanel({ item, boardCols, wsUsers, accou
     }
   }
 
+  async function handleCreate() {
+    if (!newName.trim()) return;
+    setSaving(true);
+    setSavedMsg('');
+    try {
+      const cv = {};
+      for (const [colId, rawValue] of Object.entries(edits)) {
+        if (rawValue === undefined || rawValue === null || rawValue === '') continue;
+        const type = PEOPLE_COL_IDS.has(colId) ? 'person' : (colOf(colId)?.type ?? 'text');
+        cv[colId] = buildColumnValue(type, rawValue);
+      }
+      const created = await createOpportunity(newName.trim(), cv);
+      onCreate(created);
+    } catch (e) {
+      setSavedMsg(`Error: ${e.message.slice(0, 100)}`);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleCalculate() {
     setSaving(true);
     setSavedMsg('');
@@ -244,15 +280,26 @@ export default function OpportunityDetailPanel({ item, boardCols, wsUsers, accou
       >
         <div className="min-w-0 flex-1 pr-3">
           <span className="inline-flex items-center text-[10px] font-bold uppercase tracking-wider mb-2 px-2 py-0.5 rounded-full bg-mint-soft text-mint-deep">
-            Opportunity
+            {isNew ? 'New Opportunity' : 'Opportunity'}
           </span>
-          <h2 className="font-display text-[18px] font-bold tracking-tight leading-snug break-words">{item.name}</h2>
+          {isNew ? (
+            <input
+              type="text"
+              value={newName}
+              onChange={e => setNewName(e.target.value)}
+              placeholder="Opportunity name…"
+              autoFocus
+              className="w-full font-display text-[18px] font-bold tracking-tight bg-transparent border-b border-line focus:outline-none focus:border-teal pb-1"
+            />
+          ) : (
+            <h2 className="font-display text-[18px] font-bold tracking-tight leading-snug break-words">{item.name}</h2>
+          )}
           {company && <p className="text-muted text-[13px] mt-0.5">{company}</p>}
           {accountLinked && <p className="text-muted text-[12px] mt-0.5">Account: {accountLinked}</p>}
           <div className="flex items-center gap-2 mt-2 flex-wrap">
             {stage && <Chip label={stage} color={STAGE_COLOR[stage]} />}
           </div>
-          {accountSlug && (
+          {accountSlug && item.id && (
             <a
               href={`https://${accountSlug}.monday.com/boards/${BOARDS.OPPORTUNITIES}/pulses/${item.id}`}
               target="_blank" rel="noreferrer"
@@ -347,30 +394,39 @@ export default function OpportunityDetailPanel({ item, boardCols, wsUsers, accou
                 <ReadOnlyField label="Hourly Rate (calculated)" value={currentText(COL.HOURLY_RATE)} />
                 <ReadOnlyField label="PS Value (USD) — live formula" value={currentText(COL.PS_VALUE_USD)} />
               </div>
-              <button
-                onClick={handleCalculate}
-                disabled={saving}
-                className="mt-3 w-full font-display font-semibold text-[13px] py-2 rounded-xl border border-teal text-teal hover:bg-teal hover:text-white transition-colors disabled:opacity-40"
-              >
-                FX Calculator → Convert to USD
-              </button>
+              {!isNew && (
+                <button
+                  onClick={handleCalculate}
+                  disabled={saving}
+                  className="mt-3 w-full font-display font-semibold text-[13px] py-2 rounded-xl border border-teal text-teal hover:bg-teal hover:text-white transition-colors disabled:opacity-40"
+                >
+                  FX Calculator → Convert to USD
+                </button>
+              )}
             </>
           )}
         </div>
       </div>
 
-      {/* Footer: save */}
+      {/* Footer: save / create */}
       <div className="px-5 py-4 border-t border-line flex-shrink-0">
         {savedMsg && (
           <p className={`text-[12px] font-semibold mb-2 ${savedMsg.startsWith('Error') ? 'text-red' : 'text-mint-deep'}`}>{savedMsg}</p>
         )}
         <button
-          disabled={saving || dirtyCount === 0}
-          onClick={handleSave}
+          disabled={saving || (isNew ? !newName.trim() : dirtyCount === 0)}
+          onClick={isNew ? handleCreate : handleSave}
           className="w-full font-display font-semibold text-[14px] py-2.5 rounded-xl transition-all disabled:opacity-40"
-          style={{ background: dirtyCount > 0 ? '#192D3F' : '#E8E3DA', color: dirtyCount > 0 ? 'white' : '#999' }}
+          style={{
+            background: (isNew ? newName.trim().length > 0 : dirtyCount > 0) ? '#192D3F' : '#E8E3DA',
+            color: (isNew ? newName.trim().length > 0 : dirtyCount > 0) ? 'white' : '#999',
+          }}
         >
-          {saving ? 'Saving…' : dirtyCount > 0 ? `Save ${dirtyCount} change${dirtyCount > 1 ? 's' : ''}` : 'No changes'}
+          {saving
+            ? (isNew ? 'Creating…' : 'Saving…')
+            : isNew
+              ? 'Create Opportunity'
+              : dirtyCount > 0 ? `Save ${dirtyCount} change${dirtyCount > 1 ? 's' : ''}` : 'No changes'}
         </button>
       </div>
     </div>

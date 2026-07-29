@@ -11,6 +11,9 @@ import {
 const PALETTE = ['#192D3F', '#8DC63A', '#E29A2E', '#579bfc', '#9d50dd', '#E0544A', '#4eccc6', '#254154', '#df2f4a', '#00c875'];
 const colorFor = i => PALETTE[i % PALETTE.length];
 
+// Stub item for the "Add Opportunity" modal — no id yet, no column values.
+const BLANK_OPPORTUNITY = { id: null, name: '', column_values: [] };
+
 // ── Small building blocks ────────────────────────────────────────────
 
 function MiniStat({ label, value, sub }) {
@@ -275,6 +278,7 @@ export default function OpportunityScoreboard({ region, user }) {
   const [wsUsers, setWsUsers] = useState([]);
   const [boardCols, setBoardCols] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
+  const [showCreate, setShowCreate] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -332,6 +336,21 @@ export default function OpportunityScoreboard({ region, user }) {
     setRawOpps(prev => prev.map(o => (o.id === itemId ? { ...o, column_values: updatedCvs } : o)));
   }
 
+  function handleCreate(created) {
+    setRawOpps(prev => [created, ...prev]);
+    setShowCreate(false);
+  }
+
+  function openCreate() {
+    setSelectedId(null);
+    setShowCreate(true);
+  }
+
+  function selectDeal(id) {
+    setShowCreate(false);
+    setSelectedId(id);
+  }
+
   if (error) return (
     <div className="max-w-6xl mx-auto px-7 py-10 text-red">Failed to load opportunities: {error}</div>
   );
@@ -343,14 +362,22 @@ export default function OpportunityScoreboard({ region, user }) {
       <div className="max-w-6xl mx-auto px-7 py-8 pb-20">
 
         {/* Header */}
-        <div className="mb-7">
-          <p className="font-display text-[11px] font-semibold tracking-[.14em] uppercase text-mint-deep mb-1.5">
-            Pipeline
-          </p>
-          <h1 className="font-display text-[27px] font-bold tracking-tight mb-1">Opportunities</h1>
-          <p className="text-muted text-[15px] max-w-xl">
-            {region && region !== 'All' ? `${region} territory` : 'All territories'} · live from monday.com
-          </p>
+        <div className="mb-7 flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <p className="font-display text-[11px] font-semibold tracking-[.14em] uppercase text-mint-deep mb-1.5">
+              Pipeline
+            </p>
+            <h1 className="font-display text-[27px] font-bold tracking-tight mb-1">Opportunities</h1>
+            <p className="text-muted text-[15px] max-w-xl">
+              {region && region !== 'All' ? `${region} territory` : 'All territories'} · live from monday.com
+            </p>
+          </div>
+          <button
+            onClick={openCreate}
+            className="flex-shrink-0 inline-flex items-center gap-1.5 font-display font-semibold text-[13.5px] px-4 py-2.5 rounded-xl bg-teal text-white hover:bg-teal-mid transition-colors"
+          >
+            + Add Opportunity
+          </button>
         </div>
 
         {/* Total current pipeline — every open deal, no timing filter, split ARR vs PS */}
@@ -379,7 +406,7 @@ export default function OpportunityScoreboard({ region, user }) {
               showWinProb
               scroll
               selectedId={selectedId}
-              onSelect={setSelectedId}
+              onSelect={selectDeal}
             />
             <DealsList
               title={`Closing Later This Year · ${year}`}
@@ -390,7 +417,7 @@ export default function OpportunityScoreboard({ region, user }) {
               showWinProb
               scroll
               selectedId={selectedId}
-              onSelect={setSelectedId}
+              onSelect={selectDeal}
             />
             <DealsList
               title="Unscheduled (No Expected Close Date)"
@@ -401,7 +428,7 @@ export default function OpportunityScoreboard({ region, user }) {
               showWinProb
               scroll
               selectedId={selectedId}
-              onSelect={setSelectedId}
+              onSelect={selectDeal}
             />
           </div>
         </div>
@@ -432,7 +459,7 @@ export default function OpportunityScoreboard({ region, user }) {
             empty="No open deals in this territory."
             showWinProb
             selectedId={selectedId}
-            onSelect={setSelectedId}
+            onSelect={selectDeal}
           />
         </div>
 
@@ -446,7 +473,7 @@ export default function OpportunityScoreboard({ region, user }) {
           empty="No closed deals recorded yet."
           scroll
           selectedId={selectedId}
-          onSelect={setSelectedId}
+          onSelect={selectDeal}
         />
       </div>
 
@@ -462,6 +489,24 @@ export default function OpportunityScoreboard({ region, user }) {
               accountSlug={accountSlug}
               onClose={() => setSelectedId(null)}
               onUpdate={handleUpdate}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Add Opportunity — same fields as the edit panel, in create mode */}
+      {showCreate && (
+        <div className="fixed inset-0 z-40 flex justify-end">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setShowCreate(false)} />
+          <div className="relative w-full sm:w-[460px] h-full bg-white shadow-2xl overflow-hidden">
+            <OpportunityDetailPanel
+              item={BLANK_OPPORTUNITY}
+              isNew
+              boardCols={boardCols}
+              wsUsers={wsUsers}
+              accountSlug={accountSlug}
+              onClose={() => setShowCreate(false)}
+              onCreate={handleCreate}
             />
           </div>
         </div>
