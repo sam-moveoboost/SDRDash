@@ -97,9 +97,12 @@ async function paginateBoard(boardId, fields) {
   return items;
 }
 
-// Helper: get a column value's text by ID
+// Helper: get a column value's text by ID. Formula columns never populate
+// `text` (monday's API only computes it into `display_value`), so fall back
+// to that — otherwise every formula column silently reads as empty/zero.
 function colText(item, id) {
-  return item.column_values?.find(c => c.id === id)?.text ?? '';
+  const cv = item.column_values?.find(c => c.id === id);
+  return cv?.text || cv?.display_value || '';
 }
 
 // ── Current user ──────────────────────────────────────────────────
@@ -315,6 +318,7 @@ export async function fetchOpportunities({ region }) {
       id
       text
       value
+      ... on FormulaValue { display_value }
     }
   `);
 
@@ -340,7 +344,12 @@ export async function createOpportunity(name, columnValues) {
         name
         created_at
         updated_at
-        column_values { id text value }
+        column_values {
+          id
+          text
+          value
+          ... on FormulaValue { display_value }
+        }
       }
     }
   `);
@@ -535,7 +544,12 @@ export async function fetchItemColumnValues(itemId, columnIds) {
     query {
       items(ids: [${itemId}]) {
         id
-        column_values(ids: [${idsStr}]) { id text value }
+        column_values(ids: [${idsStr}]) {
+          id
+          text
+          value
+          ... on FormulaValue { display_value }
+        }
       }
     }
   `);

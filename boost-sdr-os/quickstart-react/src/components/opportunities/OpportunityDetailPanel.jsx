@@ -3,8 +3,12 @@ import { updateItemColumnValue, createOpportunity, fetchItemColumnValues, BOARDS
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
+// Formula columns (Hourly Rate, PS Value (USD)) never populate `text` —
+// monday's API only computes them into `display_value` — so fall back to
+// that, else these fields always render blank regardless of the board.
 function colText(item, id) {
-  return item.column_values?.find(c => c.id === id)?.text ?? '';
+  const cv = item.column_values?.find(c => c.id === id);
+  return cv?.text || cv?.display_value || '';
 }
 function colValue(item, id) {
   return item.column_values?.find(c => c.id === id)?.value ?? null;

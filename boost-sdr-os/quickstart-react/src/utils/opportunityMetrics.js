@@ -32,8 +32,12 @@ export const OPP_COLS = {
 
 const CURRENCY_ALIAS = { GPB: 'GBP', UAE: 'AED' };
 
+// Formula columns never populate `text` — monday's API only computes their
+// value into `display_value` — so fall back to that, else PS Value (USD) and
+// similar formula fields always read as empty/zero regardless of the board.
 function colText(item, id) {
-  return item.column_values?.find(c => c.id === id)?.text ?? '';
+  const cv = item.column_values?.find(c => c.id === id);
+  return cv?.text || cv?.display_value || '';
 }
 
 function colValue(item, id) {
