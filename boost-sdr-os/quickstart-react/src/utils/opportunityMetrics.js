@@ -1,21 +1,28 @@
-// ── Opportunities board (5089407336) — verified column IDs ─────────
-// Pulled directly from the live board schema; several columns carry
-// "OLD CRM" siblings that are intentionally ignored here.
+// ── Opportunities board (5089407336) — verified against the LIVE board schema ──
+// Re-checked directly via the monday.com API — do not assume field meaning from
+// column *names* alone; several were renamed/repurposed after this was first built:
+//   - numeric_mm4x1a5e is titled "Total Account ARR" (NOT a deal-level ARR field —
+//     it's a manually-entered, account-wide context number, kept off pipeline totals)
+//   - numeric_mkz3h4rp is titled "PS Value (Transaction Currency)" (was "Total Price
+//     After Discounts")
+//   - PS Value (USD) is now a live FORMULA column (formula_mm5qaewe), not a manual
+//     field — it converts numeric_mkz3h4rp to USD via per-currency FX rate columns
 export const OPP_COLS = {
-  STAGE:          'color_mkz28c27',   // status: New (Qualified) … Won / Lost
-  TYPE_OF_DEAL:   'color_mkz2atw5',   // status: New Business, Expansion, Renewal, PS…
-  REGION:         'color_mkxerb02',   // status: UK / US / IL / Apps / Other (territory)
-  CURRENCY:       'color_mm4xexb2',   // status: GPB(sic/GBP) / USD / ILS / UAE(AED)
-  ARR:            'numeric_mm4x1a5e', // numbers — ARR+CS value, always USD (functional currency)
-  TOTAL_AMOUNT:   'numeric_mkz3h4rp', // numbers — PS value, in the deal's Transaction Currency
-  PS_VALUE_USD:   'numeric_mm5p132c', // numbers — PS value converted to USD by the Autoboost automation
-  SOURCE:         'color_mkzaet62',   // status
-  REASON_LOST:    'color_mm0gr7a7',   // status
-  INDUSTRY:       'dropdown_mkz4ve72',
-  EXPECTED_CLOSE: 'deal_expected_close_date',
-  ACTUAL_CLOSE:   'deal_close_date',
-  CREATED:        'deal_creation_date',
-  DEAL_OWNER:     'deal_owner',       // people
+  STAGE:            'color_mkz28c27',   // status: New (Qualified) … Won / Lost
+  TYPE_OF_DEAL:      'color_mkz2atw5',   // status: New Business, Expansion, Renewal, PS…
+  REGION:            'color_mkxerb02',   // status: UK / US / IL / Apps / Other (territory)
+  TRANSACTION_CURRENCY: 'color_mm4xexb2', // status: GBP / USD / ILS / AED / EUR
+  NET_ADDED_ARR:     'numeric_mm1j3hkq', // numbers — the ARR+CS deal value, always USD
+  TOTAL_ACCOUNT_ARR: 'numeric_mm4x1a5e', // numbers — manual, account-wide context (not a deal value)
+  PS_VALUE_TXN:      'numeric_mkz3h4rp', // numbers — PS value, in the deal's Transaction Currency
+  PS_VALUE_USD:      'formula_mm5qaewe', // formula — PS Value (Transaction Currency) converted to USD
+  SOURCE:            'color_mkzaet62',   // status
+  REASON_LOST:       'color_mm0gr7a7',   // status
+  INDUSTRY:          'dropdown_mkz4ve72',
+  EXPECTED_CLOSE:    'deal_expected_close_date',
+  ACTUAL_CLOSE:      'deal_close_date',
+  CREATED:           'deal_creation_date',
+  DEAL_OWNER:        'deal_owner',       // people
 };
 
 const CURRENCY_ALIAS = { GPB: 'GBP', UAE: 'AED' };
@@ -47,14 +54,15 @@ function num(item, id) {
 
 export function parseOpportunity(item) {
   const stage = colText(item, OPP_COLS.STAGE);
-  const rawCurrency = colText(item, OPP_COLS.CURRENCY).trim().toUpperCase();
+  const rawCurrency = colText(item, OPP_COLS.TRANSACTION_CURRENCY).trim().toUpperCase();
   const currency = CURRENCY_ALIAS[rawCurrency] || rawCurrency || 'Other';
   const typeOfDeal = colText(item, OPP_COLS.TYPE_OF_DEAL) || 'Unspecified';
   const isPS = typeOfDeal === 'PS';
 
-  const value = num(item, OPP_COLS.ARR);           // ARR+CS value, already USD
-  const totalAmount = num(item, OPP_COLS.TOTAL_AMOUNT); // PS value, transaction currency
-  const psValueUSD = num(item, OPP_COLS.PS_VALUE_USD);  // PS value, converted to USD (via Autoboost)
+  const netAddedARR = num(item, OPP_COLS.NET_ADDED_ARR);         // ARR+CS deal value, USD
+  const totalAccountARR = num(item, OPP_COLS.TOTAL_ACCOUNT_ARR); // manual, account-wide context only
+  const psValueTxn = num(item, OPP_COLS.PS_VALUE_TXN);           // PS value, transaction currency
+  const psValueUSD = num(item, OPP_COLS.PS_VALUE_USD);           // PS value, converted to USD (live formula)
 
   return {
     id: item.id,
@@ -68,13 +76,14 @@ export function parseOpportunity(item) {
     isPS,
     region:     colText(item, OPP_COLS.REGION) || 'Other',
     currency,
-    value,
-    totalAmount,
+    netAddedARR,
+    totalAccountARR,
+    psValueTxn,
     psValueUSD,
-    // Blended reporting value in USD (the functional currency): ARR for ARR+CS
-    // deals, the Autoboost-converted PS Value (USD) for PS deals. PS deals show
-    // 0 here until Autoboost has run the Calculate conversion for that deal.
-    valueUSD: isPS ? psValueUSD : value,
+    // Blended reporting value in USD (the functional currency): Net Added ARR for
+    // ARR+CS deals, the FX-converted PS Value (USD) for PS deals. PS deals show 0
+    // here until the deal's FX rate has been set and the FX Calculator has run.
+    valueUSD: isPS ? psValueUSD : netAddedARR,
     source:     colText(item, OPP_COLS.SOURCE) || 'Unspecified',
     reasonLost: colText(item, OPP_COLS.REASON_LOST),
     industry:   colText(item, OPP_COLS.INDUSTRY) || 'Unspecified',
@@ -105,12 +114,12 @@ export function inYear(date, year) {
 
 // ── Aggregation helpers ──────────────────────────────────────────────
 
-// Raw deal amount in its own native currency — ARR (USD) for ARR+CS deals,
-// Total Amount (transaction currency) for PS deals. Used for composition
+// Raw deal amount in its own native currency — Net Added ARR (USD) for ARR+CS
+// deals, PS Value in Transaction Currency for PS deals. Used for composition
 // breakdowns where showing the real transaction currency matters more than
 // a blended USD total (use o.valueUSD for that instead).
 function rawAmount(o) {
-  return o.isPS ? o.totalAmount : o.value;
+  return o.isPS ? o.psValueTxn : o.netAddedARR;
 }
 
 export function sumByCurrency(opps) {

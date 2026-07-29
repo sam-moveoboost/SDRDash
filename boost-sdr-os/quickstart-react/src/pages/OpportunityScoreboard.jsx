@@ -153,8 +153,8 @@ function fmtDate(d) {
 
 // Generic deals table used for the quarter/year/unscheduled pipeline-planning
 // lists, the historical closed report, and the top-open-deals list. Value is
-// always shown blended into USD — PS deals show "Pending Autoboost" instead of
-// $0 so a missing conversion doesn't read as a genuinely worthless deal.
+// always shown blended into USD — PS deals show "Pending FX rate" instead of
+// $0 so a deal awaiting its FX Calculator conversion doesn't read as worthless.
 function DealsList({ title, deals, dateLabel, getDate, showOutcome, empty, scroll }) {
   return (
     <div className="bg-card border border-line rounded-2xl overflow-hidden">
@@ -192,7 +192,7 @@ function DealsList({ title, deals, dateLabel, getDate, showOutcome, empty, scrol
                     {o.valueUSD > 0
                       ? formatMoney(o.valueUSD, 'USD')
                       : o.isPS
-                        ? <span className="text-muted italic font-normal text-[11px]">Pending Autoboost</span>
+                        ? <span className="text-muted italic font-normal text-[11px]">Pending FX rate</span>
                         : '—'}
                   </td>
                 </tr>

@@ -75,15 +75,19 @@ const COL = {
   BIZDEV: 'deal_owner',
   SDR: 'multiple_person_mm4xadea',
   IC_CSM: 'multiple_person_mm1cxqfr',
-  ARR: 'numeric_mm4x1a5e',
+  // ARR-side deal value — the pre-existing "Net Added ARR" field, always USD.
   NET_ADDED_ARR: 'numeric_mm1j3hkq',
   ARR_LENGTH: 'color_mkz4dtzp',
-  TOTAL_ARR_ACCOUNT: 'numeric_mm5pbjqj',
+  // Manual, account-wide context (not a deal value) — titled "Total Account ARR".
+  TOTAL_ACCOUNT_ARR: 'numeric_mm4x1a5e',
   TRANSACTION_CURRENCY: 'color_mm4xexb2',
-  TOTAL_AMOUNT: 'numeric_mkz3h4rp',
+  // PS-side deal value in the deal's Transaction Currency — titled "PS Value (Transaction Currency)".
+  PS_VALUE_TXN: 'numeric_mkz3h4rp',
   HOURS_ACQUIRED: 'numeric_mm4xe0qv',
   HOURLY_RATE: 'formula_mm5pp5kk',
-  PS_VALUE_USD: 'numeric_mm5p132c',
+  // Live formula — converts PS_VALUE_TXN to USD via per-currency FX rate columns. Read-only.
+  PS_VALUE_USD: 'formula_mm5qaewe',
+  // Titled "FX Calculator" — single "Calculate" label, triggers the FX conversion.
   CALCULATE_TRIGGER: 'color_mm59ttnd',
   ACCOUNT: 'connect_boards31',
   COMPANY: 'text8',
@@ -189,7 +193,7 @@ function OppRow({ item, selected, onClick }) {
   const stage    = colText(item, COL.STAGE);
   const forecast = colText(item, COL.FORECAST);
   const winProb  = colText(item, COL.WIN_PROB);
-  const value    = colText(item, COL.TOTAL_AMOUNT) || colText(item, COL.ARR);
+  const value    = colText(item, COL.PS_VALUE_TXN) || colText(item, COL.NET_ADDED_ARR);
   const currency = colText(item, COL.TRANSACTION_CURRENCY) || 'USD';
   const company  = colText(item, COL.COMPANY);
   const nextStepDate = colText(item, COL.NEXT_STEP_DATE);
@@ -227,7 +231,7 @@ function StageSection({ stage, items, collapsed, onToggle, selectedId, onSelect 
   const totalByCurrency = useMemo(() => {
     const out = {};
     items.forEach(item => {
-      const amt = parseFloat(colText(item, COL.TOTAL_AMOUNT) || colText(item, COL.ARR) || '0');
+      const amt = parseFloat(colText(item, COL.PS_VALUE_TXN) || colText(item, COL.NET_ADDED_ARR) || '0');
       const currency = colText(item, COL.TRANSACTION_CURRENCY) || 'USD';
       if (amt) out[currency] = (out[currency] || 0) + amt;
     });
@@ -435,10 +439,9 @@ function DetailPanel({ item, boardCols, wsUsers, accountSlug, onClose, onUpdate 
           <div>
             <SectionLabel>ARR + CS (USD)</SectionLabel>
             <div className="grid grid-cols-2 gap-3">
-              <NumberField label="ARR" prefix="$" value={val(COL.ARR, currentText(COL.ARR))} dirty={dirty(COL.ARR)} onChange={v => set(COL.ARR, v)} />
               <NumberField label="Net Added ARR" prefix="$" value={val(COL.NET_ADDED_ARR, currentText(COL.NET_ADDED_ARR))} dirty={dirty(COL.NET_ADDED_ARR)} onChange={v => set(COL.NET_ADDED_ARR, v)} />
               <StatusField label="ARR Length" value={val(COL.ARR_LENGTH, currentText(COL.ARR_LENGTH))} options={labelsOf(COL.ARR_LENGTH)} dirty={dirty(COL.ARR_LENGTH)} onChange={v => set(COL.ARR_LENGTH, v)} />
-              <NumberField label="Total ARR on Account (manual)" prefix="$" value={val(COL.TOTAL_ARR_ACCOUNT, currentText(COL.TOTAL_ARR_ACCOUNT))} dirty={dirty(COL.TOTAL_ARR_ACCOUNT)} onChange={v => set(COL.TOTAL_ARR_ACCOUNT, v)} />
+              <NumberField label="Total Account ARR (manual)" prefix="$" value={val(COL.TOTAL_ACCOUNT_ARR, currentText(COL.TOTAL_ACCOUNT_ARR))} dirty={dirty(COL.TOTAL_ACCOUNT_ARR)} onChange={v => set(COL.TOTAL_ACCOUNT_ARR, v)} />
             </div>
           </div>
         )}
@@ -449,18 +452,18 @@ function DetailPanel({ item, boardCols, wsUsers, accountSlug, onClose, onUpdate 
             <SectionLabel>Professional Services</SectionLabel>
             <div className="grid grid-cols-2 gap-3">
               <StatusField label="Transaction Currency" value={val(COL.TRANSACTION_CURRENCY, currentText(COL.TRANSACTION_CURRENCY))} options={labelsOf(COL.TRANSACTION_CURRENCY)} dirty={dirty(COL.TRANSACTION_CURRENCY)} onChange={v => set(COL.TRANSACTION_CURRENCY, v)} />
-              <NumberField label="Total Amount (transaction ccy)" value={val(COL.TOTAL_AMOUNT, currentText(COL.TOTAL_AMOUNT))} dirty={dirty(COL.TOTAL_AMOUNT)} onChange={v => set(COL.TOTAL_AMOUNT, v)} />
+              <NumberField label="PS Value (Transaction Currency)" value={val(COL.PS_VALUE_TXN, currentText(COL.PS_VALUE_TXN))} dirty={dirty(COL.PS_VALUE_TXN)} onChange={v => set(COL.PS_VALUE_TXN, v)} />
               <NumberField label="Hours Acquired" value={val(COL.HOURS_ACQUIRED, currentText(COL.HOURS_ACQUIRED))} dirty={dirty(COL.HOURS_ACQUIRED)} onChange={v => set(COL.HOURS_ACQUIRED, v)} />
               <ReadOnlyField label="Hourly Rate (calculated)" value={currentText(COL.HOURLY_RATE)} />
-              <NumberField label="PS Value (USD)" prefix="$" value={val(COL.PS_VALUE_USD, currentText(COL.PS_VALUE_USD))} dirty={dirty(COL.PS_VALUE_USD)} onChange={v => set(COL.PS_VALUE_USD, v)} />
-              <NumberField label="Total ARR on Account (manual)" prefix="$" value={val(COL.TOTAL_ARR_ACCOUNT, currentText(COL.TOTAL_ARR_ACCOUNT))} dirty={dirty(COL.TOTAL_ARR_ACCOUNT)} onChange={v => set(COL.TOTAL_ARR_ACCOUNT, v)} />
+              <ReadOnlyField label="PS Value (USD) — live formula" value={currentText(COL.PS_VALUE_USD)} />
+              <NumberField label="Total Account ARR (manual)" prefix="$" value={val(COL.TOTAL_ACCOUNT_ARR, currentText(COL.TOTAL_ACCOUNT_ARR))} dirty={dirty(COL.TOTAL_ACCOUNT_ARR)} onChange={v => set(COL.TOTAL_ACCOUNT_ARR, v)} />
             </div>
             <button
               onClick={handleCalculate}
               disabled={saving}
               className="mt-3 w-full font-display font-semibold text-[13px] py-2 rounded-xl border border-teal text-teal hover:bg-teal hover:text-white transition-colors disabled:opacity-40"
             >
-              Calculate → Convert to USD
+              FX Calculator → Convert to USD
             </button>
           </div>
         )}
@@ -524,8 +527,8 @@ export default function OpportunityBoard({ region, user }) {
     });
     Object.keys(map).forEach(s => {
       map[s].sort((a, b) => {
-        const av = parseFloat(colText(a, COL.TOTAL_AMOUNT) || colText(a, COL.ARR) || '0');
-        const bv = parseFloat(colText(b, COL.TOTAL_AMOUNT) || colText(b, COL.ARR) || '0');
+        const av = parseFloat(colText(a, COL.PS_VALUE_TXN) || colText(a, COL.NET_ADDED_ARR) || '0');
+        const bv = parseFloat(colText(b, COL.PS_VALUE_TXN) || colText(b, COL.NET_ADDED_ARR) || '0');
         return bv - av;
       });
     });
