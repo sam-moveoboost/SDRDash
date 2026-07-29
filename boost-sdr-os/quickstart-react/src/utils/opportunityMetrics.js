@@ -23,6 +23,8 @@ export const OPP_COLS = {
   ACTUAL_CLOSE:      'deal_close_date',
   CREATED:           'deal_creation_date',
   DEAL_OWNER:        'deal_owner',       // people
+  WIN_PROBABILITY:   'numeric_mm5pgbax', // numbers — 0-100
+  FORECAST_CATEGORY: 'color_mm5phjr9',   // status: Commit / Best Case / Pipeline
 };
 
 const CURRENCY_ALIAS = { GPB: 'GBP', UAE: 'AED' };
@@ -63,6 +65,8 @@ export function parseOpportunity(item) {
   const totalAccountARR = num(item, OPP_COLS.TOTAL_ACCOUNT_ARR); // manual, account-wide context only
   const psValueTxn = num(item, OPP_COLS.PS_VALUE_TXN);           // PS value, transaction currency
   const psValueUSD = num(item, OPP_COLS.PS_VALUE_USD);           // PS value, converted to USD (live formula)
+  const winProbability = num(item, OPP_COLS.WIN_PROBABILITY);    // 0-100
+  const valueUSD = isPS ? psValueUSD : netAddedARR;
 
   return {
     id: item.id,
@@ -83,7 +87,11 @@ export function parseOpportunity(item) {
     // Blended reporting value in USD (the functional currency): Net Added ARR for
     // ARR+CS deals, the FX-converted PS Value (USD) for PS deals. PS deals show 0
     // here until the deal's FX rate has been set and the FX Calculator has run.
-    valueUSD: isPS ? psValueUSD : netAddedARR,
+    valueUSD,
+    winProbability,
+    forecastCategory: colText(item, OPP_COLS.FORECAST_CATEGORY) || 'Unspecified',
+    // Probability-weighted value — only meaningful for open (not-yet-closed) deals.
+    weightedValueUSD: valueUSD * (winProbability / 100),
     source:     colText(item, OPP_COLS.SOURCE) || 'Unspecified',
     reasonLost: colText(item, OPP_COLS.REASON_LOST),
     industry:   colText(item, OPP_COLS.INDUSTRY) || 'Unspecified',
@@ -168,20 +176,18 @@ function sumUSD(opps) {
   return opps.reduce((sum, o) => sum + (o.valueUSD || 0), 0);
 }
 
-// Open + won + lost stats for a period, given predicates for which date field to test.
-// All values are blended into USD (o.valueUSD) — ARR for ARR+CS deals, Autoboost-converted
-// PS Value (USD) for PS deals — so quarter/year/historical figures are directly comparable
-// and summable, unlike the raw per-transaction-currency PS amounts.
-export function periodStats(opps, { openPredicate, closedPredicate }) {
-  const openSet = opps.filter(o => o.isOpen && openPredicate(o));
-  const wonSet  = opps.filter(o => o.isWon && closedPredicate(o));
-  const lostSet = opps.filter(o => o.isLost && closedPredicate(o));
+function sumWeightedUSD(opps) {
+  return opps.reduce((sum, o) => sum + (o.weightedValueUSD || 0), 0);
+}
+
+// Stats for one side (ARR or PS) of a period's open/won/lost sets.
+function sideStats(openSet, wonSet, lostSet) {
   const closedTotal = wonSet.length + lostSet.length;
   const wonValueUSD = sumUSD(wonSet);
-
   return {
     openCount: openSet.length,
-    openValueUSD: sumUSD(openSet),
+    openValueUSD: sumUSD(openSet),               // raw, unweighted total open value
+    weightedOpenValueUSD: sumWeightedUSD(openSet), // probability-weighted "expected to close"
     wonCount: wonSet.length,
     wonValueUSD,
     lostCount: lostSet.length,
@@ -189,6 +195,21 @@ export function periodStats(opps, { openPredicate, closedPredicate }) {
     closedTotal,
     winRate: closedTotal > 0 ? (wonSet.length / closedTotal) * 100 : null,
     avgDealSizeUSD: wonSet.length > 0 ? wonValueUSD / wonSet.length : 0,
+  };
+}
+
+// Open + won + lost stats for a period, given predicates for which date field to test.
+// Returns separate ARR and PS figures — these use different source fields and different
+// currencies pre-conversion, so they're kept apart rather than blended into one number.
+// "Expected to close" (weightedOpenValueUSD) is the open value weighted by Win Probability %.
+export function periodStats(opps, { openPredicate, closedPredicate }) {
+  const openSet = opps.filter(o => o.isOpen && openPredicate(o));
+  const wonSet  = opps.filter(o => o.isWon && closedPredicate(o));
+  const lostSet = opps.filter(o => o.isLost && closedPredicate(o));
+
+  return {
+    arr: sideStats(openSet.filter(o => !o.isPS), wonSet.filter(o => !o.isPS), lostSet.filter(o => !o.isPS)),
+    ps:  sideStats(openSet.filter(o => o.isPS),  wonSet.filter(o => o.isPS),  lostSet.filter(o => o.isPS)),
   };
 }
 
@@ -207,6 +228,18 @@ export function planningBuckets(opps, year, quarter) {
     thisQuarter: sortByValue(thisQuarter),
     laterThisYear: sortByValue(laterThisYear),
     unscheduled: sortByValue(unscheduled),
+  };
+}
+
+// Split a set of opportunities' blended USD value into ARR vs PS totals — the two use
+// different source fields (Net Added ARR vs the FX-converted PS Value (USD)) and are
+// kept as separate figures rather than combined into one blended number.
+export function sumUSDBySide(opps) {
+  return {
+    arr: sumUSD(opps.filter(o => !o.isPS)),
+    ps:  sumUSD(opps.filter(o => o.isPS)),
+    arrCount: opps.filter(o => !o.isPS).length,
+    psCount: opps.filter(o => o.isPS).length,
   };
 }
 

@@ -1,9 +1,5 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import {
-  fetchOpportunities, fetchBoardColumns, fetchWorkspaceUsers, updateItemColumnValue, BOARDS,
-} from '../api/monday';
-import ProgressBar from '../components/shared/ProgressBar';
-import { formatByCurrency } from '../utils/opportunityMetrics';
+import React, { useState } from 'react';
+import { updateItemColumnValue, BOARDS } from '../../api/monday';
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -26,22 +22,8 @@ function parseSelectableLabels(column) {
       .filter(l => l && String(l).trim());
   } catch { return []; }
 }
-function daysUntil(dateStr) {
-  if (!dateStr) return null;
-  return Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000);
-}
-function fmtDate(dateStr) {
-  if (!dateStr) return null;
-  return new Date(dateStr).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-}
 
-// ── Pipeline stage config ───────────────────────────────────────────
-
-const ACTIVE_STAGES = [
-  'New (Qualified)', 'Demo (Evaluation)', 'Proposal (Validation)',
-  'Contract sent (Buying process)', 'Negotiation & Legal', 'On hold', 'Ghosting',
-];
-const STAGE_COLOR = {
+export const STAGE_COLOR = {
   'New (Qualified)': '#579bfc',
   'Demo (Evaluation)': '#9d50dd',
   'Proposal (Validation)': '#E29A2E',
@@ -53,11 +35,9 @@ const STAGE_COLOR = {
   'Lost': '#df2f4a',
 };
 
-const FORECAST_COLOR = { 'Commit': '#00c875', 'Best Case': '#E29A2E', 'Pipeline': '#579bfc' };
-
 // ── Column ids (verified against the live board) ────────────────────
 
-const COL = {
+export const COL = {
   STAGE: 'color_mkz28c27',
   WIN_PROB: 'numeric_mm5pgbax',
   FORECAST: 'color_mm5phjr9',
@@ -96,7 +76,7 @@ const COL = {
 
 // ── Small building blocks ────────────────────────────────────────────
 
-function Chip({ label, color, empty }) {
+export function Chip({ label, color, empty }) {
   if (!label) return empty ? <span className="text-[11px] text-muted italic">{empty}</span> : null;
   return (
     <span
@@ -130,14 +110,6 @@ function StatusField({ label, value, options, dirty, onChange }) {
         <option value="">—</option>
         {options.map(o => <option key={o} value={o}>{o}</option>)}
       </select>
-    </FieldRow>
-  );
-}
-
-function TextField({ label, value, dirty, onChange, placeholder }) {
-  return (
-    <FieldRow label={label}>
-      <input type="text" value={value ?? ''} placeholder={placeholder} onChange={e => onChange(e.target.value)} className={inputCls(dirty)} />
     </FieldRow>
   );
 }
@@ -187,95 +159,9 @@ function SectionLabel({ children }) {
   return <p className="text-[10.5px] font-bold uppercase tracking-wider text-muted mb-2.5 mt-1">{children}</p>;
 }
 
-// ── Opportunity list row ────────────────────────────────────────────
-
-function OppRow({ item, selected, onClick }) {
-  const stage    = colText(item, COL.STAGE);
-  const forecast = colText(item, COL.FORECAST);
-  const winProb  = colText(item, COL.WIN_PROB);
-  const value    = colText(item, COL.PS_VALUE_TXN) || colText(item, COL.NET_ADDED_ARR);
-  const currency = colText(item, COL.TRANSACTION_CURRENCY) || 'USD';
-  const company  = colText(item, COL.COMPANY);
-  const nextStepDate = colText(item, COL.NEXT_STEP_DATE);
-  const dUntil = daysUntil(nextStepDate);
-
-  return (
-    <div
-      onClick={onClick}
-      className={`flex items-center gap-3 px-4 py-2.5 rounded-xl cursor-pointer transition-all border group ${
-        selected ? 'bg-teal/5 border-teal/30 shadow-sm' : 'bg-white border-transparent hover:bg-canvas hover:shadow-sm hover:border-line'
-      }`}
-      style={{ borderLeft: `3px solid ${selected ? (STAGE_COLOR[stage] ?? '#888') : 'transparent'}` }}
-    >
-      <div className="flex-1 min-w-0">
-        <p className="font-semibold text-[13px] text-ink truncate leading-snug">{item.name}</p>
-        {company && <p className="text-[11px] text-muted truncate">{company}</p>}
-      </div>
-      <div className="flex items-center gap-1.5 flex-shrink-0">
-        {winProb && <span className="text-[11px] font-bold text-teal tabular-nums">{winProb}%</span>}
-        {forecast && <Chip label={forecast} color={FORECAST_COLOR[forecast]} />}
-        {value && <span className="text-[12px] font-semibold text-ink tabular-nums whitespace-nowrap">{value ? Number(value).toLocaleString() : ''} {currency}</span>}
-        {dUntil !== null && (
-          <span className={`text-[10.5px] font-semibold whitespace-nowrap ${dUntil < 0 ? 'text-red' : dUntil <= 3 ? 'text-amber' : 'text-muted'}`}>
-            {dUntil < 0 ? `${Math.abs(dUntil)}d overdue` : dUntil === 0 ? 'Due today' : `${dUntil}d`}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── Stage section ───────────────────────────────────────────────────
-
-function StageSection({ stage, items, collapsed, onToggle, selectedId, onSelect }) {
-  const totalByCurrency = useMemo(() => {
-    const out = {};
-    items.forEach(item => {
-      const amt = parseFloat(colText(item, COL.PS_VALUE_TXN) || colText(item, COL.NET_ADDED_ARR) || '0');
-      const currency = colText(item, COL.TRANSACTION_CURRENCY) || 'USD';
-      if (amt) out[currency] = (out[currency] || 0) + amt;
-    });
-    return out;
-  }, [items]);
-
-  return (
-    <div className="mb-1">
-      <button
-        onClick={onToggle}
-        className="w-full flex items-center gap-3 px-4 py-2.5 bg-canvas rounded-xl border border-line hover:border-[rgba(0,0,0,.12)] hover:bg-white transition-all group mb-2"
-      >
-        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: STAGE_COLOR[stage] ?? '#888' }} />
-        <span className="font-display font-bold text-[13.5px] flex-1 text-left" style={{ color: STAGE_COLOR[stage] ?? '#888' }}>
-          {stage}
-        </span>
-        <span className="text-[11px] text-muted whitespace-nowrap">{formatByCurrency(totalByCurrency)}</span>
-        <span
-          className="text-[11px] font-bold px-2 py-0.5 rounded-full text-white tabular-nums flex-shrink-0"
-          style={{ background: STAGE_COLOR[stage] ?? '#888' }}
-        >
-          {items.length}
-        </span>
-        <svg className={`w-3.5 h-3.5 text-muted transition-transform duration-200 flex-shrink-0 ${collapsed ? '' : 'rotate-180'}`} viewBox="0 0 12 12" fill="none">
-          <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      </button>
-      {!collapsed && (
-        <div className="space-y-1 mb-3">
-          {items.length === 0
-            ? <div className="px-4 py-3 text-[12.5px] text-muted italic">No opportunities at this stage.</div>
-            : items.map(item => (
-                <OppRow key={item.id} item={item} selected={selectedId === item.id} onClick={() => onSelect(item.id)} />
-              ))
-          }
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Detail / edit panel ──────────────────────────────────────────────
 
-function DetailPanel({ item, boardCols, wsUsers, accountSlug, onClose, onUpdate }) {
+export default function OpportunityDetailPanel({ item, boardCols, wsUsers, accountSlug, onClose, onUpdate }) {
   const [edits, setEdits]       = useState({});
   const [saving, setSaving]     = useState(false);
   const [savedMsg, setSavedMsg] = useState('');
@@ -389,7 +275,7 @@ function DetailPanel({ item, boardCols, wsUsers, accountSlug, onClose, onUpdate 
           <SectionLabel>Pipeline &amp; Forecast</SectionLabel>
           <div className="grid grid-cols-2 gap-3">
             <StatusField label="Stage" value={val(COL.STAGE, stage)} options={labelsOf(COL.STAGE)} dirty={dirty(COL.STAGE)} onChange={v => set(COL.STAGE, v)} />
-            <NumberField label="Win Probability" prefix={null} value={val(COL.WIN_PROB, currentText(COL.WIN_PROB))} dirty={dirty(COL.WIN_PROB)} onChange={v => set(COL.WIN_PROB, v)} />
+            <NumberField label="Win Probability %" prefix={null} value={val(COL.WIN_PROB, currentText(COL.WIN_PROB))} dirty={dirty(COL.WIN_PROB)} onChange={v => set(COL.WIN_PROB, v)} />
             <StatusField label="Forecast Category" value={val(COL.FORECAST, currentText(COL.FORECAST))} options={labelsOf(COL.FORECAST)} dirty={dirty(COL.FORECAST)} onChange={v => set(COL.FORECAST, v)} />
             <div />
             <DateField label="Expected Close" value={val(COL.EXPECTED_CLOSE, currentDate(COL.EXPECTED_CLOSE))} dirty={dirty(COL.EXPECTED_CLOSE)} onChange={v => set(COL.EXPECTED_CLOSE, v)} />
@@ -482,143 +368,6 @@ function DetailPanel({ item, boardCols, wsUsers, accountSlug, onClose, onUpdate 
         >
           {saving ? 'Saving…' : dirtyCount > 0 ? `Save ${dirtyCount} change${dirtyCount > 1 ? 's' : ''}` : 'No changes'}
         </button>
-      </div>
-    </div>
-  );
-}
-
-// ── Main page ────────────────────────────────────────────────────────
-
-export default function OpportunityBoard({ region, user }) {
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState(null);
-  const [opps, setOpps]           = useState([]);
-  const [wsUsers, setWsUsers]     = useState([]);
-  const [boardCols, setBoardCols] = useState(null);
-  const [searchQ, setSearchQ]     = useState('');
-  const [selectedId, setSelectedId] = useState(null);
-  const [collapsed, setCollapsed] = useState({ Won: true, Lost: true });
-
-  useEffect(() => {
-    setLoading(true);
-    setError(null);
-    Promise.all([fetchOpportunities({ region }), fetchWorkspaceUsers(), fetchBoardColumns(BOARDS.OPPORTUNITIES)])
-      .then(([o, u, cols]) => { setOpps(o); setWsUsers(u); setBoardCols(cols); })
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false));
-  }, [region]);
-
-  const accountSlug = user?.account?.slug ?? '';
-
-  const filtered = useMemo(() => {
-    if (!searchQ.trim()) return opps;
-    const q = searchQ.toLowerCase();
-    return opps.filter(o =>
-      o.name.toLowerCase().includes(q) || colText(o, COL.COMPANY).toLowerCase().includes(q)
-    );
-  }, [opps, searchQ]);
-
-  const byStage = useMemo(() => {
-    const map = {};
-    [...ACTIVE_STAGES, 'Won', 'Lost'].forEach(s => { map[s] = []; });
-    filtered.forEach(item => {
-      const stage = colText(item, COL.STAGE) || 'New (Qualified)';
-      (map[stage] ??= []).push(item);
-    });
-    Object.keys(map).forEach(s => {
-      map[s].sort((a, b) => {
-        const av = parseFloat(colText(a, COL.PS_VALUE_TXN) || colText(a, COL.NET_ADDED_ARR) || '0');
-        const bv = parseFloat(colText(b, COL.PS_VALUE_TXN) || colText(b, COL.NET_ADDED_ARR) || '0');
-        return bv - av;
-      });
-    });
-    return map;
-  }, [filtered]);
-
-  const selectedItem = selectedId ? opps.find(o => o.id === selectedId) : null;
-
-  function handleUpdate(itemId, updatedCvs) {
-    setOpps(prev => prev.map(o => (o.id === itemId ? { ...o, column_values: updatedCvs } : o)));
-  }
-
-  function toggleStage(stage) {
-    setCollapsed(prev => ({ ...prev, [stage]: !prev[stage] }));
-  }
-
-  const activeCount = ACTIVE_STAGES.reduce((sum, s) => sum + (byStage[s]?.length ?? 0), 0);
-
-  if (error) return (
-    <div className="max-w-6xl mx-auto px-7 py-10 text-red">Failed to load opportunities: {error}</div>
-  );
-
-  return (
-    <div className="max-w-6xl mx-auto px-7 pb-20">
-      <ProgressBar loading={loading} />
-
-      <div className="flex items-center justify-between mb-3 pt-1">
-        <div>
-          <p className="font-display text-[11px] font-semibold tracking-[.14em] uppercase text-mint-deep mb-0.5">
-            Manage Opportunities
-          </p>
-          <h2 className="font-display text-[20px] font-bold tracking-tight">Pipeline Board</h2>
-        </div>
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-mint-soft text-mint-deep text-[12px] font-semibold rounded-full">
-          {loading ? '…' : activeCount} active opportunities
-        </span>
-      </div>
-
-      <div className="bg-card border border-line rounded-2xl shadow-sm overflow-hidden flex" style={{ height: '720px' }}>
-
-        {/* List pane */}
-        <div className={`flex flex-col flex-1 min-w-0 ${selectedItem ? 'hidden sm:flex' : 'flex'}`}>
-          <div className="px-5 pt-4 pb-3 flex-shrink-0 border-b border-line">
-            <div className="relative max-w-[280px]">
-              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted pointer-events-none" viewBox="0 0 16 16" fill="none">
-                <circle cx="6.5" cy="6.5" r="4" stroke="currentColor" strokeWidth="1.3"/>
-                <path d="M11 11L14 14" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
-              </svg>
-              <input
-                type="text" value={searchQ} onChange={e => setSearchQ(e.target.value)}
-                placeholder="Search name, company…"
-                className="w-full pl-7 pr-3 py-1.5 text-[12px] bg-canvas border border-line rounded-lg focus:outline-none focus:border-teal"
-              />
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto px-4 py-3">
-            {ACTIVE_STAGES.map(stage => (
-              <StageSection
-                key={stage} stage={stage} items={byStage[stage] ?? []}
-                collapsed={!!collapsed[stage]} onToggle={() => toggleStage(stage)}
-                selectedId={selectedId} onSelect={setSelectedId}
-              />
-            ))}
-            <div className="mt-4 pt-3 border-t border-line">
-              <p className="text-[10.5px] font-bold uppercase tracking-wider text-muted mb-2 px-1">Closed</p>
-              {['Won', 'Lost'].map(stage => (
-                <StageSection
-                  key={stage} stage={stage} items={byStage[stage] ?? []}
-                  collapsed={!!collapsed[stage]} onToggle={() => toggleStage(stage)}
-                  selectedId={selectedId} onSelect={setSelectedId}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Detail pane */}
-        {selectedItem && (
-          <div className="w-full sm:w-[440px] flex-shrink-0 border-l border-line bg-white overflow-hidden">
-            <DetailPanel
-              item={selectedItem}
-              boardCols={boardCols}
-              wsUsers={wsUsers}
-              accountSlug={accountSlug}
-              onClose={() => setSelectedId(null)}
-              onUpdate={handleUpdate}
-            />
-          </div>
-        )}
       </div>
     </div>
   );
