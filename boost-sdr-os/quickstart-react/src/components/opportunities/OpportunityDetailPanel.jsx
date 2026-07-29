@@ -180,6 +180,21 @@ function buildColumnValue(type, value) {
   return String(value);
 }
 
+// Formula columns (Hourly Rate, PS Value (USD)) only ever carry their
+// computed number in display_value — text/value are always empty — so a
+// refresh must copy display_value too, and any "did it change" check must
+// read through the same fallback colText() uses, not a bare .text lookup.
+function mergeFreshColumnValues(baseCvs, fresh) {
+  return (baseCvs ?? []).map(cv => {
+    const match = fresh.find(f => f.id === cv.id);
+    return match ? { ...cv, text: match.text, value: match.value, display_value: match.display_value } : cv;
+  });
+}
+function freshText(fresh, id) {
+  const cv = fresh.find(f => f.id === id);
+  return cv?.text || cv?.display_value || '';
+}
+
 export default function OpportunityDetailPanel({ item, isNew, boardCols, wsUsers, accountSlug, onClose, onUpdate, onCreate }) {
   const [edits, setEdits]       = useState({});
   const [newName, setNewName]   = useState('');
@@ -199,11 +214,7 @@ export default function OpportunityDetailPanel({ item, isNew, boardCols, wsUsers
     fetchItemColumnValues(item.id, [COL.HOURLY_RATE, COL.PS_VALUE_USD])
       .then(fresh => {
         if (!fresh.length) return;
-        const updatedCvs = (item.column_values ?? []).map(cv => {
-          const match = fresh.find(f => f.id === cv.id);
-          return match ? { ...cv, text: match.text, value: match.value } : cv;
-        });
-        onUpdate(item.id, updatedCvs);
+        onUpdate(item.id, mergeFreshColumnValues(item.column_values, fresh));
       })
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -230,7 +241,7 @@ export default function OpportunityDetailPanel({ item, isNew, boardCols, wsUsers
           ?? (colId === COL.BIZDEV || colId === COL.SDR || colId === COL.IC_CSM ? 'person' : 'text');
         await updateItemColumnValue(BOARDS.OPPORTUNITIES, item.id, colId, edits[colId], type);
       }
-      const updatedCvs = (item.column_values ?? []).map(cv => {
+      let updatedCvs = (item.column_values ?? []).map(cv => {
         if (edits[cv.id] === undefined) return cv;
         const isPeople = [COL.BIZDEV, COL.SDR, COL.IC_CSM].includes(cv.id);
         let newText = edits[cv.id];
@@ -242,6 +253,19 @@ export default function OpportunityDetailPanel({ item, isNew, boardCols, wsUsers
         }
         return { ...cv, text: newText, value: newValue };
       });
+
+      // PS Value (Transaction Currency) and Hours Acquired directly drive the
+      // Hourly Rate and PS Value (USD) formulas — refetch those two so a save
+      // shows the board's recalculated numbers immediately, not the pre-edit
+      // ones. (Currency alone doesn't retrigger the formula, only the FX
+      // Calculator does, but re-checking is cheap and keeps this in sync too.)
+      const FORMULA_INPUT_COLS = [COL.PS_VALUE_TXN, COL.HOURS_ACQUIRED, COL.TRANSACTION_CURRENCY];
+      if (changed.some(c => FORMULA_INPUT_COLS.includes(c))) {
+        await new Promise(r => setTimeout(r, 500)); // small buffer for the formula to recompute
+        const fresh = await fetchItemColumnValues(item.id, [COL.HOURLY_RATE, COL.PS_VALUE_USD]);
+        if (fresh.length) updatedCvs = mergeFreshColumnValues(updatedCvs, fresh);
+      }
+
       onUpdate(item.id, updatedCvs);
       setEdits({});
       setSavedMsg('Saved ✓');
@@ -289,12 +313,8 @@ export default function OpportunityDetailPanel({ item, isNew, boardCols, wsUsers
         await new Promise(r => setTimeout(r, 1500));
         const fresh = await fetchItemColumnValues(item.id, [COL.HOURLY_RATE, COL.PS_VALUE_USD]);
         if (!fresh.length) continue;
-        const updatedCvs = (item.column_values ?? []).map(cv => {
-          const match = fresh.find(f => f.id === cv.id);
-          return match ? { ...cv, text: match.text, value: match.value } : cv;
-        });
-        onUpdate(item.id, updatedCvs);
-        const freshPsUsd = fresh.find(f => f.id === COL.PS_VALUE_USD)?.text ?? '';
+        onUpdate(item.id, mergeFreshColumnValues(item.column_values, fresh));
+        const freshPsUsd = freshText(fresh, COL.PS_VALUE_USD);
         if (freshPsUsd && freshPsUsd !== before) updated = true;
       }
       setSavedMsg(updated ? 'Calculated ✓' : 'Triggered — still calculating, reopen shortly if it hasn\'t updated');
