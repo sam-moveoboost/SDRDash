@@ -6,7 +6,9 @@ export const OPP_COLS = {
   TYPE_OF_DEAL:   'color_mkz2atw5',   // status: New Business, Expansion, Renewal, PS…
   REGION:         'color_mkxerb02',   // status: UK / US / IL / Apps / Other (territory)
   CURRENCY:       'color_mm4xexb2',   // status: GPB(sic/GBP) / USD / ILS / UAE(AED)
-  ARR:            'numeric_mm4x1a5e', // numbers — primary deal value
+  ARR:            'numeric_mm4x1a5e', // numbers — ARR+CS value, always USD (functional currency)
+  TOTAL_AMOUNT:   'numeric_mkz3h4rp', // numbers — PS value, in the deal's Transaction Currency
+  PS_VALUE_USD:   'numeric_mm5p132c', // numbers — PS value converted to USD by the Autoboost automation
   SOURCE:         'color_mkzaet62',   // status
   REASON_LOST:    'color_mm0gr7a7',   // status
   INDUSTRY:       'dropdown_mkz4ve72',
@@ -39,11 +41,20 @@ function parsePeopleIds(item, id) {
   } catch { return []; }
 }
 
+function num(item, id) {
+  return parseFloat(colText(item, id).replace(/,/g, '')) || 0;
+}
+
 export function parseOpportunity(item) {
   const stage = colText(item, OPP_COLS.STAGE);
   const rawCurrency = colText(item, OPP_COLS.CURRENCY).trim().toUpperCase();
   const currency = CURRENCY_ALIAS[rawCurrency] || rawCurrency || 'Other';
-  const value = parseFloat(colText(item, OPP_COLS.ARR).replace(/,/g, '')) || 0;
+  const typeOfDeal = colText(item, OPP_COLS.TYPE_OF_DEAL) || 'Unspecified';
+  const isPS = typeOfDeal === 'PS';
+
+  const value = num(item, OPP_COLS.ARR);           // ARR+CS value, already USD
+  const totalAmount = num(item, OPP_COLS.TOTAL_AMOUNT); // PS value, transaction currency
+  const psValueUSD = num(item, OPP_COLS.PS_VALUE_USD);  // PS value, converted to USD (via Autoboost)
 
   return {
     id: item.id,
@@ -53,10 +64,17 @@ export function parseOpportunity(item) {
     isWon:  stage === 'Won',
     isLost: stage === 'Lost',
     isOpen: stage !== 'Won' && stage !== 'Lost',
-    typeOfDeal: colText(item, OPP_COLS.TYPE_OF_DEAL) || 'Unspecified',
+    typeOfDeal,
+    isPS,
     region:     colText(item, OPP_COLS.REGION) || 'Other',
     currency,
     value,
+    totalAmount,
+    psValueUSD,
+    // Blended reporting value in USD (the functional currency): ARR for ARR+CS
+    // deals, the Autoboost-converted PS Value (USD) for PS deals. PS deals show
+    // 0 here until Autoboost has run the Calculate conversion for that deal.
+    valueUSD: isPS ? psValueUSD : value,
     source:     colText(item, OPP_COLS.SOURCE) || 'Unspecified',
     reasonLost: colText(item, OPP_COLS.REASON_LOST),
     industry:   colText(item, OPP_COLS.INDUSTRY) || 'Unspecified',
@@ -87,9 +105,17 @@ export function inYear(date, year) {
 
 // ── Aggregation helpers ──────────────────────────────────────────────
 
+// Raw deal amount in its own native currency — ARR (USD) for ARR+CS deals,
+// Total Amount (transaction currency) for PS deals. Used for composition
+// breakdowns where showing the real transaction currency matters more than
+// a blended USD total (use o.valueUSD for that instead).
+function rawAmount(o) {
+  return o.isPS ? o.totalAmount : o.value;
+}
+
 export function sumByCurrency(opps) {
   const out = {};
-  for (const o of opps) out[o.currency] = (out[o.currency] || 0) + o.value;
+  for (const o of opps) out[o.currency] = (out[o.currency] || 0) + rawAmount(o);
   return out;
 }
 
@@ -98,9 +124,10 @@ export function groupBy(opps, keyFn) {
   for (const o of opps) {
     const k = keyFn(o) || 'Unspecified';
     out[k] ??= { count: 0, value: 0, byCurrency: {} };
+    const amt = rawAmount(o);
     out[k].count += 1;
-    out[k].value += o.value;
-    out[k].byCurrency[o.currency] = (out[k].byCurrency[o.currency] || 0) + o.value;
+    out[k].value += amt;
+    out[k].byCurrency[o.currency] = (out[k].byCurrency[o.currency] || 0) + amt;
   }
   return Object.entries(out)
     .map(([label, d]) => ({ label, ...d }))
@@ -118,7 +145,7 @@ export function monthlyTrend(opps, year) {
     if (o.isWon && inYear(o.actualClose, year)) {
       const m = o.actualClose.getMonth();
       won[m].count += 1;
-      won[m].byCurrency[o.currency] = (won[m].byCurrency[o.currency] || 0) + o.value;
+      won[m].byCurrency[o.currency] = (won[m].byCurrency[o.currency] || 0) + rawAmount(o);
     }
     if (inYear(o.created, year)) {
       created[o.created.getMonth()] += 1;
@@ -128,30 +155,57 @@ export function monthlyTrend(opps, year) {
   return MONTH_LABELS.map((label, i) => ({ label, won: won[i], created: created[i] }));
 }
 
+function sumUSD(opps) {
+  return opps.reduce((sum, o) => sum + (o.valueUSD || 0), 0);
+}
+
 // Open + won + lost stats for a period, given predicates for which date field to test.
+// All values are blended into USD (o.valueUSD) — ARR for ARR+CS deals, Autoboost-converted
+// PS Value (USD) for PS deals — so quarter/year/historical figures are directly comparable
+// and summable, unlike the raw per-transaction-currency PS amounts.
 export function periodStats(opps, { openPredicate, closedPredicate }) {
   const openSet = opps.filter(o => o.isOpen && openPredicate(o));
   const wonSet  = opps.filter(o => o.isWon && closedPredicate(o));
   const lostSet = opps.filter(o => o.isLost && closedPredicate(o));
   const closedTotal = wonSet.length + lostSet.length;
-
-  const wonSums = sumByCurrency(wonSet);
-  const wonCounts = {};
-  wonSet.forEach(o => { wonCounts[o.currency] = (wonCounts[o.currency] || 0) + 1; });
-  const avgDealSizeByCurrency = {};
-  Object.keys(wonSums).forEach(c => { avgDealSizeByCurrency[c] = wonSums[c] / wonCounts[c]; });
+  const wonValueUSD = sumUSD(wonSet);
 
   return {
     openCount: openSet.length,
-    openValueByCurrency: sumByCurrency(openSet),
+    openValueUSD: sumUSD(openSet),
     wonCount: wonSet.length,
-    wonValueByCurrency: wonSums,
+    wonValueUSD,
     lostCount: lostSet.length,
-    lostValueByCurrency: sumByCurrency(lostSet),
+    lostValueUSD: sumUSD(lostSet),
     closedTotal,
     winRate: closedTotal > 0 ? (wonSet.length / closedTotal) * 100 : null,
-    avgDealSizeByCurrency,
+    avgDealSizeUSD: wonSet.length > 0 ? wonValueUSD / wonSet.length : 0,
   };
+}
+
+// ── Pipeline planning buckets ────────────────────────────────────────
+
+// Sort open opportunities into: closing this quarter, closing later this year,
+// and unscheduled (no Expected Close Date set at all — a real gap in the data,
+// worth surfacing rather than silently dropping).
+export function planningBuckets(opps, year, quarter) {
+  const open = opps.filter(o => o.isOpen);
+  const thisQuarter = open.filter(o => inQuarter(o.expectedClose, year, quarter));
+  const laterThisYear = open.filter(o => inYear(o.expectedClose, year) && !inQuarter(o.expectedClose, year, quarter));
+  const unscheduled = open.filter(o => !o.expectedClose);
+  const sortByValue = list => [...list].sort((a, b) => b.valueUSD - a.valueUSD);
+  return {
+    thisQuarter: sortByValue(thisQuarter),
+    laterThisYear: sortByValue(laterThisYear),
+    unscheduled: sortByValue(unscheduled),
+  };
+}
+
+// Historical: everything already closed (Won or Lost), most recently closed first.
+export function historicalClosed(opps) {
+  return opps
+    .filter(o => (o.isWon || o.isLost) && o.actualClose)
+    .sort((a, b) => b.actualClose - a.actualClose);
 }
 
 export function formatMoney(amount, currency) {
