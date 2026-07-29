@@ -10,6 +10,7 @@ import {
   BOARDS,
 } from '../api/monday';
 import ProgressBar from '../components/shared/ProgressBar';
+import OpportunityDetailPanel from '../components/opportunities/OpportunityDetailPanel';
 
 // ── Helpers ────────────────────────────────────────────────────────
 
@@ -134,33 +135,9 @@ const SECTION_CFG = {
     getStatus:    item => oppStageText(item),
     getRegion:    item => colText(item, 'color_mkxerb02'),
     getLastTouch: item => daysSince(item.updated_at),
-    hardcodedFields: null, // discovered dynamically via OPP_FIELD_DEFS
+    hardcodedFields: null, // opportunities use the shared OpportunityDetailPanel instead
   },
 };
-
-// ── Opportunity field discovery (mirrors StaleDealsModal) ──────────
-
-const OPP_FIELD_DEFS = [
-  { key: 'stage',     label: 'Stage',        keywords: ['stage'],                                  preferType: 'color',   editable: true,  isPeople: false },
-  { key: 'closeDate', label: 'Close date',   keywords: ['close date', 'expected close', 'close'], preferType: 'date',    editable: true,  isPeople: false },
-  { key: 'sdr',       label: 'SDR',          keywords: ['sdr'],                                   preferType: null,      editable: true,  isPeople: true  },
-  { key: 'bizdev',    label: 'BizDev',       keywords: ['bizdev', 'biz dev', 'business dev'],     preferType: null,      editable: true,  isPeople: true  },
-  { key: 'dealType',  label: 'Deal type',    keywords: ['type of deal', 'deal type'],             preferType: 'color',   editable: true,  isPeople: false },
-  { key: 'total',     label: 'Total value',  keywords: ['total price', 'total after discount'],   preferType: 'numeric', editable: false, isPeople: false },
-];
-
-function matchOppColumns(columns) {
-  const result = {};
-  for (const def of OPP_FIELD_DEFS) {
-    const matches = columns.filter(c =>
-      def.keywords.some(kw => c.title.toLowerCase().includes(kw))
-    );
-    result[def.key] = (
-      def.preferType ? (matches.find(c => c.type === def.preferType) ?? matches[0]) : matches[0]
-    ) ?? null;
-  }
-  return result;
-}
 
 // ── Status colors ──────────────────────────────────────────────────
 
@@ -322,19 +299,6 @@ function DetailPanel({ item, boardType, boardCols, wsUsers, accountSlug, onClose
     });
   }
 
-  if (boardType === 'opportunity' && boardCols) {
-    const colMap = matchOppColumns(boardCols);
-    editFields = OPP_FIELD_DEFS.filter(d => colMap[d.key] && d.editable).map(d => ({
-      id: colMap[d.key].id,
-      label: d.label,
-      type: colMap[d.key].type,
-      isPeople: d.isPeople,
-      statusLabels: (colMap[d.key].type === 'color' || colMap[d.key].type === 'status')
-        ? parseStatusLabels(colMap[d.key])
-        : null,
-    }));
-  }
-
   async function handleSave() {
     const changed = Object.keys(edits);
     if (!changed.length) return;
@@ -481,18 +445,8 @@ function DetailPanel({ item, boardType, boardCols, wsUsers, accountSlug, onClose
           );
         })()}
 
-        {/* Opportunity: show last updated date */}
-        {boardType === 'opportunity' && item.updated_at && (
-          <div>
-            <p className="text-[10.5px] font-bold uppercase tracking-wider text-muted mb-1">Last updated on board</p>
-            <p className="text-[13px] text-muted">
-              {new Date(item.updated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-            </p>
-          </div>
-        )}
-
         {/* Edit fields */}
-        {(boardType !== 'opportunity' || boardCols) && editFields.length > 0 && (
+        {editFields.length > 0 && (
           <div>
             <p className="text-[10.5px] font-bold uppercase tracking-wider text-muted mb-2.5">Edit</p>
             <div className="space-y-3">
@@ -586,15 +540,6 @@ function DetailPanel({ item, boardType, boardCols, wsUsers, accountSlug, onClose
           );
         })()}
 
-        {/* Loading skeleton while board columns fetch */}
-        {boardType === 'opportunity' && !boardCols && (
-          <div className="space-y-2.5">
-            <div className="text-[10.5px] font-bold uppercase tracking-wider text-muted mb-2">Edit</div>
-            {[1, 2, 3].map(i => (
-              <div key={i} className="h-[58px] bg-canvas rounded-xl animate-pulse" />
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Footer: save */}
@@ -958,16 +903,28 @@ export default function Workflow({ region, user: userProp }) {
             : 'hidden sm:flex sm:w-[380px] lg:w-[420px]'
         }`}>
           {selectedItem ? (
-            <DetailPanel
-              key={`${selected.boardType}-${selectedItem.id}`}
-              item={selectedItem}
-              boardType={selected.boardType}
-              boardCols={selectedBoardCols}
-              wsUsers={wsUsers}
-              accountSlug={accountSlug}
-              onClose={() => setSelected(null)}
-              onUpdate={handleUpdate}
-            />
+            selected.boardType === 'opportunity' ? (
+              <OpportunityDetailPanel
+                key={`opportunity-${selectedItem.id}`}
+                item={selectedItem}
+                boardCols={selectedBoardCols}
+                wsUsers={wsUsers}
+                accountSlug={accountSlug}
+                onClose={() => setSelected(null)}
+                onUpdate={(itemId, updatedCvs) => handleUpdate(itemId, 'opportunity', updatedCvs)}
+              />
+            ) : (
+              <DetailPanel
+                key={`${selected.boardType}-${selectedItem.id}`}
+                item={selectedItem}
+                boardType={selected.boardType}
+                boardCols={selectedBoardCols}
+                wsUsers={wsUsers}
+                accountSlug={accountSlug}
+                onClose={() => setSelected(null)}
+                onUpdate={handleUpdate}
+              />
+            )
           ) : (
             <div className="flex items-center justify-center h-full text-center px-8">
               <div>
