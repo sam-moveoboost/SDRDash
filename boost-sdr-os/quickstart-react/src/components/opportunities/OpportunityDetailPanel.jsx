@@ -227,11 +227,13 @@ export default function OpportunityDetailPanel({ item, boardCols, wsUsers, accou
     }
   }
 
-  const stage      = currentText(COL.STAGE);
+  // Live values — reflect unsaved edits immediately, so the header color and the
+  // Financials section switch as soon as a dropdown changes, not just after Save.
+  const stage      = val(COL.STAGE, currentText(COL.STAGE));
   const company    = currentText(COL.COMPANY);
   const accountLinked = currentText(COL.ACCOUNT);
   const dirtyCount = Object.keys(edits).length;
-  const isPS = currentText(COL.TYPE_OF_DEAL) === 'PS';
+  const isPS = val(COL.TYPE_OF_DEAL, currentText(COL.TYPE_OF_DEAL)) === 'PS';
 
   return (
     <div className="h-full flex flex-col">
@@ -274,7 +276,7 @@ export default function OpportunityDetailPanel({ item, boardCols, wsUsers, accou
         <div>
           <SectionLabel>Pipeline &amp; Forecast</SectionLabel>
           <div className="grid grid-cols-2 gap-3">
-            <StatusField label="Stage" value={val(COL.STAGE, stage)} options={labelsOf(COL.STAGE)} dirty={dirty(COL.STAGE)} onChange={v => set(COL.STAGE, v)} />
+            <StatusField label="Stage" value={stage} options={labelsOf(COL.STAGE)} dirty={dirty(COL.STAGE)} onChange={v => set(COL.STAGE, v)} />
             <NumberField label="Win Probability %" prefix={null} value={val(COL.WIN_PROB, currentText(COL.WIN_PROB))} dirty={dirty(COL.WIN_PROB)} onChange={v => set(COL.WIN_PROB, v)} />
             <StatusField label="Forecast Category" value={val(COL.FORECAST, currentText(COL.FORECAST))} options={labelsOf(COL.FORECAST)} dirty={dirty(COL.FORECAST)} onChange={v => set(COL.FORECAST, v)} />
             <div />
