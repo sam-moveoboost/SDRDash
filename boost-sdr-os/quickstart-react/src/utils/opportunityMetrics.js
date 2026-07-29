@@ -25,6 +25,9 @@ export const OPP_COLS = {
   DEAL_OWNER:        'deal_owner',       // people
   WIN_PROBABILITY:   'numeric_mm5pgbax', // numbers — 0-100
   FORECAST_CATEGORY: 'color_mm5phjr9',   // status: Commit / Best Case / Pipeline
+  // Titled "Hours acquired" — on a PS deal this is hours purchased; on an ARR
+  // deal it's the included Customer Success hours that ship with the ARR.
+  HOURS_ACQUIRED:    'numeric_mm4xe0qv',
 };
 
 const CURRENCY_ALIAS = { GPB: 'GBP', UAE: 'AED' };
@@ -66,7 +69,20 @@ export function parseOpportunity(item) {
   const psValueTxn = num(item, OPP_COLS.PS_VALUE_TXN);           // PS value, transaction currency
   const psValueUSD = num(item, OPP_COLS.PS_VALUE_USD);           // PS value, converted to USD (live formula)
   const winProbability = num(item, OPP_COLS.WIN_PROBABILITY);    // 0-100
+  const hoursAcquired = num(item, OPP_COLS.HOURS_ACQUIRED);      // PS: hours purchased. ARR: included CS hours.
   const valueUSD = isPS ? psValueUSD : netAddedARR;
+
+  // What reps still need to fill in — surfaced as a warning icon in the UI so
+  // gaps (like the missing Net Added ARR values found in production) get fixed
+  // at the source instead of being silently patched over here.
+  const missingFields = [];
+  if (isPS) {
+    if (!psValueTxn) missingFields.push('PS Value');
+  } else {
+    if (!netAddedARR) missingFields.push('Net Added ARR');
+  }
+  if (!hoursAcquired) missingFields.push(isPS ? 'Hours Acquired' : 'CS Hours Included');
+  if (!winProbability) missingFields.push('Win Probability');
 
   return {
     id: item.id,
@@ -84,6 +100,9 @@ export function parseOpportunity(item) {
     totalAccountARR,
     psValueTxn,
     psValueUSD,
+    hoursAcquired,
+    missingFields,
+    missingEssentials: missingFields.length > 0,
     // Blended reporting value in USD (the functional currency): Net Added ARR for
     // ARR+CS deals, the FX-converted PS Value (USD) for PS deals. PS deals show 0
     // here until the deal's FX rate has been set and the FX Calculator has run.

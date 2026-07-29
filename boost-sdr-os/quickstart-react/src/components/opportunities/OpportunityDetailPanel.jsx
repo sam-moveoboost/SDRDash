@@ -312,47 +312,49 @@ export default function OpportunityDetailPanel({ item, boardCols, wsUsers, accou
             <StatusField label="Source" value={val(COL.SOURCE, currentText(COL.SOURCE))} options={labelsOf(COL.SOURCE)} dirty={dirty(COL.SOURCE)} onChange={v => set(COL.SOURCE, v)} />
             <StatusField label="Industry" value={val(COL.INDUSTRY, currentText(COL.INDUSTRY))} options={labelsOf(COL.INDUSTRY)} dirty={dirty(COL.INDUSTRY)} onChange={v => set(COL.INDUSTRY, v)} />
             <StatusField label="Conversion Activity" value={val(COL.CONVERSION_ACTIVITY, currentText(COL.CONVERSION_ACTIVITY))} options={labelsOf(COL.CONVERSION_ACTIVITY)} dirty={dirty(COL.CONVERSION_ACTIVITY)} onChange={v => set(COL.CONVERSION_ACTIVITY, v)} />
+            <StatusField label="ARR Length" value={val(COL.ARR_LENGTH, currentText(COL.ARR_LENGTH))} options={labelsOf(COL.ARR_LENGTH)} dirty={dirty(COL.ARR_LENGTH)} onChange={v => set(COL.ARR_LENGTH, v)} />
           </div>
-          <div className="grid grid-cols-3 gap-3 mt-3">
+        </div>
+
+        {/* Team */}
+        <div>
+          <SectionLabel>Team</SectionLabel>
+          <div className="grid grid-cols-3 gap-3">
             <PersonField label="BizDev" value={val(COL.BIZDEV, currentPerson(COL.BIZDEV))} wsUsers={wsUsers} dirty={dirty(COL.BIZDEV)} onChange={v => set(COL.BIZDEV, v)} />
             <PersonField label="SDR" value={val(COL.SDR, currentPerson(COL.SDR))} wsUsers={wsUsers} dirty={dirty(COL.SDR)} onChange={v => set(COL.SDR, v)} />
             <PersonField label="IC/CSM" value={val(COL.IC_CSM, currentPerson(COL.IC_CSM))} wsUsers={wsUsers} dirty={dirty(COL.IC_CSM)} onChange={v => set(COL.IC_CSM, v)} />
           </div>
         </div>
 
-        {/* ARR + CS (functional currency = USD) */}
-        {!isPS && (
-          <div>
-            <SectionLabel>ARR + CS (USD)</SectionLabel>
+        {/* Financials — which fields matter depends on Type of Deal */}
+        <div>
+          <SectionLabel>Financials{isPS ? ' — Professional Services' : ' — ARR + CS (USD)'}</SectionLabel>
+          {!isPS && (
             <div className="grid grid-cols-2 gap-3">
               <NumberField label="Net Added ARR" prefix="$" value={val(COL.NET_ADDED_ARR, currentText(COL.NET_ADDED_ARR))} dirty={dirty(COL.NET_ADDED_ARR)} onChange={v => set(COL.NET_ADDED_ARR, v)} />
-              <StatusField label="ARR Length" value={val(COL.ARR_LENGTH, currentText(COL.ARR_LENGTH))} options={labelsOf(COL.ARR_LENGTH)} dirty={dirty(COL.ARR_LENGTH)} onChange={v => set(COL.ARR_LENGTH, v)} />
               <NumberField label="Total Account ARR (manual)" prefix="$" value={val(COL.TOTAL_ACCOUNT_ARR, currentText(COL.TOTAL_ACCOUNT_ARR))} dirty={dirty(COL.TOTAL_ACCOUNT_ARR)} onChange={v => set(COL.TOTAL_ACCOUNT_ARR, v)} />
+              <NumberField label="CS Hours Included" value={val(COL.HOURS_ACQUIRED, currentText(COL.HOURS_ACQUIRED))} dirty={dirty(COL.HOURS_ACQUIRED)} onChange={v => set(COL.HOURS_ACQUIRED, v)} />
             </div>
-          </div>
-        )}
-
-        {/* PS (transaction currency) */}
-        {isPS && (
-          <div>
-            <SectionLabel>Professional Services</SectionLabel>
-            <div className="grid grid-cols-2 gap-3">
-              <StatusField label="Transaction Currency" value={val(COL.TRANSACTION_CURRENCY, currentText(COL.TRANSACTION_CURRENCY))} options={labelsOf(COL.TRANSACTION_CURRENCY)} dirty={dirty(COL.TRANSACTION_CURRENCY)} onChange={v => set(COL.TRANSACTION_CURRENCY, v)} />
-              <NumberField label="PS Value (Transaction Currency)" value={val(COL.PS_VALUE_TXN, currentText(COL.PS_VALUE_TXN))} dirty={dirty(COL.PS_VALUE_TXN)} onChange={v => set(COL.PS_VALUE_TXN, v)} />
-              <NumberField label="Hours Acquired" value={val(COL.HOURS_ACQUIRED, currentText(COL.HOURS_ACQUIRED))} dirty={dirty(COL.HOURS_ACQUIRED)} onChange={v => set(COL.HOURS_ACQUIRED, v)} />
-              <ReadOnlyField label="Hourly Rate (calculated)" value={currentText(COL.HOURLY_RATE)} />
-              <ReadOnlyField label="PS Value (USD) — live formula" value={currentText(COL.PS_VALUE_USD)} />
-              <NumberField label="Total Account ARR (manual)" prefix="$" value={val(COL.TOTAL_ACCOUNT_ARR, currentText(COL.TOTAL_ACCOUNT_ARR))} dirty={dirty(COL.TOTAL_ACCOUNT_ARR)} onChange={v => set(COL.TOTAL_ACCOUNT_ARR, v)} />
-            </div>
-            <button
-              onClick={handleCalculate}
-              disabled={saving}
-              className="mt-3 w-full font-display font-semibold text-[13px] py-2 rounded-xl border border-teal text-teal hover:bg-teal hover:text-white transition-colors disabled:opacity-40"
-            >
-              FX Calculator → Convert to USD
-            </button>
-          </div>
-        )}
+          )}
+          {isPS && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <StatusField label="Transaction Currency" value={val(COL.TRANSACTION_CURRENCY, currentText(COL.TRANSACTION_CURRENCY))} options={labelsOf(COL.TRANSACTION_CURRENCY)} dirty={dirty(COL.TRANSACTION_CURRENCY)} onChange={v => set(COL.TRANSACTION_CURRENCY, v)} />
+                <NumberField label="PS Value (Transaction Currency)" value={val(COL.PS_VALUE_TXN, currentText(COL.PS_VALUE_TXN))} dirty={dirty(COL.PS_VALUE_TXN)} onChange={v => set(COL.PS_VALUE_TXN, v)} />
+                <NumberField label="Hours Acquired" value={val(COL.HOURS_ACQUIRED, currentText(COL.HOURS_ACQUIRED))} dirty={dirty(COL.HOURS_ACQUIRED)} onChange={v => set(COL.HOURS_ACQUIRED, v)} />
+                <ReadOnlyField label="Hourly Rate (calculated)" value={currentText(COL.HOURLY_RATE)} />
+                <ReadOnlyField label="PS Value (USD) — live formula" value={currentText(COL.PS_VALUE_USD)} />
+              </div>
+              <button
+                onClick={handleCalculate}
+                disabled={saving}
+                className="mt-3 w-full font-display font-semibold text-[13px] py-2 rounded-xl border border-teal text-teal hover:bg-teal hover:text-white transition-colors disabled:opacity-40"
+              >
+                FX Calculator → Convert to USD
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Footer: save */}

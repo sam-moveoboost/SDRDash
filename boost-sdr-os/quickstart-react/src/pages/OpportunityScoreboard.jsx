@@ -225,7 +225,19 @@ function DealsList({ title, deals, dateLabel, getDate, showOutcome, showWinProb,
                   onClick={() => onSelect?.(o.id)}
                   className={`transition-colors ${onSelect ? 'cursor-pointer' : ''} ${selectedId === o.id ? 'bg-mint-soft/40' : 'hover:bg-[#FAF8F5]'}`}
                 >
-                  <td className="px-5 py-3 font-semibold text-ink">{o.name}</td>
+                  <td className="px-5 py-3 font-semibold text-ink">
+                    <span className="inline-flex items-center gap-1.5">
+                      {o.isOpen && o.missingEssentials && (
+                        <span
+                          title={`Missing: ${o.missingFields.join(', ')}`}
+                          className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber text-white text-[10px] font-bold flex-shrink-0"
+                        >
+                          !
+                        </span>
+                      )}
+                      {o.name}
+                    </span>
+                  </td>
                   <td className="px-3 py-3">
                     {showOutcome
                       ? <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full text-white ${o.isWon ? 'bg-mint-deep' : 'bg-red'}`}>{o.stage}</span>
