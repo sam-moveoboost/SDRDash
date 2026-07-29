@@ -486,8 +486,12 @@ export async function fetchProspects({ userId, cursor }) {
     };
   }
 
+  // monday's items_page filter for a "people" column requires the compare_value
+  // to be prefixed ("person-<id>"), not the bare numeric id — a bare id silently
+  // matches nothing rather than erroring, which is why this can look like "no
+  // prospects assigned to me" even when the board clearly shows an assignment.
   const personRule = userId
-    ? `rules: [{ column_id: "person", compare_value: ["${userId}"], operator: any_of }]`
+    ? `rules: [{ column_id: "person", compare_value: ["person-${userId}"], operator: any_of }]`
     : '';
 
   const data = await gql(`
