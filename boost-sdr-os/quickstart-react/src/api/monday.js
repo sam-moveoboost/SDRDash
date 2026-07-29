@@ -778,6 +778,8 @@ export async function updateItemColumnValue(boardId, itemId, columnId, value, co
     innerJson = JSON.stringify({ personsAndTeams: [{ id: parseInt(value, 10), kind: 'person' }] });
   } else if (columnType === 'color' || columnType === 'status') {
     innerJson = JSON.stringify({ label: String(value) });
+  } else if (columnType === 'dropdown') {
+    innerJson = JSON.stringify({ labels: [String(value)] });
   } else if (columnType === 'date') {
     innerJson = JSON.stringify({ date: String(value) });
   } else {

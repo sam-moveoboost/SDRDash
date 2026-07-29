@@ -5,6 +5,7 @@ import Scoreboard from './pages/Scoreboard';
 import Workflow from './pages/Workflow';
 import Events from './pages/Events';
 import OpportunityScoreboard from './pages/OpportunityScoreboard';
+import OpportunityBoard from './pages/OpportunityBoard';
 import './App.css';
 
 const monday = mondaySdk();
@@ -122,7 +123,12 @@ export default function App() {
       <main>
         {tab === 'scoreboard'    && <Scoreboard region={region} month={month} />}
         {tab === 'workflow'      && <Workflow   region={region} user={user} />}
-        {tab === 'opportunities' && <OpportunityScoreboard region={region} />}
+        {tab === 'opportunities' && (
+          <>
+            <OpportunityScoreboard region={region} />
+            <OpportunityBoard      region={region} user={user} />
+          </>
+        )}
         {tab === 'events'        && <Events />}
       </main>
     </div>
