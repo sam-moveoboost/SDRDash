@@ -58,9 +58,9 @@ export default function App() {
         <nav className="flex gap-1 ml-2">
           {[
             { id: 'scoreboard',    label: 'Scoreboard' },
-            { id: 'workflow',      label: 'My Work' },
             { id: 'opportunities', label: 'Pipeline' },
             { id: 'events',        label: 'Events' },
+            { id: 'workflow',      label: 'My Work' },
           ].map(t => (
             <button
               key={t.id}
