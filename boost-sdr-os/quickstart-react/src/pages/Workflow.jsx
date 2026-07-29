@@ -11,6 +11,7 @@ import {
 } from '../api/monday';
 import ProgressBar from '../components/shared/ProgressBar';
 import OpportunityDetailPanel from '../components/opportunities/OpportunityDetailPanel';
+import { parseOpportunity, formatMoney } from '../utils/opportunityMetrics';
 
 // ── Helpers ────────────────────────────────────────────────────────
 
@@ -41,6 +42,12 @@ function parsePersonIds(val) {
   try { return (JSON.parse(val ?? '{}').personsAndTeams ?? []).map(p => String(p.id)); }
   catch { return []; }
 }
+
+// Leads in these statuses don't need further follow-up, so My Work hides them
+// (note: "Qualifed Lead No Opp" is spelled that way on the board itself).
+const NO_FOLLOWUP_LEAD_STATUSES = new Set([
+  'Qualified Opportunity', 'Qualifed Lead No Opp', 'Lead Unqualified', 'Duplicate',
+]);
 
 function isAssignedToUser(item, userId) {
   if (!userId) return true;
@@ -116,10 +123,15 @@ const SECTION_CFG = {
     accentColor: '#D97706',
     pillClass: 'bg-amber-soft text-[#92400E]',
     getName:      item => item.name,
-    getCompany:   () => '',
+    getCompany:   item => colText(item, 'lead_company'),
     getStatus:    item => colText(item, 'lead_status'),
     getRegion:    item => colText(item, 'color_mkz4y1yv'),
     getLastTouch: item => daysSince(item.updated_at),
+    getMeta: item => {
+      const sdr = colText(item, 'multiple_person_mm2bjm2z');
+      const bizdev = colText(item, 'lead_owner');
+      return [sdr && `SDR: ${sdr}`, bizdev && `BizDev: ${bizdev}`].filter(Boolean).join(' · ');
+    },
     hardcodedFields: [
       { id: 'lead_status', label: 'Status', type: 'color', isPeople: false, statusLabels: null },
       { id: 'multiple_person_mm2bjm2z', label: 'SDR', type: 'multiple-person', isPeople: true, statusLabels: null },
@@ -135,6 +147,19 @@ const SECTION_CFG = {
     getStatus:    item => oppStageText(item),
     getRegion:    item => colText(item, 'color_mkxerb02'),
     getLastTouch: item => daysSince(item.updated_at),
+    getMeta: item => {
+      const o = parseOpportunity(item);
+      let valueText;
+      if (o.isPS) {
+        valueText = o.valueUSD > 0
+          ? `${formatMoney(o.valueUSD, 'USD')} PS`
+          : (o.psValueTxn > 0 ? `${formatMoney(o.psValueTxn, o.currency)} PS · pending FX` : null);
+      } else {
+        valueText = o.netAddedARR > 0 ? `${formatMoney(o.netAddedARR, 'USD')} ARR` : null;
+      }
+      const winPct = o.winProbability > 0 ? `${o.winProbability}% win` : null;
+      return [valueText, winPct].filter(Boolean).join(' · ');
+    },
     hardcodedFields: null, // opportunities use the shared OpportunityDetailPanel instead
   },
 };
@@ -230,6 +255,7 @@ function ItemCard({ item, boardType, selected, onClick }) {
   const status  = cfg.getStatus(item);
   const region  = cfg.getRegion(item);
   const touch   = cfg.getLastTouch(item);
+  const meta    = cfg.getMeta ? cfg.getMeta(item) : '';
   const initials = name.split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '?';
 
   return (
@@ -252,6 +278,7 @@ function ItemCard({ item, boardType, selected, onClick }) {
       <div className="flex-1 min-w-0">
         <p className="font-semibold text-[13px] text-ink truncate leading-snug">{name}</p>
         {company && <p className="text-[11px] text-muted truncate">{company}</p>}
+        {meta && <p className="text-[10.5px] text-muted truncate">{meta}</p>}
       </div>
 
       <div className="flex items-center gap-2 flex-shrink-0">
@@ -647,7 +674,9 @@ export default function Workflow({ region, user: userProp }) {
         .finally(() => setLoadingProspects(false));
 
       fetchAllLeads()
-        .then(all => setLeads(all.filter(item => isAssignedToUser(item, uid))))
+        .then(all => setLeads(all.filter(item =>
+          isAssignedToUser(item, uid) && !NO_FOLLOWUP_LEAD_STATUSES.has(colText(item, 'lead_status'))
+        )))
         .catch(e => setError(e.message))
         .finally(() => setLoadingLeads(false));
 

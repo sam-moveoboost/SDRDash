@@ -780,7 +780,7 @@ export async function fetchAllLeads() {
   // (isAssignedToUser) can check either, not just the SDR column.
   const FIELDS = `
     id name updated_at
-    column_values(ids: ["lead_status", "color_mkz4y1yv", "multiple_person_mm2bjm2z", "lead_owner"]) { id text value }
+    column_values(ids: ["lead_status", "color_mkz4y1yv", "multiple_person_mm2bjm2z", "lead_owner", "lead_company"]) { id text value }
   `;
 
   const first = await gql(`
