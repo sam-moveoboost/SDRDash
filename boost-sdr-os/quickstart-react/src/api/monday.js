@@ -551,8 +551,9 @@ export async function updateOpportunityColumn(itemId, columnId, value, fieldKey,
     // Date: {"date":"2026-07-03"}
     innerJson = JSON.stringify({ date: String(value) });
   } else {
-    // Numbers, text: plain string value
-    innerJson = String(value);
+    // Numbers, text: the column's JSON value IS the plain string itself, so it
+    // must still be JSON-encoded (quoted) — a bare unquoted string isn't valid JSON.
+    innerJson = JSON.stringify(String(value));
   }
 
   // change_column_value value: JSON! expects a JSON-encoded string literal in the query
@@ -806,7 +807,9 @@ export async function updateItemColumnValue(boardId, itemId, columnId, value, co
   } else if (columnType === 'date') {
     innerJson = JSON.stringify({ date: String(value) });
   } else {
-    innerJson = String(value);
+    // Numbers, text: the column's JSON value IS the plain string itself, so it
+    // must still be JSON-encoded (quoted) — a bare unquoted string isn't valid JSON.
+    innerJson = JSON.stringify(String(value));
   }
 
   const gqlVal = JSON.stringify(innerJson);
