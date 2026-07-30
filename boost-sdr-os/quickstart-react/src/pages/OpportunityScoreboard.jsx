@@ -216,6 +216,7 @@ function DealsList({ title, deals, dateLabel, getDate, showOutcome, showWinProb,
                 <th className="text-left px-5 py-2.5 font-semibold text-muted">Deal</th>
                 <th className="text-left px-3 py-2.5 font-semibold text-muted">{showOutcome ? 'Outcome' : 'Stage'}</th>
                 <th className="text-left px-3 py-2.5 font-semibold text-muted">Type</th>
+                <th className="text-left px-3 py-2.5 font-semibold text-muted">BizDev</th>
                 {showWinProb && <th className="text-right px-3 py-2.5 font-semibold text-muted">Win %</th>}
                 <th className="text-left px-3 py-2.5 font-semibold text-muted">{dateLabel}</th>
                 <th className="text-right px-5 py-2.5 font-semibold text-muted">Value (USD)</th>
@@ -248,6 +249,7 @@ function DealsList({ title, deals, dateLabel, getDate, showOutcome, showWinProb,
                     }
                   </td>
                   <td className="px-3 py-3 text-muted">{o.typeOfDeal}</td>
+                  <td className="px-3 py-3 text-muted truncate max-w-[120px]">{o.bizDev}</td>
                   {showWinProb && (
                     <td className="px-3 py-3 text-right tabular-nums text-muted">{o.winProbability > 0 ? `${o.winProbability}%` : '—'}</td>
                   )}

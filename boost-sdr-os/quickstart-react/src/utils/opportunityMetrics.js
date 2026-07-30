@@ -122,6 +122,7 @@ export function parseOpportunity(item) {
     actualClose:   parseDate(colText(item, OPP_COLS.ACTUAL_CLOSE)),
     created:       parseDate(colText(item, OPP_COLS.CREATED)),
     ownerIds: parsePeopleIds(item, OPP_COLS.DEAL_OWNER),
+    bizDev: colText(item, OPP_COLS.DEAL_OWNER) || 'Unassigned',
   };
 }
 
