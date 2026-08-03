@@ -679,7 +679,7 @@ function sortableMonthLabel(dateStr) {
   if (!dateStr) return null;
   const [y, m] = dateStr.split('-').map(Number);
   if (!y || !m) return null;
-  return `${y} ${String(m).padStart(2, '0')} ${MONTH_NAMES[m - 1]}`;
+  return `${y} ${String(m).padStart(2, '0')} - ${MONTH_NAMES[m - 1]}`;
 }
 
 function buildEventColumnValues(form) {
