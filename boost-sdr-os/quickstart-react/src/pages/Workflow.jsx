@@ -6,7 +6,8 @@ import {
   fetchAllLeads,
   fetchOpportunities,
   fetchBoardColumns,
-  updateItemColumnValue,
+  updateItemColumns,
+  buildColumnValue,
   BOARDS,
 } from '../api/monday';
 import ProgressBar from '../components/shared/ProgressBar';
@@ -125,6 +126,7 @@ const SECTION_CFG = {
     boardId: BOARDS.LEADS,
     accentColor: '#D97706',
     pillClass: 'bg-amber-soft text-[#92400E]',
+    editableName: true,
     getName:      item => item.name,
     getCompany:   item => colText(item, 'lead_company'),
     getStatus:    item => colText(item, 'lead_status'),
@@ -332,31 +334,32 @@ function DetailPanel({ item, boardType, boardCols, wsUsers, accountSlug, onClose
   async function handleSave() {
     const changed = Object.keys(edits);
     if (!changed.length) return;
+    if (changed.includes('name') && !String(edits.name).trim()) {
+      setSavedMsg('Error: Name cannot be empty');
+      return;
+    }
     setSaving(true);
     setSavedMsg('');
     try {
+      // One change_multiple_column_values call for every edited field — atomic,
+      // so a value monday rejects leaves the item fully unsaved instead of the
+      // earlier fields from the same Save having already landed while a later
+      // one throws.
+      const cv = {};
       for (const colId of changed) {
+        if (colId === 'name') continue;
         const field = editFields.find(f => f.id === colId);
-        await updateItemColumnValue(cfg.boardId, item.id, colId, edits[colId], field?.type ?? 'text');
+        cv[colId] = buildColumnValue(field?.type ?? 'text', edits[colId]);
       }
-      const updatedCvs = (item.column_values ?? []).map(cv => {
-        if (edits[cv.id] === undefined) return cv;
-        const field = editFields.find(f => f.id === cv.id);
-        let newText  = edits[cv.id];
-        let newValue = cv.value;
-        if (field?.isPeople) {
-          const uid = parseInt(edits[cv.id], 10);
-          newText  = wsUsers.find(u => String(u.id) === String(edits[cv.id]))?.name ?? String(uid);
-          newValue = JSON.stringify({ personsAndTeams: [{ id: uid, kind: 'person' }] });
-        }
-        return { ...cv, text: newText, value: newValue };
-      });
-      onUpdate(item.id, boardType, updatedCvs);
+      if (changed.includes('name')) cv.name = edits.name.trim();
+
+      const updated = await updateItemColumns(cfg.boardId, item.id, cv);
+      onUpdate(item.id, boardType, updated.column_values, updated.name);
       setEdits({});
       setSavedMsg('Saved ✓');
       setTimeout(() => setSavedMsg(''), 3000);
     } catch (e) {
-      setSavedMsg(`Error: ${e.message.slice(0, 80)}`);
+      setSavedMsg(`Error: ${e.message}`);
     } finally {
       setSaving(false);
     }
@@ -375,7 +378,18 @@ function DetailPanel({ item, boardType, boardCols, wsUsers, accountSlug, onClose
           <span className={`inline-flex items-center text-[10px] font-bold uppercase tracking-wider mb-2 px-2 py-0.5 rounded-full ${cfg.pillClass}`}>
             {cfg.label}
           </span>
-          <h2 className="font-display text-[18px] font-bold tracking-tight leading-snug break-words">{name}</h2>
+          {cfg.editableName ? (
+            <input
+              type="text"
+              value={edits.name !== undefined ? edits.name : name}
+              onChange={e => setEdits(prev => ({ ...prev, name: e.target.value }))}
+              className={`w-full font-display text-[18px] font-bold tracking-tight bg-transparent border-b focus:outline-none focus:border-teal pb-1 ${
+                edits.name !== undefined ? 'border-teal' : 'border-line'
+              }`}
+            />
+          ) : (
+            <h2 className="font-display text-[18px] font-bold tracking-tight leading-snug break-words">{name}</h2>
+          )}
           {company && <p className="text-muted text-[13px] mt-0.5">{company}</p>}
           <div className="flex items-center gap-2 mt-2 flex-wrap">
             {status && <StatusBadge label={status} />}
@@ -746,13 +760,13 @@ export default function Workflow({ region, user: userProp }) {
 
   const accountSlug = me?.account?.slug ?? '';
 
-  function handleUpdate(itemId, boardType, updatedCvs) {
+  function handleUpdate(itemId, boardType, updatedCvs, updatedName) {
     const setter = boardType === 'prospect' ? setProspects
       : boardType === 'lead' ? setLeads
       : setOpps;
-    setter(prev => prev.map(item =>
-      item.id === itemId ? { ...item, column_values: updatedCvs } : item
-    ));
+    setter(prev => prev.map(item => (item.id === itemId
+      ? { ...item, column_values: updatedCvs, ...(updatedName !== undefined ? { name: updatedName } : {}) }
+      : item)));
   }
 
   function toggleCollapsed(key) {
@@ -943,7 +957,7 @@ export default function Workflow({ region, user: userProp }) {
                 wsUsers={wsUsers}
                 accountSlug={accountSlug}
                 onClose={() => setSelected(null)}
-                onUpdate={(itemId, updatedCvs) => handleUpdate(itemId, 'opportunity', updatedCvs)}
+                onUpdate={(itemId, updatedCvs, updatedName) => handleUpdate(itemId, 'opportunity', updatedCvs, updatedName)}
               />
             ) : (
               <DetailPanel

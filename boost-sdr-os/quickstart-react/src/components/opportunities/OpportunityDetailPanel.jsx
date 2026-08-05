@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { updateItemColumnValue, createOpportunity, fetchItemColumnValues, BOARDS } from '../../api/monday';
+import {
+  updateItemColumnValue, updateItemColumns, buildColumnValue, createOpportunity,
+  fetchItemColumnValues, BOARDS,
+} from '../../api/monday';
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -167,19 +170,6 @@ function SectionLabel({ children }) {
 
 const PEOPLE_COL_IDS = new Set([COL.BIZDEV, COL.SDR, COL.IC_CSM]);
 
-function buildColumnValue(type, value) {
-  if (type === 'multiple-person' || type === 'person') {
-    return { personsAndTeams: [{ id: parseInt(value, 10), kind: 'person' }] };
-  } else if (type === 'color' || type === 'status') {
-    return { label: String(value) };
-  } else if (type === 'dropdown') {
-    return { labels: [String(value)] };
-  } else if (type === 'date') {
-    return { date: String(value) };
-  }
-  return String(value);
-}
-
 // Formula columns (Hourly Rate, PS Value (USD)) only ever carry their
 // computed number in display_value — text/value are always empty — so a
 // refresh must copy display_value too, and any "did it change" check must
@@ -232,46 +222,36 @@ export default function OpportunityDetailPanel({ item, isNew, boardCols, wsUsers
   async function handleSave() {
     const changed = Object.keys(edits);
     if (!changed.length) return;
+    if (changed.includes('name') && !String(edits.name).trim()) {
+      setSavedMsg('Error: Name cannot be empty');
+      return;
+    }
     setSaving(true);
     setSavedMsg('');
     try {
+      // One change_multiple_column_values call for every edited field (including a
+      // renamed item, via the "name" key) — atomic, so a value monday rejects leaves
+      // the item fully unsaved instead of the earlier fields from the same Save
+      // having already landed while a later one throws. It also returns the item's
+      // fresh column_values, formulas included, so Hourly Rate / PS Value (USD)
+      // show their recalculated numbers immediately without a separate poll.
+      const cv = {};
       for (const colId of changed) {
+        if (colId === 'name') continue;
         const col = colOf(colId);
         const type = col?.type
           ?? (colId === COL.BIZDEV || colId === COL.SDR || colId === COL.IC_CSM ? 'person' : 'text');
-        await updateItemColumnValue(BOARDS.OPPORTUNITIES, item.id, colId, edits[colId], type);
+        cv[colId] = buildColumnValue(type, edits[colId]);
       }
-      let updatedCvs = (item.column_values ?? []).map(cv => {
-        if (edits[cv.id] === undefined) return cv;
-        const isPeople = [COL.BIZDEV, COL.SDR, COL.IC_CSM].includes(cv.id);
-        let newText = edits[cv.id];
-        let newValue = cv.value;
-        if (isPeople) {
-          const uid = parseInt(edits[cv.id], 10);
-          newText = wsUsers.find(u => String(u.id) === String(edits[cv.id]))?.name ?? String(uid);
-          newValue = JSON.stringify({ personsAndTeams: [{ id: uid, kind: 'person' }] });
-        }
-        return { ...cv, text: newText, value: newValue };
-      });
+      if (changed.includes('name')) cv.name = edits.name.trim();
 
-      // PS Value (Transaction Currency) and Hours Acquired directly drive the
-      // Hourly Rate and PS Value (USD) formulas — refetch those two so a save
-      // shows the board's recalculated numbers immediately, not the pre-edit
-      // ones. (Currency alone doesn't retrigger the formula, only the FX
-      // Calculator does, but re-checking is cheap and keeps this in sync too.)
-      const FORMULA_INPUT_COLS = [COL.PS_VALUE_TXN, COL.HOURS_ACQUIRED, COL.TRANSACTION_CURRENCY];
-      if (changed.some(c => FORMULA_INPUT_COLS.includes(c))) {
-        await new Promise(r => setTimeout(r, 500)); // small buffer for the formula to recompute
-        const fresh = await fetchItemColumnValues(item.id, [COL.HOURLY_RATE, COL.PS_VALUE_USD]);
-        if (fresh.length) updatedCvs = mergeFreshColumnValues(updatedCvs, fresh);
-      }
-
-      onUpdate(item.id, updatedCvs);
+      const updated = await updateItemColumns(BOARDS.OPPORTUNITIES, item.id, cv);
+      onUpdate(item.id, updated.column_values, updated.name);
       setEdits({});
       setSavedMsg('Saved ✓');
       setTimeout(() => setSavedMsg(''), 3000);
     } catch (e) {
-      setSavedMsg(`Error: ${e.message.slice(0, 100)}`);
+      setSavedMsg(`Error: ${e.message}`);
     } finally {
       setSaving(false);
     }
@@ -355,7 +335,14 @@ export default function OpportunityDetailPanel({ item, isNew, boardCols, wsUsers
               className="w-full font-display text-[18px] font-bold tracking-tight bg-transparent border-b border-line focus:outline-none focus:border-teal pb-1"
             />
           ) : (
-            <h2 className="font-display text-[18px] font-bold tracking-tight leading-snug break-words">{item.name}</h2>
+            <input
+              type="text"
+              value={val('name', item.name)}
+              onChange={e => set('name', e.target.value)}
+              className={`w-full font-display text-[18px] font-bold tracking-tight bg-transparent border-b focus:outline-none focus:border-teal pb-1 ${
+                dirty('name') ? 'border-teal' : 'border-line'
+              }`}
+            />
           )}
           {company && <p className="text-muted text-[13px] mt-0.5">{company}</p>}
           {accountLinked && <p className="text-muted text-[12px] mt-0.5">Account: {accountLinked}</p>}

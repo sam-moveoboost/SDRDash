@@ -334,8 +334,10 @@ export default function OpportunityScoreboard({ region, user }) {
     [rawOpps, selectedId]
   );
 
-  function handleUpdate(itemId, updatedCvs) {
-    setRawOpps(prev => prev.map(o => (o.id === itemId ? { ...o, column_values: updatedCvs } : o)));
+  function handleUpdate(itemId, updatedCvs, updatedName) {
+    setRawOpps(prev => prev.map(o => (o.id === itemId
+      ? { ...o, column_values: updatedCvs, ...(updatedName !== undefined ? { name: updatedName } : {}) }
+      : o)));
   }
 
   function handleCreate(created) {

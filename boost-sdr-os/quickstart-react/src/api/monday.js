@@ -829,25 +829,31 @@ export async function fetchAllLeads() {
   return allItems;
 }
 
+// Builds the per-column value structure change_multiple_column_values (and, once
+// JSON-encoded, change_column_value) expects for a given column type. Blank
+// values are mapped to `null` rather than an empty string/object — monday's API
+// silently coerces "" to 0 on numbers columns and rejects "" as an invalid date
+// structure, so clearing a field has to go through `null` for those two types.
+export function buildColumnValue(type, value) {
+  const isEmpty = value === undefined || value === null || String(value).trim() === '';
+  if (type === 'multiple-person' || type === 'person') {
+    return isEmpty ? null : { personsAndTeams: [{ id: parseInt(value, 10), kind: 'person' }] };
+  } else if (type === 'color' || type === 'status') {
+    return isEmpty ? null : { label: String(value) };
+  } else if (type === 'dropdown') {
+    return isEmpty ? null : { labels: [String(value)] };
+  } else if (type === 'date') {
+    return isEmpty ? null : { date: String(value) };
+  } else if (type === 'numbers') {
+    return isEmpty ? null : String(value);
+  }
+  return String(value ?? '');
+}
+
 // ── Generic column mutation (any board) ──────────────────────────
 // Used by the My Work detail panel to save edits across all boards.
 export async function updateItemColumnValue(boardId, itemId, columnId, value, columnType) {
-  let innerJson;
-  if (columnType === 'multiple-person' || columnType === 'person') {
-    innerJson = JSON.stringify({ personsAndTeams: [{ id: parseInt(value, 10), kind: 'person' }] });
-  } else if (columnType === 'color' || columnType === 'status') {
-    innerJson = JSON.stringify({ label: String(value) });
-  } else if (columnType === 'dropdown') {
-    innerJson = JSON.stringify({ labels: [String(value)] });
-  } else if (columnType === 'date') {
-    innerJson = JSON.stringify({ date: String(value) });
-  } else {
-    // Numbers, text: the column's JSON value IS the plain string itself, so it
-    // must still be JSON-encoded (quoted) — a bare unquoted string isn't valid JSON.
-    innerJson = JSON.stringify(String(value));
-  }
-
-  const gqlVal = JSON.stringify(innerJson);
+  const gqlVal = JSON.stringify(JSON.stringify(buildColumnValue(columnType, value)));
 
   const data = await gql(`
     mutation {
@@ -860,4 +866,34 @@ export async function updateItemColumnValue(boardId, itemId, columnId, value, co
     }
   `);
   return data.change_column_value;
+}
+
+// ── Multi-column mutation (any board) ─────────────────────────────
+// Saves several columns in one atomic call — if monday rejects any single
+// value, NONE of them are applied, so the app's local state and the board
+// never end up half-saved the way sequential change_column_value calls could
+// leave them. Also returns the item's fresh column_values (with the
+// FormulaValue fragment) so callers don't need a separate refetch to pick up
+// recalculated formula columns (e.g. Hourly Rate / PS Value (USD)).
+export async function updateItemColumns(boardId, itemId, columnValues) {
+  const cvJson = JSON.stringify(JSON.stringify(columnValues));
+  const data = await gql(`
+    mutation {
+      change_multiple_column_values(
+        board_id: ${boardId},
+        item_id: ${itemId},
+        column_values: ${cvJson}
+      ) {
+        id
+        name
+        column_values {
+          id
+          text
+          value
+          ... on FormulaValue { display_value }
+        }
+      }
+    }
+  `);
+  return data.change_multiple_column_values;
 }
