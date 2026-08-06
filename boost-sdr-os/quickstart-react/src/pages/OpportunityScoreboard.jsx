@@ -6,6 +6,7 @@ import {
   parseOpportunity, quarterOf, quarterLabel, inQuarter, inYear,
   groupBy, monthlyTrend, periodStats, sumUSDBySide, formatMoney, formatByCurrency,
   planningBuckets, historicalClosed,
+  DEFAULT_DEAL_FILTERS, hasActiveDealFilters, distinctValues, filterOpps,
 } from '../utils/opportunityMetrics';
 
 const PALETTE = ['#192D3F', '#8DC63A', '#E29A2E', '#579bfc', '#9d50dd', '#E0544A', '#4eccc6', '#254154', '#df2f4a', '#00c875'];
@@ -188,6 +189,61 @@ function fmtDate(d) {
   return d ? d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 }
 
+function selectCls(active) {
+  return `border rounded-lg pl-2.5 pr-1.5 py-1.5 text-[12.5px] bg-white focus:outline-none focus:ring-1 focus:ring-teal focus:border-teal transition-colors ${
+    active ? 'border-teal text-ink font-medium' : 'border-line text-muted'
+  }`;
+}
+
+// Filters the Pipeline Planning / Top Open Deals / Historical tables below —
+// the summary banners, period cards, breakdowns, and monthly trend chart
+// above stay unfiltered so they always reflect the full pipeline.
+function FilterBar({ filters, setFilters, options }) {
+  const active = hasActiveDealFilters(filters);
+  const set = (key, value) => setFilters(prev => ({ ...prev, [key]: value }));
+  return (
+    <div className="bg-card border border-line rounded-2xl px-4 py-3 mb-6 flex items-center gap-2.5 flex-wrap">
+      <span className="text-[11px] font-bold uppercase tracking-wider text-muted mr-1">Filter tables</span>
+
+      <select className={selectCls(filters.typeOfDeal !== 'All')} value={filters.typeOfDeal} onChange={e => set('typeOfDeal', e.target.value)}>
+        <option value="All">Deal type: All</option>
+        {options.typeOfDeal.map(v => <option key={v} value={v}>{v}</option>)}
+      </select>
+
+      <select className={selectCls(filters.arrSourceType !== 'All')} value={filters.arrSourceType} onChange={e => set('arrSourceType', e.target.value)}>
+        <option value="All">Source type: All</option>
+        {options.arrSourceType.map(v => <option key={v} value={v}>{v}</option>)}
+      </select>
+
+      <select className={selectCls(filters.sdr !== 'All')} value={filters.sdr} onChange={e => set('sdr', e.target.value)}>
+        <option value="All">SDR: All</option>
+        {options.sdr.map(v => <option key={v} value={v}>{v}</option>)}
+      </select>
+
+      <select className={selectCls(filters.bizDev !== 'All')} value={filters.bizDev} onChange={e => set('bizDev', e.target.value)}>
+        <option value="All">BizDev: All</option>
+        {options.bizDev.map(v => <option key={v} value={v}>{v}</option>)}
+      </select>
+
+      <div className="flex items-center gap-1.5">
+        <span className="text-[11.5px] text-muted">Close date</span>
+        <input type="date" className={selectCls(!!filters.closeFrom)} value={filters.closeFrom} onChange={e => set('closeFrom', e.target.value)} />
+        <span className="text-muted text-[11.5px]">–</span>
+        <input type="date" className={selectCls(!!filters.closeTo)} value={filters.closeTo} onChange={e => set('closeTo', e.target.value)} />
+      </div>
+
+      {active && (
+        <button
+          onClick={() => setFilters(DEFAULT_DEAL_FILTERS)}
+          className="ml-auto text-[12px] font-semibold text-teal hover:text-teal-mid transition-colors"
+        >
+          Clear filters
+        </button>
+      )}
+    </div>
+  );
+}
+
 // Generic deals table used for the quarter/year/unscheduled pipeline-planning
 // lists, the historical closed report, and the top-open-deals list. Value is
 // always shown blended into USD — PS deals show "Pending FX rate" instead of
@@ -281,6 +337,7 @@ export default function OpportunityScoreboard({ region, user }) {
   const [boardCols, setBoardCols] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [filters, setFilters] = useState(DEFAULT_DEAL_FILTERS);
 
   useEffect(() => {
     setLoading(true);
@@ -322,12 +379,30 @@ export default function OpportunityScoreboard({ region, user }) {
   const lostThisYear = useMemo(() => opps.filter(o => o.isLost && inYear(o.actualClose, year)), [opps, year]);
   const reasonBreakdown = useMemo(() => groupBy(lostThisYear, o => o.reasonLost || 'Not recorded'), [lostThisYear]);
 
-  const topOpenDeals = useMemo(() => [...openOpps].sort((a, b) => b.valueUSD - a.valueUSD).slice(0, 10), [openOpps]);
+  // Deal-table filters (type of deal, ARR source type, SDR, BizDev, close date) — only
+  // scoped to the Pipeline Planning / Top Open Deals / Historical tables below, not the
+  // banners/breakdowns/trend chart above, so those always show the full pipeline.
+  const filterOptions = useMemo(() => ({
+    typeOfDeal:    distinctValues(opps, o => o.typeOfDeal),
+    arrSourceType: distinctValues(opps, o => o.arrSourceType),
+    sdr:           distinctValues(opps, o => o.sdr),
+    bizDev:        distinctValues(opps, o => o.bizDev),
+  }), [opps]);
+
+  const filtersActive = hasActiveDealFilters(filters);
+  const filteredOpenOpps = useMemo(() => filterOpps(openOpps, filters, 'expectedClose'), [openOpps, filters]);
+  const topOpenDeals = useMemo(() => [...filteredOpenOpps].sort((a, b) => b.valueUSD - a.valueUSD).slice(0, 10), [filteredOpenOpps]);
 
   // Pipeline planning: sort open opportunities into this quarter / later this year / unscheduled.
-  const buckets = useMemo(() => planningBuckets(opps, year, quarter), [opps, year, quarter]);
+  const buckets = useMemo(
+    () => planningBuckets(filterOpps(opps, filters, 'expectedClose'), year, quarter),
+    [opps, filters, year, quarter]
+  );
   // Historical reporting: everything already closed (Won or Lost), most recent first.
-  const closedHistory = useMemo(() => historicalClosed(opps).slice(0, 25), [opps]);
+  const closedHistory = useMemo(
+    () => historicalClosed(filterOpps(opps, filters, 'actualClose')).slice(0, 25),
+    [opps, filters]
+  );
 
   const selectedRawItem = useMemo(
     () => (selectedId ? rawOpps.find(o => o.id === selectedId) : null),
@@ -397,6 +472,9 @@ export default function OpportunityScoreboard({ region, user }) {
           <PeriodCard title={`This Year · ${year}`} stats={yearStats} />
         </div>
 
+        {/* Filters — applies to Pipeline Planning, Top Open Deals, and Historical below only */}
+        <FilterBar filters={filters} setFilters={setFilters} options={filterOptions} />
+
         {/* Pipeline planning: sort open opportunities into quarter / year / unscheduled — interactive, click a row to edit */}
         <div className="mb-6">
           <p className="font-display font-bold text-[16px] mb-3">Pipeline Planning</p>
@@ -406,7 +484,7 @@ export default function OpportunityScoreboard({ region, user }) {
               deals={buckets.thisQuarter}
               dateLabel="Expected Close"
               getDate={o => o.expectedClose}
-              empty="No open deals expected to close this quarter."
+              empty={filtersActive ? 'No open deals match these filters, closing this quarter.' : 'No open deals expected to close this quarter.'}
               showWinProb
               scroll
               selectedId={selectedId}
@@ -417,7 +495,7 @@ export default function OpportunityScoreboard({ region, user }) {
               deals={buckets.laterThisYear}
               dateLabel="Expected Close"
               getDate={o => o.expectedClose}
-              empty="No open deals expected to close later this year."
+              empty={filtersActive ? 'No open deals match these filters, closing later this year.' : 'No open deals expected to close later this year.'}
               showWinProb
               scroll
               selectedId={selectedId}
@@ -428,7 +506,7 @@ export default function OpportunityScoreboard({ region, user }) {
               deals={buckets.unscheduled}
               dateLabel="Created"
               getDate={o => o.created}
-              empty="Every open deal has an Expected Close Date set. Nice."
+              empty={filtersActive ? 'No unscheduled open deals match these filters.' : 'Every open deal has an Expected Close Date set. Nice.'}
               showWinProb
               scroll
               selectedId={selectedId}
@@ -460,7 +538,7 @@ export default function OpportunityScoreboard({ region, user }) {
             deals={topOpenDeals}
             dateLabel="Expected Close"
             getDate={o => o.expectedClose}
-            empty="No open deals in this territory."
+            empty={filtersActive ? 'No open deals match these filters.' : 'No open deals in this territory.'}
             showWinProb
             selectedId={selectedId}
             onSelect={selectDeal}
@@ -474,7 +552,7 @@ export default function OpportunityScoreboard({ region, user }) {
           dateLabel="Closed On"
           getDate={o => o.actualClose}
           showOutcome
-          empty="No closed deals recorded yet."
+          empty={filtersActive ? 'No closed deals match these filters.' : 'No closed deals recorded yet.'}
           scroll
           selectedId={selectedId}
           onSelect={selectDeal}

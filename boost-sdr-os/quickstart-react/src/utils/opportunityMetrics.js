@@ -10,6 +10,7 @@
 export const OPP_COLS = {
   STAGE:            'color_mkz28c27',   // status: New (Qualified) … Won / Lost
   TYPE_OF_DEAL:      'color_mkz2atw5',   // status: New Business, Expansion, Renewal, PS…
+  ARR_SOURCE_TYPE:   'color_mkz2wqw4',   // status: Inbound / Outbound / PS
   REGION:            'color_mkxerb02',   // status: UK / US / IL / Apps / Other (territory)
   TRANSACTION_CURRENCY: 'color_mm4xexb2', // status: GBP / USD / ILS / AED / EUR
   NET_ADDED_ARR:     'numeric_mm1j3hkq', // numbers — the ARR+CS deal value, always USD
@@ -22,7 +23,8 @@ export const OPP_COLS = {
   EXPECTED_CLOSE:    'deal_expected_close_date',
   ACTUAL_CLOSE:      'deal_close_date',
   CREATED:           'deal_creation_date',
-  DEAL_OWNER:        'deal_owner',       // people
+  DEAL_OWNER:        'deal_owner',       // people — BizDev
+  SDR:               'multiple_person_mm4xadea', // people
   WIN_PROBABILITY:   'numeric_mm5pgbax', // numbers — 0-100
   FORECAST_CATEGORY: 'color_mm5phjr9',   // status: Commit / Best Case / Pipeline
   // Titled "Hours acquired" — on a PS deal this is hours purchased; on an ARR
@@ -123,6 +125,8 @@ export function parseOpportunity(item) {
     created:       parseDate(colText(item, OPP_COLS.CREATED)),
     ownerIds: parsePeopleIds(item, OPP_COLS.DEAL_OWNER),
     bizDev: colText(item, OPP_COLS.DEAL_OWNER) || 'Unassigned',
+    sdr: colText(item, OPP_COLS.SDR) || 'Unassigned',
+    arrSourceType: colText(item, OPP_COLS.ARR_SOURCE_TYPE) || 'Unspecified',
   };
 }
 
@@ -272,6 +276,45 @@ export function historicalClosed(opps) {
   return opps
     .filter(o => (o.isWon || o.isLost) && o.actualClose)
     .sort((a, b) => b.actualClose - a.actualClose);
+}
+
+// ── Deal-table filters ────────────────────────────────────────────────
+// Used by the Pipeline Planning / Top Open Deals / Historical tables only —
+// the summary banners, period cards, breakdowns, and monthly trend chart
+// stay unfiltered so they always reflect the full picture.
+export const DEFAULT_DEAL_FILTERS = {
+  typeOfDeal: 'All',
+  arrSourceType: 'All',
+  sdr: 'All',
+  bizDev: 'All',
+  closeFrom: '',
+  closeTo: '',
+};
+
+export function hasActiveDealFilters(filters) {
+  return Object.entries(filters).some(([k, v]) => v && v !== DEFAULT_DEAL_FILTERS[k]);
+}
+
+export function distinctValues(opps, keyFn) {
+  return [...new Set(opps.map(keyFn).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+}
+
+// dateField picks which date the close-date range filter checks against —
+// Expected Close for open deals, Actual Close for the historical/closed table.
+export function filterOpps(opps, filters, dateField) {
+  return opps.filter(o => {
+    if (filters.typeOfDeal !== 'All' && o.typeOfDeal !== filters.typeOfDeal) return false;
+    if (filters.arrSourceType !== 'All' && o.arrSourceType !== filters.arrSourceType) return false;
+    if (filters.sdr !== 'All' && o.sdr !== filters.sdr) return false;
+    if (filters.bizDev !== 'All' && o.bizDev !== filters.bizDev) return false;
+    if (filters.closeFrom || filters.closeTo) {
+      const d = o[dateField];
+      if (!d) return false;
+      if (filters.closeFrom && d < new Date(filters.closeFrom)) return false;
+      if (filters.closeTo && d > new Date(`${filters.closeTo}T23:59:59`)) return false;
+    }
+    return true;
+  });
 }
 
 export function formatMoney(amount, currency) {
