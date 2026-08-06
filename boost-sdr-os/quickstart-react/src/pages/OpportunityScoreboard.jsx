@@ -205,6 +205,14 @@ function FilterBar({ filters, setFilters, options }) {
     <div className="bg-card border border-line rounded-2xl px-4 py-3 mb-6 flex items-center gap-2.5 flex-wrap">
       <span className="text-[11px] font-bold uppercase tracking-wider text-muted mr-1">Filter tables</span>
 
+      <input
+        type="text"
+        placeholder="Search deal name…"
+        value={filters.text}
+        onChange={e => set('text', e.target.value)}
+        className={`${selectCls(!!filters.text)} w-40`}
+      />
+
       <select className={selectCls(filters.typeOfDeal !== 'All')} value={filters.typeOfDeal} onChange={e => set('typeOfDeal', e.target.value)}>
         <option value="All">Deal type: All</option>
         {options.typeOfDeal.map(v => <option key={v} value={v}>{v}</option>)}

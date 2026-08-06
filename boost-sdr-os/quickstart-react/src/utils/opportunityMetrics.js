@@ -283,6 +283,7 @@ export function historicalClosed(opps) {
 // the summary banners, period cards, breakdowns, and monthly trend chart
 // stay unfiltered so they always reflect the full picture.
 export const DEFAULT_DEAL_FILTERS = {
+  text: '',
   typeOfDeal: 'All',
   arrSourceType: 'All',
   sdr: 'All',
@@ -302,7 +303,9 @@ export function distinctValues(opps, keyFn) {
 // dateField picks which date the close-date range filter checks against —
 // Expected Close for open deals, Actual Close for the historical/closed table.
 export function filterOpps(opps, filters, dateField) {
+  const needle = filters.text?.trim().toLowerCase();
   return opps.filter(o => {
+    if (needle && !o.name.toLowerCase().includes(needle)) return false;
     if (filters.typeOfDeal !== 'All' && o.typeOfDeal !== filters.typeOfDeal) return false;
     if (filters.arrSourceType !== 'All' && o.arrSourceType !== filters.arrSourceType) return false;
     if (filters.sdr !== 'All' && o.sdr !== filters.sdr) return false;
