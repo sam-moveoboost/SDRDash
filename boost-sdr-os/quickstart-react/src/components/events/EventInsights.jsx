@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { ATTEND_HOST_COLORS } from './attendHostColors';
 
 const TYPE_COLORS = {
   'All Day Conference':   '#579bfc',
@@ -6,14 +7,6 @@ const TYPE_COLORS = {
   'In Person Networking': '#df2f4a',
   'Online Networking':    '#cab641',
   'Other':                '#7f5347',
-};
-
-const ATTEND_HOST_COLORS = {
-  'Rec: Attend':        '#fdab3d',
-  'Rec: Host':          '#00c875',
-  'Decided: Attending': '#df2f4a',
-  'Decided: Hosting':   '#007eb5',
-  'Not Going':          '#9d50dd',
 };
 
 // ── Sub-components ────────────────────────────────────────────────

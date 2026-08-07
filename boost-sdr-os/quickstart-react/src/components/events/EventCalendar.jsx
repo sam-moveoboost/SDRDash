@@ -1,12 +1,5 @@
 import React, { useState, useMemo } from 'react';
-
-const ATTEND_HOST_COLORS = {
-  'Rec: Attend':        '#fdab3d',
-  'Rec: Host':          '#00c875',
-  'Decided: Attending': '#df2f4a',
-  'Decided: Hosting':   '#007eb5',
-  'Not Going':          '#9d50dd',
-};
+import { ATTEND_HOST_COLORS } from './attendHostColors';
 
 const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
