@@ -80,21 +80,44 @@ export const BOARDS = {
   EVENTS:        '5100871165',
 };
 
-// Fetch first page only — pagination added once basic queries confirmed working
+// Walks every page via cursor — a board this size (the Opportunities board alone
+// has 1000+ items) blows past a single 100-item page, which silently dropped
+// almost all historical Won/Lost deals from every downstream calculation
+// (win rate, closed value, quarter/year cards) since they weren't in whatever
+// arbitrary 100 items monday happened to return first.
 async function paginateBoard(boardId, fields) {
   console.log(`[monday] querying board ${boardId}...`);
   const first = await gql(`
     query {
       boards(ids: ["${boardId}"]) {
-        items_page(limit: 100) {
+        items_page(limit: 500) {
+          cursor
           items { ${fields} }
         }
       }
     }
   `);
-  const items = first.boards[0]?.items_page?.items ?? [];
-  console.log(`[monday] board ${boardId} returned ${items.length} items`);
-  return items;
+  let allItems = first.boards[0]?.items_page?.items ?? [];
+  let cursor   = first.boards[0]?.items_page?.cursor ?? null;
+
+  let pages = 0;
+  while (cursor && pages < 10) {
+    const next = await gql(`
+      query {
+        next_items_page(limit: 500, cursor: "${cursor}") {
+          cursor
+          items { ${fields} }
+        }
+      }
+    `);
+    allItems = [...allItems, ...(next.next_items_page?.items ?? [])];
+    cursor   = next.next_items_page?.cursor ?? null;
+    pages++;
+  }
+  if (cursor) console.warn(`[monday] board ${boardId} has more items beyond the ${pages}-page cap — results are incomplete`);
+
+  console.log(`[monday] board ${boardId} returned ${allItems.length} items`);
+  return allItems;
 }
 
 // Helper: get a column value's text by ID. Formula columns never populate
