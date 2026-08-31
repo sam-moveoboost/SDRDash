@@ -12,7 +12,7 @@ import {
 } from '../api/monday';
 import ProgressBar from '../components/shared/ProgressBar';
 import OpportunityDetailPanel from '../components/opportunities/OpportunityDetailPanel';
-import { parseOpportunity, formatMoney } from '../utils/opportunityMetrics';
+import { parseOpportunity, formatMoney, OPP_COLS } from '../utils/opportunityMetrics';
 
 // ── Helpers ────────────────────────────────────────────────────────
 
@@ -52,6 +52,13 @@ function parsePersonIds(val) {
 const NO_FOLLOWUP_LEAD_STATUSES = new Set([
   'Qualified Opportunity', 'Qualifed Lead No Opp', 'Lead Unqualified', 'Duplicate',
 ]);
+
+// Won/Lost opportunities are closed — they don't need further work, so My Work
+// hides them. This matters a lot more now that fetchOpportunities pages through
+// the whole board (1000+ items) instead of just the first 100, since without
+// this filter every historical Won/Lost deal ever assigned to a rep would
+// flood their My Work list.
+const CLOSED_OPP_STAGES = new Set(['Won', 'Lost']);
 
 function isAssignedToUser(item, userId) {
   if (!userId) return true;
@@ -698,7 +705,9 @@ export default function Workflow({ region, user: userProp }) {
         .finally(() => setLoadingLeads(false));
 
       fetchOpportunities({ region: null })
-        .then(all => setOpps(all.filter(item => isAssignedToUser(item, uid))))
+        .then(all => setOpps(all.filter(item =>
+          isAssignedToUser(item, uid) && !CLOSED_OPP_STAGES.has(colText(item, OPP_COLS.STAGE))
+        )))
         .catch(e => setError(e.message))
         .finally(() => setLoadingOpps(false));
     }
@@ -731,7 +740,12 @@ export default function Workflow({ region, user: userProp }) {
     if (region && region !== 'All') {
       list = list.filter(item => {
         const r = cfg.getRegion(item);
-        return !r || r === region;
+        // Opportunities: require an exact region match — with 1000+ opportunities
+        // now in play (see CLOSED_OPP_STAGES above), letting blank-region items
+        // through regardless of the selected region let in far too many
+        // out-of-territory deals. Prospects/leads keep the lenient blank-passes
+        // behavior since their region field is reliably populated.
+        return boardType === 'opportunity' ? r === region : (!r || r === region);
       });
     }
     return [...list].sort((a, b) => {
