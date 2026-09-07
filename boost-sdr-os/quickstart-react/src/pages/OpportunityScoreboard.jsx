@@ -439,14 +439,14 @@ export default function OpportunityScoreboard({ region, user }) {
   }
 
   if (error) return (
-    <div className="max-w-6xl mx-auto px-7 py-10 text-red">Failed to load opportunities: {error}</div>
+    <div className="max-w-[2100px] mx-auto px-7 py-10 text-red">Failed to load opportunities: {error}</div>
   );
 
   return (
     <>
       <ProgressBar loading={loading} />
 
-      <div className="max-w-6xl mx-auto px-7 py-8 pb-20">
+      <div className="max-w-[2100px] mx-auto px-7 py-8 pb-20">
 
         {/* Header */}
         <div className="mb-7 flex items-start justify-between gap-4 flex-wrap">
