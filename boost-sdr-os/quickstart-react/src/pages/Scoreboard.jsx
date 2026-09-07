@@ -8,8 +8,10 @@ import StaleDealsModal from '../components/scoreboard/StaleDealsModal';
 import StatCard from '../components/shared/StatCard';
 import ProgressBar from '../components/shared/ProgressBar';
 import EventLeaderboard from '../components/events/EventLeaderboard';
+import { OPP_COLS } from '../utils/opportunityMetrics';
 
 const LEADERBOARD_YEAR_OPTIONS = [2025, 2026, 2027, 2028];
+const CLOSED_OPP_STAGES = new Set(['Won', 'Lost']);
 
 // ── Per-rep data helpers (ID-based matching) ───────────────────────
 
@@ -55,6 +57,11 @@ function monthRange(monthStr) {
 function daysSince(dateStr) {
   if (!dateStr) return 0;
   return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
+}
+
+function oppStage(o) {
+  const cv = o.column_values?.find(c => c.id === OPP_COLS.STAGE);
+  return cv?.text || cv?.display_value || '';
 }
 
 // ── Scoreboard ────────────────────────────────────────────────────
@@ -151,7 +158,11 @@ export default function Scoreboard({ region, month }) {
     return parsePersonIds(raw).some(id => regionUserIds.has(id));
   });
 
-  const staleOpps = opps.filter(o => daysSince(o.updated_at) >= 14);
+  // Closed (Won/Lost) deals are excluded — they're finished, not stale, and
+  // now that fetchOpportunities pages through the whole board (1000+ items)
+  // instead of just the first 100, leaving this unfiltered surfaced every
+  // historical closed deal that hadn't been touched in 14+ days.
+  const staleOpps = opps.filter(o => daysSince(o.updated_at) >= 14 && !CLOSED_OPP_STAGES.has(oppStage(o)));
   const totalMeetings = meetings.length;
   const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
   const monthProgress = new Date().getDate() / daysInMonth;
