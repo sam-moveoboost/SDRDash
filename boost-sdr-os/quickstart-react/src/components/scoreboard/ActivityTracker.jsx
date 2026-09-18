@@ -52,6 +52,19 @@ function MetricBar({ label, value, target, loading }) {
   );
 }
 
+function ConnectRateStat({ rate, loading }) {
+  const color = rate >= 30 ? 'text-mint-deep' : rate >= 15 ? 'text-amber' : 'text-red';
+
+  return (
+    <div className="flex justify-between items-center text-[12.5px] mt-3 pt-3 border-t border-line">
+      <span className="text-muted font-medium">Connect rate</span>
+      <span className={`font-display font-semibold ${color}`}>
+        {loading ? '—' : `${rate}%`}
+      </span>
+    </div>
+  );
+}
+
 function RepCard({ rep, calls, newProspects, loading, period, onRepClick }) {
   const mul = period === 'month' ? 4 : 1;
   const callTarget     = (rep.weeklyCallTarget || 0) * mul;
@@ -76,6 +89,10 @@ function RepCard({ rep, calls, newProspects, loading, period, onRepClick }) {
   });
 
   const callCount = repCalls.length;
+
+  // Connect rate: share of dials that weren't NoAnswer
+  const connectedCount = repCalls.filter(c => !isNoAnswer(c)).length;
+  const connectRate = callCount > 0 ? Math.round((connectedCount / callCount) * 100) : 0;
 
   // Meaningful convos: connected calls (non-NoAnswer) lasting > 3 minutes
   const convoCount = repCalls.filter(c => !isNoAnswer(c) && callDurationMins(c) > 3).length;
@@ -126,6 +143,8 @@ function RepCard({ rep, calls, newProspects, loading, period, onRepClick }) {
       <MetricBar label="Outbound calls"     value={callCount}     target={callTarget}     loading={loading} />
       <MetricBar label="Meaningful convos"  value={convoCount}    target={convoTarget}    loading={loading} />
       <MetricBar label="New prospects"      value={prospectCount} target={prospectTarget} loading={loading} />
+
+      <ConnectRateStat rate={connectRate} loading={loading} />
     </div>
   );
 }
