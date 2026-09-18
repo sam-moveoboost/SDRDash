@@ -331,13 +331,54 @@ export async function fetchAircallCalls({ startDate, endDate }) {
 }
 
 // ── Opportunities ─────────────────────────────────────────────────
+// Explicit ids — the Opportunities board carries many more formula/mirror
+// columns than this. Querying `column_values` unfiltered forces monday to
+// compute `display_value` for every one of them on every item across every
+// paginated page, which blows past monday's per-minute rate limit for that
+// field (FIELD_MINUTE_RATE_LIMIT_EXCEEDED). Only two columns here are
+// formulas (PS_VALUE_USD, HOURLY_RATE) — keep this list to what the
+// Pipeline list and OpportunityDetailPanel actually read.
+const OPPORTUNITY_FIELD_IDS = [
+  'color_mkz28c27',   // STAGE
+  'color_mkz2atw5',   // TYPE_OF_DEAL
+  'color_mkz2wqw4',   // ARR_SOURCE_TYPE
+  'color_mkxerb02',   // REGION
+  'color_mm4xexb2',   // TRANSACTION_CURRENCY
+  'numeric_mm1j3hkq', // NET_ADDED_ARR
+  'numeric_mm4x1a5e', // TOTAL_ACCOUNT_ARR
+  'numeric_mkz3h4rp', // PS_VALUE_TXN
+  'formula_mm5qaewe', // PS_VALUE_USD (formula)
+  'color_mkzaet62',   // SOURCE
+  'color_mm0gr7a7',   // REASON_LOST
+  'dropdown_mkz4ve72', // INDUSTRY
+  'deal_expected_close_date',
+  'deal_close_date',
+  'deal_creation_date',
+  'deal_owner',            // BIZDEV
+  'multiple_person_mm4xadea', // SDR
+  'numeric_mm5pgbax', // WIN_PROBABILITY
+  'color_mm5phjr9',   // FORECAST_CATEGORY
+  'numeric_mm4xe0qv', // HOURS_ACQUIRED
+  'text_mkz2m8qz',    // NEXT_STEP
+  'date_mkz2b26d',    // NEXT_STEP_DATE
+  'color_mm3hgc8e',   // DISCOVERY_STATUS
+  'color_mkza93q9',   // CONVERSION_ACTIVITY
+  'multiple_person_mm1cxqfr', // IC_CSM
+  'color_mkz4dtzp',   // ARR_LENGTH
+  'formula_mm5pp5kk', // HOURLY_RATE (formula)
+  'color_mm59ttnd',   // CALCULATE_TRIGGER
+  'connect_boards31', // ACCOUNT
+  'text8',            // COMPANY
+  'color_mm4x2xm1',   // PAYMENT_TERMS
+];
+
 export async function fetchOpportunities({ region }) {
   const items = await paginateBoard(BOARDS.OPPORTUNITIES, `
     id
     name
     created_at
     updated_at
-    column_values {
+    column_values(ids: ${JSON.stringify(OPPORTUNITY_FIELD_IDS)}) {
       id
       text
       value
