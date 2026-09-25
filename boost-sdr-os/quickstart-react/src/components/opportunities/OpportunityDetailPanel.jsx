@@ -31,15 +31,15 @@ function parseSelectableLabels(column) {
 }
 
 export const STAGE_COLOR = {
-  'New (Qualified)': '#579bfc',
-  'Demo (Evaluation)': '#9d50dd',
-  'Proposal (Validation)': '#E29A2E',
-  'Contract sent (Buying process)': '#00c875',
-  'Negotiation & Legal': '#192D3F',
-  'On hold': '#a0a0a0',
-  'Ghosting': '#df2f4a',
-  'Won': '#00c875',
-  'Lost': '#df2f4a',
+  'New (Qualified)': '#2c5180',
+  'Demo (Evaluation)': '#916aff',
+  'Proposal (Validation)': '#cf9a2b',
+  'Contract sent (Buying process)': '#027361',
+  'Negotiation & Legal': '#1a385e',
+  'On hold': '#757c77',
+  'Ghosting': '#c44536',
+  'Won': '#027361',
+  'Lost': '#c44536',
 };
 
 // ── Column ids (verified against the live board) ────────────────────
@@ -88,7 +88,7 @@ export function Chip({ label, color, empty }) {
   return (
     <span
       className="inline-flex items-center rounded-full px-2 py-0.5 text-[10.5px] font-semibold leading-none text-white flex-shrink-0"
-      style={{ background: color ?? '#888' }}
+      style={{ background: color ?? '#757c77' }}
     >
       {label}
     </span>
@@ -96,8 +96,8 @@ export function Chip({ label, color, empty }) {
 }
 
 function inputCls(dirty) {
-  return `w-full border rounded-lg px-3 py-2 text-[13px] bg-white focus:outline-none focus:ring-1 focus:ring-teal focus:border-teal transition-colors ${
-    dirty ? 'border-teal bg-mint-soft/30' : 'border-line'
+  return `w-full border rounded-xl px-3 py-2 text-[13px] bg-white focus:outline-none focus:ring-1 focus:ring-navy focus:border-navy transition-colors ${
+    dirty ? 'border-navy bg-pale/30' : 'border-line'
   }`;
 }
 
@@ -319,10 +319,10 @@ export default function OpportunityDetailPanel({ item, isNew, boardCols, wsUsers
       {/* Header */}
       <div
         className="flex items-start justify-between px-5 pt-5 pb-4 border-b border-line flex-shrink-0"
-        style={{ background: `linear-gradient(to bottom, ${STAGE_COLOR[stage] ?? '#888'}12, transparent)` }}
+        style={{ background: `linear-gradient(to bottom, ${STAGE_COLOR[stage] ?? '#757c77'}12, transparent)` }}
       >
         <div className="min-w-0 flex-1 pr-3">
-          <span className="inline-flex items-center text-[10px] font-bold uppercase tracking-wider mb-2 px-2 py-0.5 rounded-full bg-mint-soft text-mint-deep">
+          <span className="inline-flex items-center text-[10px] font-bold uppercase tracking-wider mb-2 px-2 py-0.5 rounded-full bg-pale text-emerald">
             {isNew ? 'New Opportunity' : 'Opportunity'}
           </span>
           {isNew ? (
@@ -332,15 +332,15 @@ export default function OpportunityDetailPanel({ item, isNew, boardCols, wsUsers
               onChange={e => setNewName(e.target.value)}
               placeholder="Opportunity name…"
               autoFocus
-              className="w-full font-display text-[18px] font-bold tracking-tight bg-transparent border-b border-line focus:outline-none focus:border-teal pb-1"
+              className="w-full font-heading text-[18px] font-bold tracking-tight bg-transparent border-b border-line focus:outline-none focus:border-navy pb-1"
             />
           ) : (
             <input
               type="text"
               value={val('name', item.name)}
               onChange={e => set('name', e.target.value)}
-              className={`w-full font-display text-[18px] font-bold tracking-tight bg-transparent border-b focus:outline-none focus:border-teal pb-1 ${
-                dirty('name') ? 'border-teal' : 'border-line'
+              className={`w-full font-heading text-[18px] font-bold tracking-tight bg-transparent border-b focus:outline-none focus:border-navy pb-1 ${
+                dirty('name') ? 'border-navy' : 'border-line'
               }`}
             />
           )}
@@ -353,7 +353,7 @@ export default function OpportunityDetailPanel({ item, isNew, boardCols, wsUsers
             <a
               href={`https://${accountSlug}.monday.com/boards/${BOARDS.OPPORTUNITIES}/pulses/${item.id}`}
               target="_blank" rel="noreferrer"
-              className="inline-flex items-center gap-1.5 mt-2 text-[11.5px] font-semibold text-teal hover:text-teal-mid transition-colors"
+              className="inline-flex items-center gap-1.5 mt-2 text-[11.5px] font-semibold text-navy hover:text-navy-700 transition-colors"
             >
               Open in Monday ↗
             </a>
@@ -448,7 +448,7 @@ export default function OpportunityDetailPanel({ item, isNew, boardCols, wsUsers
                 <button
                   onClick={handleCalculate}
                   disabled={saving}
-                  className="mt-3 w-full font-display font-semibold text-[13px] py-2 rounded-xl border border-teal text-teal hover:bg-teal hover:text-white transition-colors disabled:opacity-40"
+                  className="mt-3 w-full font-heading font-semibold text-[13px] py-2 rounded-full border border-navy text-navy hover:bg-navy hover:text-white transition-colors disabled:opacity-40"
                 >
                   FX Calculator → Convert to USD
                 </button>
@@ -461,15 +461,15 @@ export default function OpportunityDetailPanel({ item, isNew, boardCols, wsUsers
       {/* Footer: save / create */}
       <div className="px-5 py-4 border-t border-line flex-shrink-0">
         {savedMsg && (
-          <p className={`text-[12px] font-semibold mb-2 ${savedMsg.startsWith('Error') ? 'text-red' : 'text-mint-deep'}`}>{savedMsg}</p>
+          <p className={`text-[12px] font-semibold mb-2 ${savedMsg.startsWith('Error') ? 'text-red' : 'text-emerald'}`}>{savedMsg}</p>
         )}
         <button
           disabled={saving || (isNew ? !newName.trim() : dirtyCount === 0)}
           onClick={isNew ? handleCreate : handleSave}
-          className="w-full font-display font-semibold text-[14px] py-2.5 rounded-xl transition-all disabled:opacity-40"
+          className="w-full font-heading font-semibold text-[14px] py-2.5 rounded-full transition-all disabled:opacity-40"
           style={{
-            background: (isNew ? newName.trim().length > 0 : dirtyCount > 0) ? '#192D3F' : '#E8E3DA',
-            color: (isNew ? newName.trim().length > 0 : dirtyCount > 0) ? 'white' : '#999',
+            background: (isNew ? newName.trim().length > 0 : dirtyCount > 0) ? '#1a385e' : '#e4e6e4',
+            color: (isNew ? newName.trim().length > 0 : dirtyCount > 0) ? 'white' : '#757c77',
           }}
         >
           {saving

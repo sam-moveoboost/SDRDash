@@ -80,14 +80,14 @@ export default function EventCalendar({ events, userMap, onEventClick }) {
         {/* Month navigation */}
         <button
           onClick={prevMonth}
-          className="w-8 h-8 rounded-lg hover:bg-[#F0EBE2] flex items-center justify-center text-muted text-[18px] transition-colors"
+          className="w-8 h-8 rounded-lg hover:bg-sunken flex items-center justify-center text-muted text-[18px] transition-colors"
         >
           ‹
         </button>
-        <span className="font-display font-bold text-[15px] w-40 text-center">{monthLabel}</span>
+        <span className="font-heading font-bold text-[15px] w-40 text-center">{monthLabel}</span>
         <button
           onClick={nextMonth}
-          className="w-8 h-8 rounded-lg hover:bg-[#F0EBE2] flex items-center justify-center text-muted text-[18px] transition-colors"
+          className="w-8 h-8 rounded-lg hover:bg-sunken flex items-center justify-center text-muted text-[18px] transition-colors"
         >
           ›
         </button>
@@ -107,13 +107,13 @@ export default function EventCalendar({ events, userMap, onEventClick }) {
             placeholder="Search events…"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 bg-canvas border border-line rounded-lg text-[13px] outline-none focus:border-teal transition-colors"
+            className="w-full pl-8 pr-3 py-1.5 bg-canvas border border-line rounded-lg text-[13px] outline-none focus:border-navy transition-colors"
           />
         </div>
       </div>
 
       {/* Day-of-week headers */}
-      <div className="grid grid-cols-7 border-b border-line bg-[#FAF8F5]">
+      <div className="grid grid-cols-7 border-b border-line bg-sunken">
         {DOW.map(d => (
           <div key={d} className="py-2 text-center text-[11px] font-semibold text-muted tracking-wide uppercase">
             {d}
@@ -124,19 +124,19 @@ export default function EventCalendar({ events, userMap, onEventClick }) {
       {/* Calendar grid */}
       <div className="grid grid-cols-7 divide-x divide-y divide-line">
         {cells.map((day, idx) => {
-          if (!day) return <div key={idx} className="min-h-[96px] bg-[#FAFAF8]" />;
+          if (!day) return <div key={idx} className="min-h-[96px] bg-sunken" />;
           const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
           const isToday = dateStr === todayStr;
           const dayEvents = eventsByDay[day] ?? [];
 
           return (
-            <div key={idx} className={`min-h-[96px] p-1.5 ${isToday ? 'bg-mint-soft/40' : ''}`}>
-              <div className={`text-[11.5px] font-semibold mb-1 w-5 h-5 flex items-center justify-center rounded-full ${isToday ? 'bg-teal text-white' : 'text-muted'}`}>
+            <div key={idx} className={`min-h-[96px] p-1.5 ${isToday ? 'bg-pale/40' : ''}`}>
+              <div className={`text-[11.5px] font-semibold mb-1 w-5 h-5 flex items-center justify-center rounded-full ${isToday ? 'bg-navy text-white' : 'text-muted'}`}>
                 {day}
               </div>
               <div className="flex flex-col gap-0.5">
                 {dayEvents.map(e => {
-                  const hex = ATTEND_HOST_COLORS[e.attendOrHostText] ?? '#c4c4c4';
+                  const hex = ATTEND_HOST_COLORS[e.attendOrHostText] ?? '#757c77';
                   const tooltip = [
                     e.name,
                     e.eventTypeText && `Type: ${e.eventTypeText}`,
@@ -173,7 +173,7 @@ export default function EventCalendar({ events, userMap, onEventClick }) {
       </div>
 
       {/* Legend */}
-      <div className="px-4 py-3 border-t border-line bg-[#FAF8F5] flex flex-wrap gap-x-4 gap-y-1.5">
+      <div className="px-4 py-3 border-t border-line bg-sunken flex flex-wrap gap-x-4 gap-y-1.5">
         {Object.entries(ATTEND_HOST_COLORS).map(([label, hex]) => (
           <span key={label} className="flex items-center gap-1.5 text-[11px] text-muted">
             <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: hex }} />

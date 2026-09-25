@@ -104,8 +104,8 @@ const SECTION_CFG = {
   prospect: {
     label: 'Prospects',
     boardId: BOARDS.PROSPECTS,
-    accentColor: '#0A7B6F',
-    pillClass: 'bg-teal/10 text-teal',
+    accentColor: '#1a385e',
+    pillClass: 'bg-navy/10 text-navy',
     getName:      item => prospectName(item),
     getCompany:   item => colText(item, 'text_mkw7ezh6'),
     getStatus:    item => colText(item, 'status'),
@@ -131,8 +131,8 @@ const SECTION_CFG = {
   lead: {
     label: 'Leads',
     boardId: BOARDS.LEADS,
-    accentColor: '#D97706',
-    pillClass: 'bg-amber-soft text-[#92400E]',
+    accentColor: '#cf9a2b',
+    pillClass: 'bg-amber-soft text-amber-ink',
     editableName: true,
     getName:      item => item.name,
     getCompany:   item => colText(item, 'lead_company'),
@@ -152,8 +152,8 @@ const SECTION_CFG = {
   opportunity: {
     label: 'Opportunities',
     boardId: BOARDS.OPPORTUNITIES,
-    accentColor: '#059669',
-    pillClass: 'bg-mint-soft text-mint-deep',
+    accentColor: '#027361',
+    pillClass: 'bg-pale text-emerald',
     getName:      item => item.name,
     getCompany:   () => '',
     getStatus:    item => oppStageText(item),
@@ -179,10 +179,10 @@ const SECTION_CFG = {
 // ── Status colors ──────────────────────────────────────────────────
 
 const STATUS_META = {
-  'New Prospect': { bg: 'bg-[#EEF2FF]', text: 'text-[#4F46E5]' },
-  'Exploratory':  { bg: 'bg-amber-soft', text: 'text-[#92400E]' },
-  'Follow up':    { bg: 'bg-[#ECFDF5]', text: 'text-teal-mid' },
-  'Lead':         { bg: 'bg-mint-soft', text: 'text-mint-deep' },
+  'New Prospect': { bg: 'bg-info-soft', text: 'text-info' },
+  'Exploratory':  { bg: 'bg-amber-soft', text: 'text-amber-ink' },
+  'Follow up':    { bg: 'bg-pale', text: 'text-navy-700' },
+  'Lead':         { bg: 'bg-pale', text: 'text-emerald' },
   'Not Relevant': { bg: 'bg-red-soft', text: 'text-red' },
 };
 
@@ -202,7 +202,7 @@ function RegionBadge({ label }) {
   if (!label) return null;
   const uk = label === 'UK';
   return (
-    <span className={`inline-flex rounded px-1.5 py-0.5 text-[10px] font-bold tracking-wide leading-none ${uk ? 'bg-[#EEF2FF] text-[#4F46E5]' : 'bg-[#FEF3C7] text-[#92400E]'}`}>
+    <span className={`inline-flex rounded px-1.5 py-0.5 text-[10px] font-bold tracking-wide leading-none ${uk ? 'bg-info-soft text-info' : 'bg-amber-soft text-amber-ink'}`}>
       {label}
     </span>
   );
@@ -211,7 +211,7 @@ function RegionBadge({ label }) {
 function TouchBadge({ days }) {
   const label = touchLabel(days);
   const colorCls = days === null ? 'text-muted italic'
-    : days <= 1 ? 'text-mint-deep'
+    : days <= 1 ? 'text-emerald'
     : days <= 7 ? 'text-amber'
     : 'text-red';
   return <span className={`text-[11px] font-semibold whitespace-nowrap ${colorCls}`}>{label}</span>;
@@ -222,7 +222,7 @@ function UserAvatar({ name, photo }) {
   return photo
     ? <img src={photo} alt={name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
     : (
-      <div className="w-10 h-10 rounded-full bg-teal/10 text-teal font-display font-bold text-[14px] flex items-center justify-center flex-shrink-0">
+      <div className="w-10 h-10 rounded-full bg-navy/10 text-navy font-heading font-bold text-[14px] flex items-center justify-center flex-shrink-0">
         {initials}
       </div>
     );
@@ -234,10 +234,10 @@ function SectionHeader({ cfg, count, collapsed, onToggle }) {
   return (
     <button
       onClick={onToggle}
-      className="w-full flex items-center gap-3 px-4 py-2.5 bg-canvas rounded-xl border border-line hover:border-[rgba(0,0,0,.12)] hover:bg-white transition-all group mb-2"
+      className="w-full flex items-center gap-3 px-4 py-2.5 bg-canvas rounded-xl border border-line hover:border-line-warm hover:bg-white transition-all group mb-2"
     >
       <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: cfg.accentColor }} />
-      <span className="font-display font-bold text-[14px] flex-1 text-left" style={{ color: cfg.accentColor }}>
+      <span className="font-heading font-bold text-[14px] flex-1 text-left" style={{ color: cfg.accentColor }}>
         {cfg.label}
       </span>
       {count > 0 && (
@@ -275,13 +275,13 @@ function ItemCard({ item, boardType, selected, onClick }) {
       onClick={onClick}
       className={`flex items-center gap-3 px-4 py-2.5 rounded-xl cursor-pointer transition-all border group ${
         selected
-          ? 'bg-teal/5 border-teal/30 shadow-sm'
+          ? 'bg-navy/5 border-navy/30 shadow-sm'
           : 'bg-white border-transparent hover:bg-canvas hover:shadow-sm hover:border-line'
       }`}
       style={{ borderLeft: `3px solid ${selected ? cfg.accentColor : 'transparent'}` }}
     >
       <div
-        className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-display font-bold text-[11px]"
+        className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-heading font-bold text-[11px]"
         style={{ background: `${cfg.accentColor}1a`, color: cfg.accentColor }}
       >
         {initials}
@@ -308,8 +308,8 @@ function ItemCard({ item, boardType, selected, onClick }) {
 // ── Detail / edit panel ────────────────────────────────────────────
 
 function inputCls(dirty) {
-  return `w-full border rounded-lg px-3 py-2 text-[13px] bg-white focus:outline-none focus:ring-1 focus:ring-teal focus:border-teal transition-colors ${
-    dirty ? 'border-teal bg-mint-soft/30' : 'border-line'
+  return `w-full border rounded-xl px-3 py-2 text-[13px] bg-white focus:outline-none focus:ring-1 focus:ring-navy focus:border-navy transition-colors ${
+    dirty ? 'border-navy bg-pale/30' : 'border-line'
   }`;
 }
 
@@ -390,12 +390,12 @@ function DetailPanel({ item, boardType, boardCols, wsUsers, accountSlug, onClose
               type="text"
               value={edits.name !== undefined ? edits.name : name}
               onChange={e => setEdits(prev => ({ ...prev, name: e.target.value }))}
-              className={`w-full font-display text-[18px] font-bold tracking-tight bg-transparent border-b focus:outline-none focus:border-teal pb-1 ${
-                edits.name !== undefined ? 'border-teal' : 'border-line'
+              className={`w-full font-heading text-[18px] font-bold tracking-tight bg-transparent border-b focus:outline-none focus:border-navy pb-1 ${
+                edits.name !== undefined ? 'border-navy' : 'border-line'
               }`}
             />
           ) : (
-            <h2 className="font-display text-[18px] font-bold tracking-tight leading-snug break-words">{name}</h2>
+            <h2 className="font-heading text-[18px] font-bold tracking-tight leading-snug break-words">{name}</h2>
           )}
           {company && <p className="text-muted text-[13px] mt-0.5">{company}</p>}
           <div className="flex items-center gap-2 mt-2 flex-wrap">
@@ -407,7 +407,7 @@ function DetailPanel({ item, boardType, boardCols, wsUsers, accountSlug, onClose
               href={`https://${accountSlug}.monday.com/boards/${cfg.boardId}/pulses/${item.id}`}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1.5 mt-2 text-[11.5px] font-semibold text-teal hover:text-teal-mid transition-colors"
+              className="inline-flex items-center gap-1.5 mt-2 text-[11.5px] font-semibold text-navy hover:text-navy-700 transition-colors"
             >
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
@@ -433,8 +433,8 @@ function DetailPanel({ item, boardType, boardCols, wsUsers, accountSlug, onClose
 
         {/* Last touch callout */}
         {touch !== null && (
-          <div className={`rounded-xl px-4 py-3 ${touch > 7 ? 'bg-red-soft' : touch > 3 ? 'bg-amber-soft' : 'bg-mint-soft'}`}>
-            <p className={`text-[13px] font-semibold ${touch > 7 ? 'text-red' : touch > 3 ? 'text-[#92400E]' : 'text-mint-deep'}`}>
+          <div className={`rounded-xl px-4 py-3 ${touch > 7 ? 'bg-red-soft' : touch > 3 ? 'bg-amber-soft' : 'bg-pale'}`}>
+            <p className={`text-[13px] font-semibold ${touch > 7 ? 'text-red' : touch > 3 ? 'text-amber-ink' : 'text-emerald'}`}>
               Last touchpoint: {touchLabel(touch)}
             </p>
             {touch > 7 && (
@@ -458,7 +458,7 @@ function DetailPanel({ item, boardType, boardCols, wsUsers, accountSlug, onClose
                   <p className="text-[10.5px] font-bold uppercase tracking-wider text-muted mb-2">Contact</p>
                   <div className="space-y-2">
                     {email && (
-                      <a href={`mailto:${email}`} className="flex items-center gap-2 text-[13px] text-ink hover:text-teal transition-colors">
+                      <a href={`mailto:${email}`} className="flex items-center gap-2 text-[13px] text-ink hover:text-navy transition-colors">
                         <svg className="w-3.5 h-3.5 text-muted flex-shrink-0" viewBox="0 0 16 16" fill="none">
                           <rect x="1.5" y="3.5" width="13" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
                           <path d="M1.5 5.5L8 9.5L14.5 5.5" stroke="currentColor" strokeWidth="1.2"/>
@@ -467,7 +467,7 @@ function DetailPanel({ item, boardType, boardCols, wsUsers, accountSlug, onClose
                       </a>
                     )}
                     {linkedin && (
-                      <a href={linkedin.startsWith('http') ? linkedin : `https://${linkedin}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-[13px] text-[#0A66C2] hover:underline">
+                      <a href={linkedin.startsWith('http') ? linkedin : `https://${linkedin}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-[13px] text-navy-700 hover:underline">
                         <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 16 16" fill="currentColor">
                           <path d="M2.2 16H0V5.3h2.2V16zM1.1 3.9C.5 3.9 0 3.4 0 2.7 0 2 .5 1.5 1.1 1.5s1.1.5 1.1 1.2c0 .7-.5 1.2-1.1 1.2zM16 16h-2.2v-5.2c0-.8 0-1.9-1.2-1.9s-1.3.9-1.3 1.8V16H9.1V5.3h2.1v1.5h.1c.3-.6 1-1.2 2-1.2 2.2 0 2.6 1.4 2.6 3.2V16z"/>
                         </svg>
@@ -481,12 +481,12 @@ function DetailPanel({ item, boardType, boardCols, wsUsers, accountSlug, onClose
                 <p className="text-[10.5px] font-bold uppercase tracking-wider text-muted mb-2">Activity</p>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="bg-canvas rounded-xl p-3 text-center">
-                    <p className="font-display font-bold text-[22px] leading-none">{emails || 0}</p>
+                    <p className="font-display font-semibold text-[22px] leading-none">{emails || 0}</p>
                     <p className="text-[11px] text-muted mt-1">Emails sent</p>
                     {lastEmail && <p className="text-[10px] text-muted opacity-70 mt-0.5">Last: {lastEmail}</p>}
                   </div>
                   <div className="bg-canvas rounded-xl p-3 text-center">
-                    <p className="font-display font-bold text-[22px] leading-none">{calls || 0}</p>
+                    <p className="font-display font-semibold text-[22px] leading-none">{calls || 0}</p>
                     <p className="text-[11px] text-muted mt-1">Calls made</p>
                     {lastCall && <p className="text-[10px] text-muted opacity-70 mt-0.5">Last: {lastCall}</p>}
                   </div>
@@ -596,17 +596,17 @@ function DetailPanel({ item, boardType, boardCols, wsUsers, accountSlug, onClose
       {/* Footer: save */}
       <div className="px-5 py-4 border-t border-line flex-shrink-0">
         {savedMsg && (
-          <p className={`text-[12px] font-semibold mb-2 ${savedMsg.startsWith('Error') ? 'text-red' : 'text-mint-deep'}`}>
+          <p className={`text-[12px] font-semibold mb-2 ${savedMsg.startsWith('Error') ? 'text-red' : 'text-emerald'}`}>
             {savedMsg}
           </p>
         )}
         <button
           disabled={saving || dirtyCount === 0}
           onClick={handleSave}
-          className="w-full font-display font-semibold text-[14px] py-2.5 rounded-xl transition-all disabled:opacity-40 flex items-center justify-center gap-2"
+          className="w-full font-heading font-semibold text-[14px] py-2.5 rounded-full transition-all disabled:opacity-40 flex items-center justify-center gap-2"
           style={{
-            background: dirtyCount > 0 ? cfg.accentColor : '#E8E3DA',
-            color: dirtyCount > 0 ? 'white' : '#999',
+            background: dirtyCount > 0 ? cfg.accentColor : '#e4e6e4',
+            color: dirtyCount > 0 ? 'white' : '#757c77',
           }}
         >
           {saving
@@ -800,10 +800,10 @@ export default function Workflow({ region, user: userProp }) {
           <div className="px-6 pt-5 pb-4 flex-shrink-0 border-b border-line">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <p className="font-display text-[11px] font-semibold tracking-[.14em] uppercase text-mint-deep mb-0.5">
+                <p className="text-[12px] font-semibold tracking-[.08em] uppercase text-emerald mb-0.5">
                   My Work
                 </p>
-                <h1 className="font-display text-[22px] font-bold tracking-tight">
+                <h1 className="font-display text-[28px] leading-[1.15] font-semibold tracking-tight">
                   {me?.name ? `${me.name.split(' ')[0]}'s Pipeline` : 'My Pipeline'}
                 </h1>
               </div>
@@ -812,16 +812,16 @@ export default function Workflow({ region, user: userProp }) {
 
             {/* Count pills */}
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-teal/10 text-teal text-[12px] font-semibold rounded-full">
-                <span className="w-1.5 h-1.5 rounded-full bg-teal" />
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-navy/10 text-navy text-[12px] font-semibold rounded-full">
+                <span className="w-1.5 h-1.5 rounded-full bg-navy" />
                 {loadingProspects ? '…' : filteredProspects.length} prospects
               </span>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-soft text-[#92400E] text-[12px] font-semibold rounded-full">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-soft text-amber-ink text-[12px] font-semibold rounded-full">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber" />
                 {loadingLeads ? '…' : filteredLeads.length} leads
               </span>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-mint-soft text-mint-deep text-[12px] font-semibold rounded-full">
-                <span className="w-1.5 h-1.5 rounded-full bg-mint-deep" />
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-pale text-emerald text-[12px] font-semibold rounded-full">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald" />
                 {loadingOpps ? '…' : filteredOpps.length} opportunities
               </span>
             </div>
@@ -839,13 +839,13 @@ export default function Workflow({ region, user: userProp }) {
                 value={searchQ}
                 onChange={e => setSearchQ(e.target.value)}
                 placeholder="Search name, company…"
-                className="w-full pl-7 pr-3 py-1.5 text-[12px] bg-canvas border border-line rounded-lg focus:outline-none focus:border-teal"
+                className="w-full pl-7 pr-3 py-1.5 text-[12px] bg-canvas border border-line rounded-lg focus:outline-none focus:border-navy"
               />
             </div>
             <select
               value={sortBy}
               onChange={e => setSortBy(e.target.value)}
-              className="ml-auto px-2.5 py-1.5 bg-canvas border border-line rounded-lg text-[12px] font-medium focus:outline-none focus:border-teal hover:border-teal transition-colors"
+              className="ml-auto px-2.5 py-1.5 bg-canvas border border-line rounded-lg text-[12px] font-medium focus:outline-none focus:border-navy hover:border-navy transition-colors"
             >
               <option value="touch">Sort: Most overdue</option>
               <option value="name">Sort: Name A–Z</option>
@@ -946,7 +946,7 @@ export default function Workflow({ region, user: userProp }) {
           <div className="sm:hidden fixed top-[68px] left-3 z-10">
             <button
               onClick={() => setSelected(null)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-line rounded-full shadow text-[12px] font-semibold text-teal"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-line rounded-full shadow text-[12px] font-semibold text-navy"
             >
               <svg className="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none">
                 <path d="M9 2L4 7L9 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>

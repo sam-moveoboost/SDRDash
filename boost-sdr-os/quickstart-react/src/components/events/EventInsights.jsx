@@ -15,7 +15,7 @@ function StatCard({ label, value, sub, highlight }) {
   return (
     <div className="bg-card border border-line rounded-2xl p-5">
       <div className="text-muted text-[11px] font-semibold uppercase tracking-wide mb-2">{label}</div>
-      <div className={`font-display font-bold text-[30px] leading-none ${highlight ? 'text-teal' : 'text-ink'}`}>
+      <div className={`font-display font-semibold text-[30px] leading-none ${highlight ? 'text-navy' : 'text-ink'}`}>
         {value}
       </div>
       {sub && <div className="text-muted text-[12px] mt-1.5">{sub}</div>}
@@ -46,7 +46,7 @@ function HBar({ label, opps, events: evtCount, max, color }) {
 
 function SectionHeading({ children }) {
   return (
-    <div className="font-display font-bold text-[14px] mb-4">{children}</div>
+    <div className="font-heading font-bold text-[14px] mb-4">{children}</div>
   );
 }
 
@@ -166,7 +166,7 @@ export default function EventInsights({ events, userMap }) {
           <div className="space-y-3">
             {byType.length > 0
               ? byType.map(([type, d]) => (
-                  <HBar key={type} label={type} opps={d.opps} events={d.events} max={maxType} color={TYPE_COLORS[type] ?? '#aaa'} />
+                  <HBar key={type} label={type} opps={d.opps} events={d.events} max={maxType} color={TYPE_COLORS[type] ?? '#757c77'} />
                 ))
               : <p className="text-muted text-[13px]">Link opportunities to events to see this breakdown.</p>
             }
@@ -180,7 +180,7 @@ export default function EventInsights({ events, userMap }) {
             <div className="space-y-3">
               {byScale.length > 0
                 ? byScale.map(([scale, d]) => (
-                    <HBar key={scale} label={scale || 'Unset'} opps={d.opps} events={d.events} max={maxScale} color="#00c875" />
+                    <HBar key={scale} label={scale || 'Unset'} opps={d.opps} events={d.events} max={maxScale} color="#027361" />
                   ))
                 : <p className="text-muted text-[13px]">No scale data yet.</p>
               }
@@ -192,7 +192,7 @@ export default function EventInsights({ events, userMap }) {
             <div className="space-y-3">
               {byStatus.length > 0
                 ? byStatus.map(([status, d]) => (
-                    <HBar key={status} label={status} opps={d.opps} events={d.events} max={maxStatus} color={ATTEND_HOST_COLORS[status] ?? '#aaa'} />
+                    <HBar key={status} label={status} opps={d.opps} events={d.events} max={maxStatus} color={ATTEND_HOST_COLORS[status] ?? '#757c77'} />
                   ))
                 : <p className="text-muted text-[13px]">No status data yet.</p>
               }
@@ -207,7 +207,7 @@ export default function EventInsights({ events, userMap }) {
           <SectionHeading>By Sector</SectionHeading>
           <div className="grid grid-cols-2 gap-x-10 gap-y-3">
             {bySector.map(([sector, d]) => (
-              <HBar key={sector} label={sector} opps={d.opps} events={d.events} max={maxSector} color="#9b59b6" />
+              <HBar key={sector} label={sector} opps={d.opps} events={d.events} max={maxSector} color="#916aff" />
             ))}
           </div>
         </div>
@@ -217,7 +217,7 @@ export default function EventInsights({ events, userMap }) {
       {byPerson.length > 0 && (
         <div className="bg-card border border-line rounded-2xl overflow-hidden">
           <div className="px-5 py-4 border-b border-line">
-            <div className="font-display font-bold text-[14px]">Opportunity Attribution by Attendee</div>
+            <div className="font-heading font-bold text-[14px]">Opportunity Attribution by Attendee</div>
             <div className="text-muted text-[12px] mt-0.5">
               All attendees of an event share credit for that event's opportunities
             </div>
@@ -232,7 +232,7 @@ export default function EventInsights({ events, userMap }) {
                   <span className="w-5 text-[12px] font-bold text-muted flex-shrink-0">{i + 1}</span>
                   {u?.photo_thumb
                     ? <img src={u.photo_thumb} alt={name} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
-                    : <div className="w-8 h-8 rounded-full bg-gradient-to-br from-teal to-teal-mid text-white grid place-items-center font-bold text-[11px] flex-shrink-0">
+                    : <div className="w-8 h-8 rounded-full bg-navy text-white grid place-items-center font-bold text-[11px] flex-shrink-0">
                         {name.split(' ').map(n => n[0]).slice(0, 2).join('')}
                       </div>
                   }
@@ -242,11 +242,11 @@ export default function EventInsights({ events, userMap }) {
                       <span className="text-[12px] text-muted">{d.events} event{d.events !== 1 ? 's' : ''} attended</span>
                     </div>
                     <div className="h-1.5 bg-line rounded-full overflow-hidden">
-                      <div className="h-full bg-teal rounded-full transition-all" style={{ width: `${pct}%` }} />
+                      <div className="h-full bg-navy rounded-full transition-all" style={{ width: `${pct}%` }} />
                     </div>
                   </div>
                   <div className="text-right flex-shrink-0 ml-3">
-                    <div className="font-display font-bold text-[20px] leading-none text-teal">{d.opps}</div>
+                    <div className="font-heading font-bold text-[20px] leading-none text-navy">{d.opps}</div>
                     <div className="text-muted text-[10.5px]">opp{d.opps !== 1 ? 's' : ''}</div>
                   </div>
                 </div>
@@ -259,13 +259,13 @@ export default function EventInsights({ events, userMap }) {
       {/* ── Top events table ──────────────────────────────────── */}
       {topEvents.length > 0 && (
         <div className="bg-card border border-line rounded-2xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-line font-display font-bold text-[14px]">
+          <div className="px-5 py-4 border-b border-line font-heading font-bold text-[14px]">
             Top Events by Opportunities Generated
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-[12.5px]">
               <thead>
-                <tr className="border-b border-line bg-[#FAF8F5]">
+                <tr className="border-b border-line bg-sunken">
                   <th className="text-left px-5 py-2.5 font-semibold text-muted">Event</th>
                   <th className="text-left px-3 py-2.5 font-semibold text-muted">Date</th>
                   <th className="text-left px-3 py-2.5 font-semibold text-muted">Type</th>
@@ -277,14 +277,14 @@ export default function EventInsights({ events, userMap }) {
               </thead>
               <tbody className="divide-y divide-line">
                 {topEvents.map(e => (
-                  <tr key={e.id} className="hover:bg-[#FAF8F5] transition-colors">
+                  <tr key={e.id} className="hover:bg-sunken transition-colors">
                     <td className="px-5 py-3 font-semibold text-ink">{e.name}</td>
                     <td className="px-3 py-3 text-muted tabular-nums">{e.startDate ?? '—'}</td>
                     <td className="px-3 py-3">
                       {e.eventTypeText && (
                         <span
                           className="px-2 py-0.5 rounded-full text-[10.5px] font-semibold text-white"
-                          style={{ backgroundColor: TYPE_COLORS[e.eventTypeText] ?? '#aaa' }}
+                          style={{ backgroundColor: TYPE_COLORS[e.eventTypeText] ?? '#757c77' }}
                         >
                           {e.eventTypeText}
                         </span>
@@ -292,7 +292,7 @@ export default function EventInsights({ events, userMap }) {
                     </td>
                     <td className="px-3 py-3 text-muted">{e.scaleText || '—'}</td>
                     <td className="px-3 py-3">
-                      <span className="text-[11.5px] font-medium" style={{ color: ATTEND_HOST_COLORS[e.attendOrHostText] ?? '#888' }}>
+                      <span className="text-[11.5px] font-medium" style={{ color: ATTEND_HOST_COLORS[e.attendOrHostText] ?? '#757c77' }}>
                         {e.attendOrHostText || '—'}
                       </span>
                     </td>
@@ -302,7 +302,7 @@ export default function EventInsights({ events, userMap }) {
                           const u = userMap[id];
                           return u?.photo_thumb
                             ? <img key={id} src={u.photo_thumb} title={u.name} className="w-6 h-6 rounded-full object-cover border-2 border-card" />
-                            : <div key={id} title={u?.name ?? id} className="w-6 h-6 rounded-full bg-gradient-to-br from-teal to-teal-mid text-white grid place-items-center text-[8px] font-bold border-2 border-card">
+                            : <div key={id} title={u?.name ?? id} className="w-6 h-6 rounded-full bg-navy text-white grid place-items-center text-[8px] font-bold border-2 border-card">
                                 {(u?.name ?? '?').split(' ').map(n => n[0]).slice(0,2).join('')}
                               </div>;
                         })}
@@ -314,7 +314,7 @@ export default function EventInsights({ events, userMap }) {
                       </div>
                     </td>
                     <td className="px-5 py-3 text-right">
-                      <span className="font-display font-bold text-[18px] text-teal">
+                      <span className="font-heading font-bold text-[18px] text-navy">
                         {e.linkedOpportunityIds.length}
                       </span>
                     </td>
@@ -323,7 +323,7 @@ export default function EventInsights({ events, userMap }) {
               </tbody>
             </table>
           </div>
-          <div className="px-5 py-3 border-t border-line bg-[#FAF8F5] text-[11px] text-muted">
+          <div className="px-5 py-3 border-t border-line bg-sunken text-[11px] text-muted">
             Opportunities counted via the Opportunities column on the Events board
           </div>
         </div>

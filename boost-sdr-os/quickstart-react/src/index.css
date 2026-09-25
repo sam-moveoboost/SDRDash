@@ -1,29 +1,105 @@
+/* boost webfonts: Gambetta (display) via Fontshare, Google Sans Flex (body) via Google Fonts.
+   Typo Round (secondary headline) has no public CDN; it resolves if installed and
+   otherwise falls back to Google Sans Flex. */
+@import url('https://api.fontshare.com/v2/css?f[]=gambetta@400,500,600,700,401,501&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Google+Sans+Flex:wght@400..700&display=swap');
 @import "tailwindcss";
 
-@theme {
-  /* ── Brand colours — Navy + Lime ─────────────────────────── */
-  --color-teal:       #192D3F;   /* Navy primary */
-  --color-teal-deep:  #0F1E2C;   /* Deep navy */
-  --color-teal-mid:   #254154;   /* Mid navy */
-  --color-mint:       #C8EC78;   /* Lime accent */
-  --color-mint-deep:  #8DC63A;   /* Deeper lime */
-  --color-mint-soft:  #EEF9D0;   /* Soft lime wash */
-  --color-canvas:     #EDE8DF;   /* Warm cream */
-  --color-card:       #FFFFFF;
-  --color-ink:        #192D3F;   /* Same as navy — primary text */
-  --color-muted:      #677485;   /* Cooler grey */
-  --color-line:       #DDD7CE;   /* Warm neutral line */
-  --color-amber:      #E29A2E;
-  --color-amber-soft: #FBF0DC;
-  --color-red:        #E0544A;
-  --color-red-soft:   #FBE5E3;
+/* ── boost design system tokens (2026 brandbook) ─────────────────── */
+:root {
+  /* Brand */
+  --navy-900:  #1a385e;   /* MAIN — navy authority */
+  --navy-700:  #2c5180;   /* navy hover / supporting */
+  --green-800: #027361;   /* emerald — secondary brand green */
+  --green-900: #0e4123;
+  --green-950: #0a2c16;
 
-  /* ── Typography — Gambetta (Playfair Display) + DM Sans ──── */
-  --font-display: 'Playfair Display', Georgia, serif;
-  --font-body:    'DM Sans', system-ui, -apple-system, sans-serif;
+  /* Support tints (small fields only) */
+  --green-300: #e0feca;   /* pale green pop */
+  --blue-300:  #d7c9fe;   /* lavender */
+  --mint-300:  #c6e6e1;   /* mint */
+  --blue-500:  #916aff;   /* bright purple accent */
+  --cream:     #f6f3ee;
+  --white:     #fffefd;
+
+  /* Text, lines, status */
+  --text-strong:   #1a385e;
+  --text-body:     #3a403b;
+  --text-muted:    #757c77;
+  --text-on-dark:  #f6f3ee;
+  --border-subtle: #e4e6e4;
+  --border-warm:   #d9dbc7;
+  --success: #027361;
+  --warning: #cf9a2b;
+  --danger:  #c44536;
+  --info:    #5a5fd6;
+
+  /* Semantic aliases */
+  --surface-card:      #ffffff;
+  --surface-page:      color-mix(in srgb, var(--border-subtle) 30%, var(--white));
+  --surface-sunken:    color-mix(in srgb, var(--border-subtle) 45%, var(--white));
+  --surface-authority: var(--navy-900);
+  --accent:            var(--navy-900);
+  --accent-hover:      var(--navy-700);
+  --accent-green:      var(--green-800);
+  --focus-ring:        color-mix(in srgb, var(--navy-900) 28%, transparent);
+
+  /* Motion */
+  --dur-fast: 140ms;
+  --dur-base: 220ms;
+  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=DM+Sans:wght@400;500;600;700&display=swap');
+@theme {
+  /* Brand */
+  --color-navy:        var(--navy-900);
+  --color-navy-700:    var(--navy-700);
+  --color-emerald:     var(--green-800);
+  --color-green-deep:  var(--green-900);
+
+  /* Support tints */
+  --color-pale:        var(--green-300);
+  --color-lavender:    var(--blue-300);
+  --color-mint:        var(--mint-300);
+  --color-purple:      var(--blue-500);
+  --color-cream:       var(--cream);
+
+  /* Surfaces, text, lines */
+  --color-canvas:      var(--surface-page);
+  --color-sunken:      var(--surface-sunken);
+  --color-card:        var(--surface-card);
+  --color-ink:         var(--text-strong);
+  --color-body:        var(--text-body);
+  --color-muted:       var(--text-muted);
+  --color-on-dark:     var(--text-on-dark);
+  --color-line:        var(--border-subtle);
+  --color-line-warm:   var(--border-warm);
+
+  /* Status */
+  --color-amber:       var(--warning);
+  --color-amber-soft:  color-mix(in srgb, var(--warning) 14%, white);
+  --color-amber-ink:   color-mix(in srgb, var(--warning) 55%, var(--text-body));
+  --color-red:         var(--danger);
+  --color-red-soft:    color-mix(in srgb, var(--danger) 12%, white);
+  --color-info:        var(--info);
+  --color-info-soft:   color-mix(in srgb, var(--info) 12%, white);
+
+  /* Typography */
+  --font-display: 'Gambetta', Georgia, 'Times New Roman', serif;
+  --font-heading: 'Typo Round', 'Google Sans Flex', system-ui, sans-serif;
+  --font-body:    'Google Sans Flex', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* Geometry: cards 18px, feature panels 28px, controls pill */
+  --radius-xl:  12px;
+  --radius-2xl: 18px;
+  --radius-3xl: 28px;
+
+  /* Soft, green-tinted shadows */
+  --shadow-sm: 0 1px 2px rgba(16, 62, 25, 0.06), 0 1px 3px rgba(16, 62, 25, 0.06);
+  --shadow-md: 0 4px 12px rgba(16, 62, 25, 0.08);
+  --shadow-lg: 0 12px 28px rgba(16, 62, 25, 0.10);
+  --shadow-2xl: 0 24px 56px rgba(16, 62, 25, 0.12);
+}
 
 * {
   box-sizing: border-box;
@@ -31,14 +107,23 @@
 
 body {
   font-family: var(--font-body);
-  background: var(--color-canvas);
-  color: var(--color-ink);
+  background: var(--surface-page);
+  color: var(--text-strong);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   margin: 0;
 }
 
+.font-display {
+  letter-spacing: -0.02em;
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px var(--focus-ring);
+}
+
 ::selection {
-  background: var(--color-mint);
-  color: var(--color-teal-deep);
+  background: var(--green-300);
+  color: var(--navy-900);
 }

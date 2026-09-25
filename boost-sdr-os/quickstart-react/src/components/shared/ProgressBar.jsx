@@ -23,9 +23,9 @@ export default function ProgressBar({ loading }) {
   if (!visible) return null;
 
   return (
-    <div className="fixed top-[60px] left-0 right-0 z-50 h-[3px] bg-transparent">
+    <div className="fixed top-16 left-0 right-0 z-50 h-[3px] bg-transparent">
       <div
-        className="h-full bg-mint rounded-r-full transition-all ease-out"
+        className="h-full bg-emerald rounded-r-full transition-all ease-out"
         style={{
           width: `${width}%`,
           transitionDuration: width === 100 ? '200ms' : width === 0 ? '0ms' : '800ms',

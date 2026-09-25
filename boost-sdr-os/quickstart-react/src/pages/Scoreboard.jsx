@@ -184,10 +184,10 @@ export default function Scoreboard({ region, month }) {
       <ProgressBar loading={loadingPrimary || loadingSecondary} />
 
       <div className="max-w-5xl mx-auto px-7 py-8 pb-20">
-        <p className="font-display text-[11px] font-semibold tracking-[.14em] uppercase text-mint-deep mb-1.5">
+        <p className="text-[12px] font-semibold tracking-[.08em] uppercase text-emerald mb-1.5">
           Sales Development
         </p>
-        <h1 className="font-display text-[27px] font-bold tracking-tight mb-1">The Scoreboard</h1>
+        <h1 className="font-display text-[36px] leading-[1.1] font-semibold tracking-tight mb-2">The Scoreboard</h1>
         <p className="text-muted text-[15px] mb-7 max-w-xl">
           Live qualified meetings, ramp-adjusted credits and weekly activity.
         </p>
@@ -214,7 +214,7 @@ export default function Scoreboard({ region, month }) {
             <StatCard
               label="Stale deals"
               value={loadingSecondary ? '—' : staleOpps.length}
-              valueClass={staleOpps.length > 0 ? 'text-amber' : 'text-mint-deep'}
+              valueClass={staleOpps.length > 0 ? 'text-amber' : 'text-emerald'}
               meta={loadingSecondary ? 'Loading…' : staleOpps.length > 0 ? 'Click to review ↗' : 'No stale deals'}
             />
           </button>
@@ -226,13 +226,13 @@ export default function Scoreboard({ region, month }) {
         </div>
 
         {/* Meetings leaderboard — appears as soon as phase 1 completes */}
-        <div className="font-display text-[13px] font-semibold tracking-[.04em] uppercase text-muted mt-8 mb-3.5 flex items-center gap-2.5 after:content-[''] after:flex-1 after:h-px after:bg-line">
+        <div className="text-[13px] font-semibold tracking-[.08em] uppercase text-muted mt-8 mb-3.5 flex items-center gap-2.5 after:content-[''] after:flex-1 after:h-px after:bg-line">
           Leaderboard · qualified meetings · {month}
         </div>
         <Leaderboard team={team} meetings={meetings} loading={loadingPrimary} region={region} onRepClick={rep => setSelectedRep(rep)} />
 
         {/* Outbound calls leaderboard — phase 2 */}
-        <div className="font-display text-[13px] font-semibold tracking-[.04em] uppercase text-muted mt-6 mb-3.5 flex items-center gap-2.5 after:content-[''] after:flex-1 after:h-px after:bg-line">
+        <div className="text-[13px] font-semibold tracking-[.08em] uppercase text-muted mt-6 mb-3.5 flex items-center gap-2.5 after:content-[''] after:flex-1 after:h-px after:bg-line">
           Outbound calls · {activityPeriod === 'week' ? `week of ${startDate}` : month}
         </div>
         <MiniLeaderboard
@@ -248,7 +248,7 @@ export default function Scoreboard({ region, month }) {
 
         {/* Activity section — phase 2 */}
         <div className="mt-8 mb-3.5 flex items-center gap-2.5">
-          <span className="font-display text-[13px] font-semibold tracking-[.04em] uppercase text-muted">
+          <span className="text-[13px] font-semibold tracking-[.08em] uppercase text-muted">
             Activity · {activityPeriod === 'week' ? `week of ${startDate}` : month}
           </span>
           <div className="flex items-center gap-1 ml-auto">
@@ -256,7 +256,7 @@ export default function Scoreboard({ region, month }) {
               onClick={() => setActivityPeriod('week')}
               className={`px-3 py-1 rounded-lg text-[12px] font-semibold transition-all ${
                 activityPeriod === 'week'
-                  ? 'bg-teal text-white'
+                  ? 'bg-navy text-white'
                   : 'bg-transparent text-muted hover:text-ink border border-line'
               }`}
             >
@@ -266,7 +266,7 @@ export default function Scoreboard({ region, month }) {
               onClick={() => setActivityPeriod('month')}
               className={`px-3 py-1 rounded-lg text-[12px] font-semibold transition-all ${
                 activityPeriod === 'month'
-                  ? 'bg-teal text-white'
+                  ? 'bg-navy text-white'
                   : 'bg-transparent text-muted hover:text-ink border border-line'
               }`}
             >
@@ -279,7 +279,7 @@ export default function Scoreboard({ region, month }) {
 
         {/* Attendance Leaderboard */}
         <div className="mt-10 mb-3.5 flex items-center gap-2.5">
-          <span className="font-display text-[13px] font-semibold tracking-[.04em] uppercase text-muted">
+          <span className="text-[13px] font-semibold tracking-[.08em] uppercase text-muted">
             Attendance Leaderboard · {leaderboardYear}
             {leaderboardYear === 2026 && <span className="text-[11px] normal-case font-normal ml-1"> (from 1 Sep)</span>}
           </span>
@@ -287,7 +287,7 @@ export default function Scoreboard({ region, month }) {
             <select
               value={leaderboardYear}
               onChange={e => setLeaderboardYear(Number(e.target.value))}
-              className="bg-canvas border border-line rounded-lg px-2.5 py-1 text-[12px] font-semibold cursor-pointer outline-none focus:border-teal transition-colors"
+              className="bg-canvas border border-line rounded-lg px-2.5 py-1 text-[12px] font-semibold cursor-pointer outline-none focus:border-navy transition-colors"
             >
               {LEADERBOARD_YEAR_OPTIONS.map(y => <option key={y} value={y}>{y}</option>)}
             </select>

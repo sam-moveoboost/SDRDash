@@ -19,7 +19,7 @@ function Input({ value, onChange, placeholder, type = 'text' }) {
       value={value}
       onChange={onChange}
       placeholder={placeholder}
-      className="w-full px-3 py-2 bg-canvas border border-line rounded-lg text-[13.5px] outline-none focus:border-teal transition-colors"
+      className="w-full px-3 py-2 bg-canvas border border-line rounded-xl text-[13.5px] outline-none focus:border-navy transition-colors"
     />
   );
 }
@@ -28,7 +28,7 @@ function Select({ value, onChange, options, placeholder = '— select —' }) {
     <select
       value={value}
       onChange={onChange}
-      className="w-full px-3 py-2 bg-canvas border border-line rounded-lg text-[13.5px] outline-none focus:border-teal transition-colors cursor-pointer"
+      className="w-full px-3 py-2 bg-canvas border border-line rounded-xl text-[13.5px] outline-none focus:border-navy transition-colors cursor-pointer"
     >
       <option value="">{placeholder}</option>
       {options.map(o => <option key={o} value={o}>{o}</option>)}
@@ -46,7 +46,7 @@ function ComboInput({ value, onChange, options, placeholder, listId }) {
         placeholder={placeholder}
         list={listId}
         autoComplete="off"
-        className="w-full px-3 py-2 bg-canvas border border-line rounded-lg text-[13.5px] outline-none focus:border-teal transition-colors"
+        className="w-full px-3 py-2 bg-canvas border border-line rounded-xl text-[13.5px] outline-none focus:border-navy transition-colors"
       />
       <datalist id={listId}>
         {options.map(o => <option key={o} value={o} />)}
@@ -97,11 +97,11 @@ function PeoplePicker({ attendeeIds, onChange, users }) {
             return (
               <span
                 key={id}
-                className="flex items-center gap-1.5 px-2.5 py-1 bg-teal/10 border border-teal/20 rounded-full text-[12px] font-semibold text-teal-deep"
+                className="flex items-center gap-1.5 px-2.5 py-1 bg-navy/10 border border-navy/20 rounded-full text-[12px] font-semibold text-navy"
               >
                 {u?.photo_thumb
                   ? <img src={u.photo_thumb} alt={name} className="w-4 h-4 rounded-full object-cover" />
-                  : <span className="w-4 h-4 rounded-full bg-teal text-white flex items-center justify-center text-[8px] font-bold">{name.split(' ').map(n=>n[0]).slice(0,2).join('')}</span>
+                  : <span className="w-4 h-4 rounded-full bg-navy text-white flex items-center justify-center text-[8px] font-bold">{name.split(' ').map(n=>n[0]).slice(0,2).join('')}</span>
                 }
                 {name.split(' ')[0]}
                 <button onClick={() => remove(id)} className="ml-0.5 text-muted hover:text-red transition-colors leading-none">&times;</button>
@@ -119,7 +119,7 @@ function PeoplePicker({ attendeeIds, onChange, users }) {
           onFocus={() => setOpen(true)}
           onChange={e => { setSearch(e.target.value); setOpen(true); }}
           placeholder="Search and add people…"
-          className="w-full px-3 py-2 bg-canvas border border-line rounded-lg text-[13.5px] outline-none focus:border-teal transition-colors"
+          className="w-full px-3 py-2 bg-canvas border border-line rounded-xl text-[13.5px] outline-none focus:border-navy transition-colors"
         />
 
         {open && available.length > 0 && (
@@ -128,11 +128,11 @@ function PeoplePicker({ attendeeIds, onChange, users }) {
               <button
                 key={u.id}
                 onMouseDown={e => { e.preventDefault(); add(u.id); }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-[#F0EBE2] text-left transition-colors"
+                className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-sunken text-left transition-colors"
               >
                 {u.photo_thumb
                   ? <img src={u.photo_thumb} alt={u.name} className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
-                  : <div className="w-7 h-7 rounded-full bg-gradient-to-br from-teal to-teal-mid text-white grid place-items-center font-bold text-[10px] flex-shrink-0">
+                  : <div className="w-7 h-7 rounded-full bg-navy text-white grid place-items-center font-bold text-[10px] flex-shrink-0">
                       {u.name.split(' ').map(n=>n[0]).slice(0,2).join('')}
                     </div>
                 }
@@ -193,7 +193,7 @@ function OppSearch({ selectedOpps, onChange }) {
           {selectedOpps.map(opp => (
             <span
               key={opp.id}
-              className="flex items-center gap-1.5 px-2.5 py-1 bg-[#579bfc]/10 border border-[#579bfc]/20 rounded-full text-[12px] font-semibold text-[#1a4bc4]"
+              className="flex items-center gap-1.5 px-2.5 py-1 bg-info-soft border border-info/20 rounded-full text-[12px] font-semibold text-info"
             >
               {opp.name}
               <button onClick={() => remove(opp.id)} className="ml-0.5 text-muted hover:text-red transition-colors leading-none">&times;</button>
@@ -210,7 +210,7 @@ function OppSearch({ selectedOpps, onChange }) {
           onFocus={() => query.trim().length >= 2 && setOpen(true)}
           onChange={e => { setQuery(e.target.value); setOpen(true); }}
           placeholder="Search UK opportunities…"
-          className="w-full px-3 py-2 bg-canvas border border-line rounded-lg text-[13.5px] outline-none focus:border-teal transition-colors"
+          className="w-full px-3 py-2 bg-canvas border border-line rounded-xl text-[13.5px] outline-none focus:border-navy transition-colors"
         />
 
         {open && query.trim().length >= 2 && (
@@ -225,7 +225,7 @@ function OppSearch({ selectedOpps, onChange }) {
               <button
                 key={r.id}
                 onMouseDown={e => { e.preventDefault(); add(r); setOpen(false); }}
-                className="w-full px-3 py-2.5 hover:bg-[#F0EBE2] text-left transition-colors text-[13px] font-medium text-ink"
+                className="w-full px-3 py-2.5 hover:bg-sunken text-left transition-colors text-[13px] font-medium text-ink"
               >
                 {r.name}
               </button>
@@ -306,12 +306,12 @@ export default function EventModal({ event, users, onSave, onClose }) {
       <div className="bg-card w-full max-w-2xl rounded-2xl shadow-2xl border border-line flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-line flex-shrink-0">
-          <h2 className="font-display font-bold text-[18px]">
+          <h2 className="font-heading font-bold text-[18px]">
             {isEdit ? `Edit: ${event.name}` : 'New Event'}
           </h2>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg hover:bg-[#F0EBE2] flex items-center justify-center text-muted text-[20px] transition-colors"
+            className="w-8 h-8 rounded-lg hover:bg-sunken flex items-center justify-center text-muted text-[20px] transition-colors"
           >
             &times;
           </button>
@@ -416,14 +416,14 @@ export default function EventModal({ event, users, onSave, onClose }) {
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-line flex-shrink-0">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-lg text-[13.5px] font-semibold text-muted hover:text-ink border border-line hover:bg-[#F0EBE2] transition-all"
+            className="px-4 py-2 rounded-full text-[13.5px] font-semibold text-muted hover:text-ink border border-line hover:bg-sunken transition-all"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-5 py-2 rounded-lg text-[13.5px] font-semibold bg-teal text-white hover:bg-teal-mid disabled:opacity-60 transition-all"
+            className="px-5 py-2 rounded-full text-[13.5px] font-semibold bg-navy text-white hover:bg-navy-700 disabled:opacity-60 transition-all"
           >
             {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Event'}
           </button>
