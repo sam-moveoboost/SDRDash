@@ -28,23 +28,19 @@ function RepPodium({ rep, meetings, rank, onRepClick }) {
   const credits = calcCredits(meetingCount, rep.multiplier);
   const isRamping = rep.rampMonth && rep.rampMonth !== 'None';
 
-  // Navy-based podium gradients
-  const podiumGradients = [
-    'from-teal to-teal-mid',            // 1st — primary navy
-    'from-[#1E3650] to-[#192D3F]',      // 2nd — mid navy
-    'from-[#2E4A63] to-[#1E3650]',      // 3rd — lighter navy
-  ];
+  // Navy podium avatars: primary navy for 1st, supporting navy for 2nd/3rd
+  const podiumGradients = ['bg-navy', 'bg-navy-700', 'bg-navy-700'];
   const standHeights = ['h-14', 'h-9', 'h-6'];
   const avatarSizes = [
     'w-[74px] h-[74px] text-[27px]',
     'w-[60px] h-[60px] text-[22px]',
     'w-[60px] h-[60px] text-[22px]',
   ];
-  // Medal: lime for 1st, silver/bronze for 2nd/3rd
+  // Medal tints: pale green for 1st, mint and lavender for 2nd/3rd
   const medalColors = [
-    'bg-mint text-teal-deep',
-    'bg-[#CBD8D5] text-teal-deep',
-    'bg-[#E0C9A0] text-[#6b4e1e]',
+    'bg-pale text-navy',
+    'bg-mint text-navy',
+    'bg-lavender text-navy',
   ];
 
   return (
@@ -54,7 +50,7 @@ function RepPodium({ rep, meetings, rank, onRepClick }) {
         className="block mx-auto group"
         title={`View ${rep.name.split(' ')[0]}'s calls`}
       >
-        <div className={`rounded-full mx-auto mb-2.5 grid place-items-center font-display font-bold text-white relative bg-gradient-to-br ${podiumGradients[rank - 1]} ${avatarSizes[rank - 1]} ${rank === 1 ? 'shadow-[0_8px_20px_rgba(25,45,63,.30)]' : ''} group-hover:opacity-80 transition-opacity`}>
+        <div className={`rounded-full mx-auto mb-2.5 grid place-items-center font-heading font-bold text-white relative ${podiumGradients[rank - 1]} ${avatarSizes[rank - 1]} ${rank === 1 ? 'shadow-lg' : ''} group-hover:opacity-80 transition-opacity`}>
           {rep.photoThumb
             ? <img src={rep.photoThumb} alt={rep.name} className="absolute inset-0 w-full h-full object-cover rounded-full" />
             : initials(rep.name)
@@ -64,28 +60,28 @@ function RepPodium({ rep, meetings, rank, onRepClick }) {
           </span>
         </div>
       </button>
-      <button onClick={() => onRepClick?.(rep)} className="font-display font-bold text-[16px] hover:text-teal transition-colors">{rep.name.split(' ')[0]}</button>
+      <button onClick={() => onRepClick?.(rep)} className="font-heading font-bold text-[16px] hover:text-navy transition-colors">{rep.name.split(' ')[0]}</button>
       <div className="text-[11.5px] text-muted mt-0.5">{rep.role}</div>
-      <div className="font-display font-bold text-[30px] tracking-tight mt-2.5 leading-none">
+      <div className="font-display font-semibold text-[30px] tracking-tight mt-2.5 leading-none">
         {credits.toFixed(1)}<span className="text-[13px] font-medium text-muted"> cr</span>
       </div>
       <div className="text-[11.5px] mt-1 text-muted">
         {meetingCount} meeting{meetingCount !== 1 ? 's' : ''}
       </div>
       {isRamping ? (
-        <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-mint-soft text-teal mt-2">
+        <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-pale text-navy mt-2">
           Ramp M{rep.rampMonth} · {rep.multiplier}×
         </span>
       ) : (
-        <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-[#E8E3DA] text-muted mt-2">
+        <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-line text-muted mt-2">
           Fully ramped · 1.0×
         </span>
       )}
       {/* Stand */}
       <div className={`mt-3 rounded-t-xl border border-b-0 border-line ${standHeights[rank - 1]} ${
         rank === 1
-          ? 'bg-gradient-to-b from-mint-soft to-[#D8F09A]'
-          : 'bg-gradient-to-b from-[#EAE5DC] to-[#DDD7CE]'
+          ? 'bg-pale'
+          : 'bg-line'
       }`} />
     </div>
   );
@@ -132,7 +128,7 @@ export default function Leaderboard({ team, meetings, loading, region, onRepClic
     <div className="bg-card border border-line rounded-2xl shadow-sm overflow-hidden">
       <div className="flex">
         {/* Podium */}
-        <div className="flex-1 grid grid-cols-3 items-end px-6 pt-7 bg-gradient-to-b from-[#F0EBE2] to-card">
+        <div className="flex-1 grid grid-cols-3 items-end px-6 pt-7 bg-sunken">
           {podiumOrder.map(rep => {
             const rank = sorted.indexOf(rep) + 1;
             return <RepPodium key={rep.id} rep={rep} meetings={meetings} rank={rank} onRepClick={onRepClick} />;
@@ -141,28 +137,28 @@ export default function Leaderboard({ team, meetings, loading, region, onRepClic
 
         {/* Non-podium sidebar: 4th, 5th+ */}
         {rest.length > 0 && (
-          <div className="w-52 flex-shrink-0 border-l border-line bg-gradient-to-b from-[#F0EBE2] to-card flex flex-col justify-center gap-4 px-5 pt-7 pb-6">
+          <div className="w-52 flex-shrink-0 border-l border-line bg-sunken flex flex-col justify-center gap-4 px-5 pt-7 pb-6">
             {rest.map((rep, i) => {
               const meetingCount = repMeetingCount(rep, meetings);
               const credits = calcCredits(meetingCount, rep.multiplier);
               return (
                 <button key={rep.id} onClick={() => onRepClick?.(rep)} className="flex items-center gap-2.5 w-full text-left group">
-                  <span className="w-5 h-5 rounded-full bg-[#E8E3DA] text-muted text-[10px] font-bold grid place-items-center flex-shrink-0">
+                  <span className="w-5 h-5 rounded-full bg-line text-muted text-[10px] font-bold grid place-items-center flex-shrink-0">
                     {i + 4}
                   </span>
                   {rep.photoThumb ? (
                     <img src={rep.photoThumb} alt={rep.name} className="w-8 h-8 rounded-full object-cover flex-shrink-0 group-hover:opacity-75 transition-opacity" />
                   ) : (
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#2E4A63] to-[#1E3650] text-white grid place-items-center font-display font-bold text-[12px] flex-shrink-0 group-hover:opacity-75 transition-opacity">
+                    <div className="w-8 h-8 rounded-full bg-navy-700 text-white grid place-items-center font-heading font-bold text-[12px] flex-shrink-0 group-hover:opacity-75 transition-opacity">
                       {initials(rep.name)}
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <div className="font-display font-semibold text-[13px] truncate group-hover:text-teal transition-colors">{rep.name.split(' ')[0]}</div>
+                    <div className="font-heading font-semibold text-[13px] truncate group-hover:text-navy transition-colors">{rep.name.split(' ')[0]}</div>
                     <div className="text-muted text-[10.5px]">{rep.role}</div>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <div className="font-display font-bold text-[16px]">
+                    <div className="font-heading font-bold text-[16px]">
                       {credits.toFixed(1)}<span className="text-[10px] font-normal text-muted ml-0.5">cr</span>
                     </div>
                     <div className="text-muted text-[10.5px]">{meetingCount} mtg</div>
@@ -174,7 +170,7 @@ export default function Leaderboard({ team, meetings, loading, region, onRepClic
         )}
       </div>
 
-      <div className="flex justify-between items-center px-5 py-3.5 border-t border-line bg-[#FAF8F5] text-[12.5px] text-muted">
+      <div className="flex justify-between items-center px-5 py-3.5 border-t border-line bg-sunken text-[12.5px] text-muted">
         <span>Credits = qualified meetings × ramp multiplier (credit boost)</span>
         <span>Live data</span>
       </div>

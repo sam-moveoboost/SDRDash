@@ -31,18 +31,18 @@ function repProspectCount(rep, newProspects) {
 
 function MetricBar({ label, value, target, loading }) {
   const pct = target > 0 ? Math.min(100, Math.round((value / target) * 100)) : 0;
-  const color   = pct >= 100 ? 'bg-mint-deep' : pct >= 75 ? 'bg-amber' : 'bg-red';
-  const textClr = pct >= 100 ? 'text-mint-deep' : pct >= 75 ? 'text-amber' : 'text-red';
+  const color   = pct >= 100 ? 'bg-emerald' : pct >= 75 ? 'bg-amber' : 'bg-red';
+  const textClr = pct >= 100 ? 'text-emerald' : pct >= 75 ? 'text-amber' : 'text-red';
 
   return (
     <div className="mb-2.5 last:mb-0">
       <div className="flex justify-between text-[12.5px] mb-1.5">
         <span className="text-muted font-medium">{label}</span>
-        <span className={`font-display font-semibold ${textClr}`}>
+        <span className={`font-heading font-semibold ${textClr}`}>
           {loading ? '—' : `${value} / ${target}`}
         </span>
       </div>
-      <div className="h-1.5 rounded-full bg-[#E8E3DA] overflow-hidden">
+      <div className="h-1.5 rounded-full bg-line overflow-hidden">
         <div
           className={`h-full rounded-full transition-all duration-700 ${color}`}
           style={{ width: loading ? '0%' : `${pct}%` }}
@@ -53,12 +53,12 @@ function MetricBar({ label, value, target, loading }) {
 }
 
 function ConnectRateStat({ rate, loading }) {
-  const color = rate >= 30 ? 'text-mint-deep' : rate >= 15 ? 'text-amber' : 'text-red';
+  const color = rate >= 30 ? 'text-emerald' : rate >= 15 ? 'text-amber' : 'text-red';
 
   return (
     <div className="flex justify-between items-center text-[12.5px] mt-3 pt-3 border-t border-line">
       <span className="text-muted font-medium">Connect rate</span>
-      <span className={`font-display font-semibold ${color}`}>
+      <span className={`font-heading font-semibold ${color}`}>
         {loading ? '—' : `${rate}%`}
       </span>
     </div>
@@ -115,12 +115,12 @@ function RepCard({ rep, calls, newProspects, loading, period, onRepClick }) {
         {rep.photoThumb ? (
           <img src={rep.photoThumb} alt={rep.name} className="w-[38px] h-[38px] rounded-full object-cover flex-none mt-0.5 group-hover:opacity-80 transition-opacity" />
         ) : (
-          <div className="w-[38px] h-[38px] rounded-full bg-gradient-to-br from-teal to-teal-mid text-white grid place-items-center font-display font-bold text-[15px] flex-none mt-0.5 group-hover:opacity-80 transition-opacity">
+          <div className="w-[38px] h-[38px] rounded-full bg-navy text-white grid place-items-center font-heading font-bold text-[15px] flex-none mt-0.5 group-hover:opacity-80 transition-opacity">
             {rep.name.split(' ').map(n => n[0]).slice(0, 2).join('')}
           </div>
         )}
         <div className="flex-1 min-w-0">
-          <div className="font-display font-semibold text-[15px] leading-tight group-hover:text-teal transition-colors">
+          <div className="font-heading font-semibold text-[15px] leading-tight group-hover:text-navy transition-colors">
             {rep.name}
             <span className="ml-1.5 text-[10px] text-muted font-normal opacity-0 group-hover:opacity-100 transition-opacity">
               View calls →

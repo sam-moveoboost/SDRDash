@@ -4,9 +4,9 @@ function initials(name) {
   return name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
 }
 
-// Lime (#C8EC78) is light — use dark teal text for contrast
-const MEDAL_BG   = ['bg-mint',        'bg-[#CBD8D5]',      'bg-[#E0C9A0]'      ];
-const MEDAL_TEXT = ['text-teal-deep', 'text-teal-deep',    'text-[#6b4e1e]'    ];
+// Medal tints are light, so pair them with navy text
+const MEDAL_BG   = ['bg-pale',        'bg-mint',      'bg-lavender'      ];
+const MEDAL_TEXT = ['text-navy', 'text-navy',    'text-navy'    ];
 const STAND_H    = ['h-9',            'h-6',               'h-3'               ];
 
 function PodiumSlot({ rep, value, rank, unit, onRepClick }) {
@@ -14,18 +14,14 @@ function PodiumSlot({ rep, value, rank, unit, onRepClick }) {
     ? 'w-[52px] h-[52px] text-[17px]'
     : 'w-[40px] h-[40px] text-[13px]';
 
-  // Navy-based avatar gradients
-  const avatarGrad = rank === 1
-    ? 'from-teal to-teal-mid'
-    : rank === 2
-      ? 'from-[#1E3650] to-[#192D3F]'
-      : 'from-[#2E4A63] to-[#1E3650]';
+  // Navy avatars: primary navy for 1st, supporting navy for 2nd/3rd
+  const avatarGrad = rank === 1 ? 'bg-navy' : 'bg-navy-700';
 
   return (
     <div className="flex flex-col items-center text-center px-1.5">
       {/* Avatar — clickable */}
       <button onClick={() => onRepClick?.(rep)} className="group block">
-        <div className={`rounded-full grid place-items-center font-display font-bold text-white mb-1.5 relative bg-gradient-to-br ${avatarGrad} ${avatarCls} group-hover:opacity-75 transition-opacity`}>
+        <div className={`rounded-full grid place-items-center font-heading font-bold text-white mb-1.5 relative ${avatarGrad} ${avatarCls} group-hover:opacity-75 transition-opacity`}>
           {rep.photoThumb
             ? <img src={rep.photoThumb} alt={rep.name} className="absolute inset-0 w-full h-full object-cover rounded-full" />
             : initials(rep.name)
@@ -40,12 +36,12 @@ function PodiumSlot({ rep, value, rank, unit, onRepClick }) {
       </button>
 
       {/* Name — clickable */}
-      <button onClick={() => onRepClick?.(rep)} className="font-display font-semibold text-[12px] leading-tight truncate max-w-[56px] hover:text-teal transition-colors">
+      <button onClick={() => onRepClick?.(rep)} className="font-heading font-semibold text-[12px] leading-tight truncate max-w-[56px] hover:text-navy transition-colors">
         {rep.name.split(' ')[0]}
       </button>
 
       {/* Score */}
-      <div className={`font-display font-bold leading-none mt-0.5 ${rank === 1 ? 'text-[20px] text-teal' : 'text-[16px] text-ink'}`}>
+      <div className={`font-heading font-bold leading-none mt-0.5 ${rank === 1 ? 'text-[20px] text-navy' : 'text-[16px] text-ink'}`}>
         {value}
         <span className="text-[10px] font-normal text-muted ml-0.5">{unit}</span>
       </div>
@@ -53,8 +49,8 @@ function PodiumSlot({ rep, value, rank, unit, onRepClick }) {
       {/* Stand */}
       <div className={`mt-2 w-full rounded-t-lg border border-b-0 border-line ${STAND_H[rank - 1]} ${
         rank === 1
-          ? 'bg-gradient-to-b from-mint-soft to-[#D8F09A]'
-          : 'bg-gradient-to-b from-[#EAE5DC] to-[#DDD7CE]'
+          ? 'bg-pale'
+          : 'bg-line'
       }`} />
     </div>
   );
@@ -84,13 +80,13 @@ export default function MiniLeaderboard({ title, subtitle, team, getData, unit, 
   return (
     <div className="bg-card border border-line rounded-2xl shadow-sm overflow-hidden flex flex-col">
       {/* Header */}
-      <div className="px-4 pt-3.5 flex items-baseline justify-between bg-gradient-to-b from-[#F0EBE2] to-card">
-        <p className="font-display font-bold text-[15px] tracking-tight">{title}</p>
+      <div className="px-4 pt-3.5 flex items-baseline justify-between bg-sunken">
+        <p className="font-heading font-bold text-[15px] tracking-tight">{title}</p>
         {subtitle && <p className="text-muted text-[11.5px]">{subtitle}</p>}
       </div>
 
       {/* Body: podium + sidebar */}
-      <div className="flex flex-1 bg-gradient-to-b from-[#F0EBE2] to-card">
+      <div className="flex flex-1 bg-sunken">
         {/* Podium area */}
         <div className="flex-1 flex items-end justify-around px-3 pt-3">
           {loading ? (
@@ -125,12 +121,12 @@ export default function MiniLeaderboard({ title, subtitle, team, getData, unit, 
                 {rep.photoThumb ? (
                   <img src={rep.photoThumb} alt={rep.name} className="w-6 h-6 rounded-full object-cover flex-shrink-0 group-hover:opacity-75 transition-opacity" />
                 ) : (
-                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#2E4A63] to-[#1E3650] text-white grid place-items-center font-display font-bold text-[9px] flex-shrink-0 group-hover:opacity-75 transition-opacity">
+                  <div className="w-6 h-6 rounded-full bg-navy-700 text-white grid place-items-center font-heading font-bold text-[9px] flex-shrink-0 group-hover:opacity-75 transition-opacity">
                     {initials(rep.name)}
                   </div>
                 )}
-                <span className="font-display font-semibold text-[12px] flex-1 truncate group-hover:text-teal transition-colors">{rep.name.split(' ')[0]}</span>
-                <span className={`font-display font-bold text-[13px] ${value > 0 ? 'text-ink' : 'text-muted'}`}>
+                <span className="font-heading font-semibold text-[12px] flex-1 truncate group-hover:text-navy transition-colors">{rep.name.split(' ')[0]}</span>
+                <span className={`font-heading font-bold text-[13px] ${value > 0 ? 'text-ink' : 'text-muted'}`}>
                   {loading ? '—' : value}
                 </span>
               </button>
@@ -140,7 +136,7 @@ export default function MiniLeaderboard({ title, subtitle, team, getData, unit, 
       </div>
 
       {/* Footer */}
-      <div className="flex justify-between items-center px-4 py-2.5 border-t border-line bg-[#FAF8F5] text-[11.5px] text-muted">
+      <div className="flex justify-between items-center px-4 py-2.5 border-t border-line bg-sunken text-[11.5px] text-muted">
         <span>{subtitle ?? title}</span>
         <span>Live data</span>
       </div>

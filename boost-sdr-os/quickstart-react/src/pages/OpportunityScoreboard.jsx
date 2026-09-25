@@ -9,7 +9,7 @@ import {
   DEFAULT_DEAL_FILTERS, hasActiveDealFilters, distinctValues, filterOpps,
 } from '../utils/opportunityMetrics';
 
-const PALETTE = ['#192D3F', '#8DC63A', '#E29A2E', '#579bfc', '#9d50dd', '#E0544A', '#4eccc6', '#254154', '#df2f4a', '#00c875'];
+const PALETTE = ['#1a385e', '#027361', '#916aff', '#cf9a2b', '#2c5180', '#c44536', '#5a5fd6', '#0e4123', '#757c77', '#d7c9fe'];
 const colorFor = i => PALETTE[i % PALETTE.length];
 
 // Stub item for the "Add Opportunity" modal — no id yet, no column values.
@@ -21,7 +21,7 @@ function MiniStat({ label, value, sub }) {
   return (
     <div>
       <div className="text-muted text-[11px] font-semibold uppercase tracking-wide mb-1">{label}</div>
-      <div className="font-display font-bold text-[19px] leading-tight text-ink">{value}</div>
+      <div className="font-heading font-bold text-[19px] leading-tight text-ink">{value}</div>
       {sub && <div className="text-muted text-[11.5px] mt-1">{sub}</div>}
     </div>
   );
@@ -32,14 +32,14 @@ function MiniStat({ label, value, sub }) {
 // Expected Close Date / quarter / year — this banner is never timing-scoped.
 function TotalPipelineBanner({ split, totalCount, missingCloseDateCount }) {
   return (
-    <div className="rounded-2xl bg-gradient-to-br from-teal to-teal-mid text-white p-6 mb-6 shadow-sm">
+    <div className="rounded-3xl bg-navy text-on-dark p-8 mb-6 shadow-md">
       <div className="flex items-center justify-between flex-wrap gap-6">
         <div className="flex flex-wrap gap-10">
           <div>
             <div className="text-white/70 text-[11px] font-semibold uppercase tracking-wide mb-1.5">
               Total Open Pipeline — ARR + CS (USD)
             </div>
-            <div className="font-display font-bold text-[32px] leading-none">
+            <div className="font-display font-semibold text-[36px] leading-none text-white">
               {formatMoney(split.arr, 'USD') ?? '$0'}
             </div>
             <div className="text-white/75 text-[12.5px] mt-1.5">{split.arrCount} open opportunit{split.arrCount === 1 ? 'y' : 'ies'}</div>
@@ -48,7 +48,7 @@ function TotalPipelineBanner({ split, totalCount, missingCloseDateCount }) {
             <div className="text-white/70 text-[11px] font-semibold uppercase tracking-wide mb-1.5">
               Total Open Pipeline — Professional Services (USD)
             </div>
-            <div className="font-display font-bold text-[32px] leading-none">
+            <div className="font-display font-semibold text-[36px] leading-none text-white">
               {formatMoney(split.ps, 'USD') ?? '$0'}
             </div>
             <div className="text-white/75 text-[12.5px] mt-1.5">{split.psCount} open opportunit{split.psCount === 1 ? 'y' : 'ies'}</div>
@@ -107,10 +107,10 @@ function SideStats({ label, badgeColor, stats }) {
 function PeriodCard({ title, stats }) {
   return (
     <div className="bg-card border border-line rounded-2xl p-6">
-      <div className="font-display font-bold text-[16px] mb-5">{title}</div>
+      <div className="font-heading font-bold text-[16px] mb-5">{title}</div>
       <div className="grid grid-cols-2 gap-6">
-        <SideStats label="ARR + CS" badgeColor="#579bfc" stats={stats.arr} />
-        <SideStats label="Professional Services" badgeColor="#9d50dd" stats={stats.ps} />
+        <SideStats label="ARR + CS" badgeColor="#2c5180" stats={stats.arr} />
+        <SideStats label="Professional Services" badgeColor="#916aff" stats={stats.ps} />
       </div>
     </div>
   );
@@ -139,7 +139,7 @@ function Breakdown({ title, items, empty }) {
   const max = items[0]?.count ?? 1;
   return (
     <div className="bg-card border border-line rounded-2xl p-5">
-      <div className="font-display font-bold text-[14px] mb-4">{title}</div>
+      <div className="font-heading font-bold text-[14px] mb-4">{title}</div>
       {items.length === 0
         ? <p className="text-muted text-[13px]">{empty}</p>
         : (
@@ -163,12 +163,12 @@ function MonthlyTrendChart({ data }) {
           <div key={d.label} className="flex-1 flex flex-col items-center justify-end h-full">
             <div className="flex items-end gap-0.5 h-full">
               <div
-                className="w-3 rounded-t bg-teal"
+                className="w-3 rounded-t bg-emerald"
                 style={{ height: `${Math.max(2, (d.won.count / maxVal) * 100)}%` }}
                 title={`${d.won.count} won · ${formatByCurrency(d.won.byCurrency)}`}
               />
               <div
-                className="w-3 rounded-t bg-mint"
+                className="w-3 rounded-t bg-navy"
                 style={{ height: `${Math.max(2, (d.created / maxVal) * 100)}%` }}
                 title={`${d.created} opportunities created`}
               />
@@ -178,8 +178,8 @@ function MonthlyTrendChart({ data }) {
         ))}
       </div>
       <div className="flex items-center gap-4 mt-3 text-[11.5px] text-muted">
-        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-teal inline-block" /> Won</span>
-        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-mint inline-block" /> Created</span>
+        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-emerald inline-block" /> Won</span>
+        <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-navy inline-block" /> Created</span>
       </div>
     </div>
   );
@@ -190,8 +190,8 @@ function fmtDate(d) {
 }
 
 function selectCls(active) {
-  return `border rounded-lg pl-2.5 pr-1.5 py-1.5 text-[12.5px] bg-white focus:outline-none focus:ring-1 focus:ring-teal focus:border-teal transition-colors ${
-    active ? 'border-teal text-ink font-medium' : 'border-line text-muted'
+  return `border rounded-lg pl-2.5 pr-1.5 py-1.5 text-[12.5px] bg-white focus:outline-none focus:ring-1 focus:ring-navy focus:border-navy transition-colors ${
+    active ? 'border-navy text-ink font-medium' : 'border-line text-muted'
   }`;
 }
 
@@ -243,7 +243,7 @@ function FilterBar({ filters, setFilters, options }) {
       {active && (
         <button
           onClick={() => setFilters(DEFAULT_DEAL_FILTERS)}
-          className="ml-auto text-[12px] font-semibold text-teal hover:text-teal-mid transition-colors"
+          className="ml-auto text-[12px] font-semibold text-navy hover:text-navy-700 transition-colors"
         >
           Clear filters
         </button>
@@ -263,7 +263,7 @@ function DealsList({ title, deals, dateLabel, getDate, showOutcome, showWinProb,
   return (
     <div className="bg-card border border-line rounded-2xl overflow-hidden">
       <div className="px-5 py-4 border-b border-line flex items-center justify-between flex-wrap gap-2">
-        <span className="font-display font-bold text-[14px]">{title}</span>
+        <span className="font-heading font-bold text-[14px]">{title}</span>
         <div className="flex items-center gap-3 text-[12px] text-muted">
           {subtotal.arrCount > 0 && <span>ARR: <span className="font-semibold text-ink">{formatMoney(subtotal.arr, 'USD') ?? '$0'}</span></span>}
           {subtotal.psCount > 0 && <span>PS: <span className="font-semibold text-ink">{formatMoney(subtotal.ps, 'USD') ?? '$0'}</span></span>}
@@ -276,7 +276,7 @@ function DealsList({ title, deals, dateLabel, getDate, showOutcome, showWinProb,
         <div className={`overflow-x-auto ${scroll ? 'max-h-80 overflow-y-auto' : ''}`}>
           <table className="w-full text-[12.5px]">
             <thead>
-              <tr className="border-b border-line bg-[#FAF8F5]">
+              <tr className="border-b border-line bg-sunken">
                 <th className="text-left px-5 py-2.5 font-semibold text-muted">Deal</th>
                 <th className="text-left px-3 py-2.5 font-semibold text-muted">{showOutcome ? 'Outcome' : 'Stage'}</th>
                 <th className="text-left px-3 py-2.5 font-semibold text-muted">Type</th>
@@ -291,7 +291,7 @@ function DealsList({ title, deals, dateLabel, getDate, showOutcome, showWinProb,
                 <tr
                   key={o.id}
                   onClick={() => onSelect?.(o.id)}
-                  className={`transition-colors ${onSelect ? 'cursor-pointer' : ''} ${selectedId === o.id ? 'bg-mint-soft/40' : 'hover:bg-[#FAF8F5]'}`}
+                  className={`transition-colors ${onSelect ? 'cursor-pointer' : ''} ${selectedId === o.id ? 'bg-pale/40' : 'hover:bg-sunken'}`}
                 >
                   <td className="px-5 py-3 font-semibold text-ink">
                     <span className="inline-flex items-center gap-1.5">
@@ -308,7 +308,7 @@ function DealsList({ title, deals, dateLabel, getDate, showOutcome, showWinProb,
                   </td>
                   <td className="px-3 py-3">
                     {showOutcome
-                      ? <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full text-white ${o.isWon ? 'bg-mint-deep' : 'bg-red'}`}>{o.stage}</span>
+                      ? <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full text-white ${o.isWon ? 'bg-emerald' : 'bg-red'}`}>{o.stage}</span>
                       : <span className="text-muted">{o.stage}</span>
                     }
                   </td>
@@ -318,7 +318,7 @@ function DealsList({ title, deals, dateLabel, getDate, showOutcome, showWinProb,
                     <td className="px-3 py-3 text-right tabular-nums text-muted">{o.winProbability > 0 ? `${o.winProbability}%` : '—'}</td>
                   )}
                   <td className="px-3 py-3 text-muted tabular-nums">{fmtDate(getDate(o))}</td>
-                  <td className="px-5 py-3 text-right font-display font-bold text-teal">
+                  <td className="px-5 py-3 text-right font-heading font-bold text-navy">
                     {o.valueUSD > 0
                       ? formatMoney(o.valueUSD, 'USD')
                       : o.isPS
@@ -451,17 +451,17 @@ export default function OpportunityScoreboard({ region, user }) {
         {/* Header */}
         <div className="mb-7 flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <p className="font-display text-[11px] font-semibold tracking-[.14em] uppercase text-mint-deep mb-1.5">
+            <p className="text-[12px] font-semibold tracking-[.08em] uppercase text-emerald mb-1.5">
               Pipeline
             </p>
-            <h1 className="font-display text-[27px] font-bold tracking-tight mb-1">Opportunities</h1>
+            <h1 className="font-display text-[36px] leading-[1.1] font-semibold tracking-tight mb-2">Opportunities</h1>
             <p className="text-muted text-[15px] max-w-xl">
               {region && region !== 'All' ? `${region} territory` : 'All territories'} · live from monday.com
             </p>
           </div>
           <button
             onClick={openCreate}
-            className="flex-shrink-0 inline-flex items-center gap-1.5 font-display font-semibold text-[13.5px] px-4 py-2.5 rounded-xl bg-teal text-white hover:bg-teal-mid transition-colors"
+            className="flex-shrink-0 inline-flex items-center gap-1.5 font-heading font-semibold text-[13.5px] px-4 py-2.5 rounded-full bg-navy text-white hover:bg-navy-700 transition-colors"
           >
             + Add Opportunity
           </button>
@@ -485,7 +485,7 @@ export default function OpportunityScoreboard({ region, user }) {
 
         {/* Pipeline planning: sort open opportunities into quarter / year / unscheduled — interactive, click a row to edit */}
         <div className="mb-6">
-          <p className="font-display font-bold text-[16px] mb-3">Pipeline Planning</p>
+          <p className="font-heading font-bold text-[16px] mb-3">Pipeline Planning</p>
           <div className="space-y-4">
             <DealsList
               title={`Closing This Quarter · ${quarterLabel(year, quarter)}`}
@@ -525,7 +525,7 @@ export default function OpportunityScoreboard({ region, user }) {
 
         {/* Monthly trend */}
         <div className="bg-card border border-line rounded-2xl p-5 mb-6">
-          <div className="font-display font-bold text-[14px] mb-4">Closed-Won by Month · {year}</div>
+          <div className="font-heading font-bold text-[14px] mb-4">Closed-Won by Month · {year}</div>
           <MonthlyTrendChart data={trend} />
         </div>
 

@@ -11,7 +11,7 @@ function daysSince(d) {
 function dotColor(days) {
   if (days >= 30) return 'bg-red';
   if (days >= 21) return 'bg-amber';
-  return 'bg-mint-deep';
+  return 'bg-emerald';
 }
 
 function fmtDate(iso) {
@@ -80,8 +80,8 @@ function colRawValue(deal, colId) {
 // ── Shared input styles ───────────────────────────────────────────
 
 function inputCls(dirty) {
-  return `w-full border rounded-lg px-3 py-[7px] text-[13.5px] font-medium bg-card focus:outline-none focus:ring-1 focus:ring-teal focus:border-teal transition-colors ${
-    dirty ? 'border-teal bg-mint-soft/20' : 'border-line'
+  return `w-full border rounded-xl px-3 py-[7px] text-[13.5px] font-medium bg-card focus:outline-none focus:ring-1 focus:ring-navy focus:border-navy transition-colors ${
+    dirty ? 'border-navy bg-pale/20' : 'border-line'
   }`;
 }
 
@@ -325,9 +325,9 @@ export default function StaleDealsModal({ staleOpps, team = [], onClose, onDealU
         <div className="bg-card rounded-2xl shadow-2xl border border-line w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden pointer-events-auto">
 
           {/* Header */}
-          <div className="flex items-center gap-3 px-6 py-4 border-b border-line bg-gradient-to-b from-[#F0EBE2] to-card flex-shrink-0">
+          <div className="flex items-center gap-3 px-6 py-4 border-b border-line bg-sunken flex-shrink-0">
             <div>
-              <h2 className="font-display font-bold text-[18px]">Stale Deals</h2>
+              <h2 className="font-heading font-bold text-[18px]">Stale Deals</h2>
               <p className="text-[12px] text-muted">No activity in 14+ days</p>
             </div>
             <span className="px-2.5 py-0.5 rounded-full bg-red-soft text-red text-[12px] font-semibold">
@@ -347,7 +347,7 @@ export default function StaleDealsModal({ staleOpps, team = [], onClose, onDealU
           <div className="flex flex-1 overflow-hidden">
 
             {/* Left: deal list */}
-            <div className="w-64 flex-shrink-0 border-r border-line overflow-y-auto bg-[#FAF8F5]">
+            <div className="w-64 flex-shrink-0 border-r border-line overflow-y-auto bg-sunken">
               {sorted.map(opp => {
                 const idle = daysSince(opp.updated_at);
                 const isActive = selectedId === opp.id;
@@ -357,7 +357,7 @@ export default function StaleDealsModal({ staleOpps, team = [], onClose, onDealU
                     onClick={() => setSelectedId(opp.id)}
                     className={`w-full flex items-center gap-3 px-4 py-3.5 border-b border-line text-left transition-colors border-l-2 ${
                       isActive
-                        ? 'bg-teal/[0.06] border-l-teal pl-[14px]'
+                        ? 'bg-navy/[0.06] border-l-navy pl-[14px]'
                         : 'border-l-transparent hover:bg-white pl-[14px]'
                     }`}
                   >
@@ -388,7 +388,7 @@ export default function StaleDealsModal({ staleOpps, team = [], onClose, onDealU
                   {/* Deal header */}
                   <div className="flex items-start gap-4 mb-7">
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-display font-bold text-[22px] leading-tight">{selected.name}</h3>
+                      <h3 className="font-display font-semibold text-[22px] leading-tight">{selected.name}</h3>
                       <p className="text-muted text-[12.5px] mt-1">
                         Last updated {daysSince(selected.updated_at)} days ago
                         {selected.created_at && ` · Created ${fmtDate(selected.created_at)}`}
@@ -396,7 +396,7 @@ export default function StaleDealsModal({ staleOpps, team = [], onClose, onDealU
                     </div>
                     <div className="flex items-center gap-2.5 flex-shrink-0 pt-1">
                       {savedMsg && (
-                        <span className={`text-[12.5px] font-semibold ${savedMsg.startsWith('Error') ? 'text-red' : 'text-mint-deep'}`}>
+                        <span className={`text-[12.5px] font-semibold ${savedMsg.startsWith('Error') ? 'text-red' : 'text-emerald'}`}>
                           {savedMsg}
                         </span>
                       )}
@@ -404,7 +404,7 @@ export default function StaleDealsModal({ staleOpps, team = [], onClose, onDealU
                         <button
                           onClick={handleSave}
                           disabled={saving}
-                          className="px-4 py-2 bg-teal text-white text-[13px] font-semibold rounded-xl hover:bg-teal-mid transition-colors disabled:opacity-60"
+                          className="px-4 py-2 bg-navy text-white text-[13px] font-semibold rounded-full hover:bg-navy-700 transition-colors disabled:opacity-60"
                         >
                           {saving ? 'Saving…' : 'Save changes'}
                         </button>

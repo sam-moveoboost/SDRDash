@@ -72,10 +72,10 @@ export default function Events() {
         {/* Page title + controls */}
         <div className="flex items-end justify-between mb-7">
           <div>
-            <p className="font-display text-[11px] font-semibold tracking-[.14em] uppercase text-mint-deep mb-1.5">
+            <p className="text-[12px] font-semibold tracking-[.08em] uppercase text-emerald mb-1.5">
               Event Planning
             </p>
-            <h1 className="font-display text-[27px] font-bold tracking-tight mb-1">Events</h1>
+            <h1 className="font-display text-[36px] leading-[1.1] font-semibold tracking-tight mb-2">Events</h1>
             <p className="text-muted text-[15px] max-w-xl">
               UK event calendar and team attendance tracking.
               {year === 2026 && ' Leaderboard counts events from 1 Sep 2026.'}
@@ -86,7 +86,7 @@ export default function Events() {
             {/* Create event button */}
             <button
               onClick={() => setModalEvent(null)}
-              className="flex items-center gap-2 px-4 py-2 bg-teal text-white rounded-xl text-[13.5px] font-semibold hover:bg-teal-mid transition-colors shadow-sm"
+              className="flex items-center gap-2 px-4 py-2 bg-navy text-white rounded-full text-[13.5px] font-semibold hover:bg-navy-700 transition-colors shadow-sm"
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                 <line x1="7" y1="1" x2="7" y2="13" />
@@ -114,7 +114,7 @@ export default function Events() {
         </div>
 
         {/* Calendar — shows ALL events, free month navigation */}
-        <div className="font-display text-[13px] font-semibold tracking-[.04em] uppercase text-muted mb-3.5 flex items-center gap-2.5 after:content-[''] after:flex-1 after:h-px after:bg-line">
+        <div className="text-[13px] font-semibold tracking-[.08em] uppercase text-muted mb-3.5 flex items-center gap-2.5 after:content-[''] after:flex-1 after:h-px after:bg-line">
           Event Calendar
         </div>
         {loading
@@ -131,7 +131,7 @@ export default function Events() {
         }
 
         {/* Opportunity Insights — full year, no Sep 1 cutoff */}
-        <div className="font-display text-[13px] font-semibold tracking-[.04em] uppercase text-muted mb-3.5 flex items-center gap-2.5 after:content-[''] after:flex-1 after:h-px after:bg-line">
+        <div className="text-[13px] font-semibold tracking-[.08em] uppercase text-muted mb-3.5 flex items-center gap-2.5 after:content-[''] after:flex-1 after:h-px after:bg-line">
           Opportunity Insights · {year}
         </div>
         {loading
