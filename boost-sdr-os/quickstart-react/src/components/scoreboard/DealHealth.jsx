@@ -8,11 +8,11 @@ function daysSince(dateStr) {
 function staleFlagClass(days) {
   if (days >= 21) return 'bg-red';
   if (days >= 14) return 'bg-amber';
-  return 'bg-mint';
+  return 'bg-emerald';
 }
 
 function psRateClass(rate) {
-  if (rate >= 205) return { chip: 'bg-mint-soft text-mint-deep', label: `£${rate}` };
+  if (rate >= 205) return { chip: 'bg-pale text-emerald', label: `£${rate}` };
   if (rate >= 180) return { chip: 'bg-amber-soft text-amber',    label: `£${rate}` };
   return           { chip: 'bg-red-soft text-red',               label: `£${rate}` };
 }
@@ -48,7 +48,7 @@ export default function DealHealth({ opps, loading }) {
     <div className="grid grid-cols-2 gap-3.5">
       {/* Stale deals */}
       <div className="bg-card border border-line rounded-2xl shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-[18px] py-[15px] border-b border-line font-display font-semibold text-[14px]">
+        <div className="flex items-center justify-between px-[18px] py-[15px] border-b border-line font-heading font-semibold text-[14px]">
           Stale deals
           {stale.length > 0 && (
             <span className="text-[11.5px] font-semibold px-2.5 py-0.5 rounded-full bg-red-soft text-red">
@@ -69,7 +69,7 @@ export default function DealHealth({ opps, loading }) {
 
       {/* PS rate check */}
       <div className="bg-card border border-line rounded-2xl shadow-sm overflow-hidden">
-        <div className="px-[18px] py-[15px] border-b border-line font-display font-semibold text-[14px]">
+        <div className="px-[18px] py-[15px] border-b border-line font-heading font-semibold text-[14px]">
           PS rate check
         </div>
         {withRate.length === 0 ? (
@@ -79,7 +79,7 @@ export default function DealHealth({ opps, loading }) {
           return (
             <div key={opp.id} className="flex items-center gap-3 px-[18px] py-3 border-b border-line last:border-0 text-[13.5px]">
               <span className="font-semibold truncate">{opp.name}</span>
-              <span className={`ml-auto font-display font-semibold text-[12.5px] px-2.5 py-0.5 rounded-lg ${chip}`}>
+              <span className={`ml-auto font-heading font-semibold text-[12.5px] px-2.5 py-0.5 rounded-lg ${chip}`}>
                 {label}
               </span>
             </div>

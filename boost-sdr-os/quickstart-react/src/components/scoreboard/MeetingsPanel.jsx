@@ -30,7 +30,7 @@ function FilterChip({ active, onClick, label, count, tone }) {
     <button
       onClick={onClick}
       className={`px-2.5 py-1 rounded-lg text-[12px] font-semibold transition-all whitespace-nowrap ${
-        active ? 'bg-teal text-white' : `bg-transparent text-muted hover:text-ink border border-line ${toneClass}`
+        active ? 'bg-navy text-white' : `bg-transparent text-muted hover:text-ink border border-line ${toneClass}`
       }`}
     >
       {label} <span className={active ? 'text-white/70' : 'opacity-70'}>{count}</span>
@@ -61,7 +61,7 @@ function AttributionBadge({ attribution }) {
   }
   if (via === 'sdr') {
     return (
-      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-mint-soft text-teal">
+      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-pale text-navy">
         Credited to {reps.map(firstName).join(', ')}
       </span>
     );
@@ -147,7 +147,7 @@ function MeetingRow({ meeting, tab, reps, accountSlug, onUpdate }) {
     <div className={`border border-line rounded-xl p-4 bg-canvas ${counted ? '' : 'opacity-60'}`}>
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0">
-          <div className="font-display font-bold text-[14.5px] truncate">{meeting.name}</div>
+          <div className="font-heading font-bold text-[14.5px] truncate">{meeting.name}</div>
           <div className="text-[12px] text-muted truncate">{company || 'No company'}</div>
         </div>
         {accountSlug && (
@@ -155,7 +155,7 @@ function MeetingRow({ meeting, tab, reps, accountSlug, onUpdate }) {
             href={`https://${accountSlug}.monday.com/boards/${BOARDS.LEADS}/pulses/${meeting.id}`}
             target="_blank"
             rel="noreferrer"
-            className="text-[11.5px] font-semibold text-teal hover:text-teal-mid flex-shrink-0"
+            className="text-[11.5px] font-semibold text-navy hover:text-navy-700 flex-shrink-0"
           >
             Open ↗
           </a>
@@ -165,7 +165,7 @@ function MeetingRow({ meeting, tab, reps, accountSlug, onUpdate }) {
       <div className="flex flex-wrap items-center gap-1.5 mt-2">
         <AttributionBadge attribution={meeting.attribution} />
         {!counted && (
-          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#E8E3DA] text-muted">No longer counted</span>
+          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-line text-muted">No longer counted</span>
         )}
         {needsOutcome && (
           <span
@@ -177,7 +177,7 @@ function MeetingRow({ meeting, tab, reps, accountSlug, onUpdate }) {
         )}
         {tab === 'qualified' && lag > 60 && (
           <span
-            className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#E8E3DA] text-muted"
+            className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-line text-muted"
             title="Lead was created long before its Qualified Date. Check the date is right."
           >
             Created {lag} days before qualifying
@@ -212,7 +212,7 @@ function MeetingRow({ meeting, tab, reps, accountSlug, onUpdate }) {
             value={meetingOn}
             disabled={saving === 'mbDate'}
             onChange={e => onMeetingDateChange(e.target.value)}
-            className={`mt-0.5 w-full bg-card border rounded-lg px-2 py-1 text-[12.5px] outline-none focus:border-teal ${meetingOn ? 'border-line' : 'border-red/40'}`}
+            className={`mt-0.5 w-full bg-card border rounded-lg px-2 py-1 text-[12.5px] outline-none focus:border-navy ${meetingOn ? 'border-line' : 'border-red/40'}`}
           />
         </label>
         <label className="block">
@@ -221,7 +221,7 @@ function MeetingRow({ meeting, tab, reps, accountSlug, onUpdate }) {
             value={sdrValue}
             disabled={saving === 'sdr'}
             onChange={e => onSdrChange(e.target.value)}
-            className={`mt-0.5 w-full bg-card border rounded-lg px-2 py-1 text-[12.5px] outline-none focus:border-teal ${sdrIds.length ? 'border-line' : 'border-red/40'}`}
+            className={`mt-0.5 w-full bg-card border rounded-lg px-2 py-1 text-[12.5px] outline-none focus:border-navy ${sdrIds.length ? 'border-line' : 'border-red/40'}`}
           >
             <option value="">{sdrIds.length > 1 ? sdrText : 'Unassigned'}</option>
             {sdrValue && !reps.some(r => r.mondayUserId === sdrValue) && <option value={sdrValue}>{sdrText}</option>}
@@ -234,7 +234,7 @@ function MeetingRow({ meeting, tab, reps, accountSlug, onUpdate }) {
             value={status}
             disabled={saving === 'status'}
             onChange={e => onStatusChange(e.target.value)}
-            className="mt-0.5 w-full bg-card border border-line rounded-lg px-2 py-1 text-[12.5px] outline-none focus:border-teal"
+            className="mt-0.5 w-full bg-card border border-line rounded-lg px-2 py-1 text-[12.5px] outline-none focus:border-navy"
           >
             {!LEAD_STATUS_OPTIONS.includes(status) && <option value={status}>{status || '—'}</option>}
             {LEAD_STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
@@ -311,10 +311,10 @@ export default function MeetingsPanel({ lists, reps, periodLabel, regionLabel, i
       <div className="fixed inset-y-0 right-0 w-[560px] max-w-full bg-card border-l border-line shadow-2xl z-50 flex flex-col overflow-hidden">
 
         {/* Header */}
-        <div className="px-5 py-4 border-b border-line bg-gradient-to-b from-[#F0EBE2] to-card flex-shrink-0">
+        <div className="px-5 py-4 border-b border-line bg-sunken flex-shrink-0">
           <div className="flex items-center gap-3">
             <div className="flex-1 min-w-0">
-              <div className="font-display font-bold text-[16px]">
+              <div className="font-heading font-bold text-[16px]">
                 {selectedRep ? `${selectedRep.name}'s ${tabLabel} meetings` : `Meetings ${tabLabel}`}
               </div>
               <div className="text-[11.5px] text-muted">
@@ -371,7 +371,7 @@ export default function MeetingsPanel({ lists, reps, periodLabel, regionLabel, i
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Search name, company, Bizdev or SDR"
-            className="mt-3 w-full bg-card border border-line rounded-lg px-3 py-1.5 text-[12.5px] outline-none focus:border-teal"
+            className="mt-3 w-full bg-card border border-line rounded-lg px-3 py-1.5 text-[12.5px] outline-none focus:border-navy"
           />
         </div>
 
@@ -386,7 +386,7 @@ export default function MeetingsPanel({ lists, reps, periodLabel, regionLabel, i
           )}
         </div>
 
-        <div className="px-5 py-3 border-t border-line bg-[#FAF8F5] text-[11.5px] text-muted flex-shrink-0">
+        <div className="px-5 py-3 border-t border-line bg-sunken text-[11.5px] text-muted flex-shrink-0">
           Credit goes to the SDR column. If it's blank, credit goes to the Bizdev when they're an SDR or Hybrid rep.
           Leads with no company or no creditable rep are excluded. Edits save straight to the Leads board.
         </div>

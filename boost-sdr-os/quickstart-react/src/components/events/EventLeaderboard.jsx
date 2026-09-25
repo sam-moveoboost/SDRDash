@@ -21,7 +21,7 @@ function PersonAvatar({ name, photo }) {
   }
   const initials = name.split(' ').map(n => n[0]).slice(0, 2).join('');
   return (
-    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-teal to-teal-mid text-white grid place-items-center font-display font-bold text-[13px] flex-shrink-0">
+    <div className="w-10 h-10 rounded-full bg-navy text-white grid place-items-center font-heading font-bold text-[13px] flex-shrink-0">
       {initials}
     </div>
   );
@@ -68,7 +68,7 @@ export default function EventLeaderboard({ events, userMap, year }) {
     <div className="bg-card border border-line rounded-2xl shadow-sm overflow-hidden">
       {/* Card header */}
       <div className="px-5 py-4 border-b border-line">
-        <div className="font-display font-bold text-[15px]">Attendance Tracker · {year}</div>
+        <div className="font-heading font-bold text-[15px]">Attendance Tracker · {year}</div>
         <div className="text-muted text-[12px] mt-0.5">
           Target per person: {t.allDay} all-day conferences + {t.other} other events = {total} total
           {year === 2026 && ' · measuring from 1 Sep 2026'}
@@ -96,9 +96,9 @@ export default function EventLeaderboard({ events, userMap, year }) {
               {/* Stats */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-2.5">
-                  <span className="font-display font-semibold text-[14px] truncate">{p.name}</span>
+                  <span className="font-heading font-semibold text-[14px] truncate">{p.name}</span>
                   {bothMet && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-mint text-teal-deep whitespace-nowrap">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-pale text-navy whitespace-nowrap">
                       Target met ✓
                     </span>
                   )}
@@ -109,32 +109,32 @@ export default function EventLeaderboard({ events, userMap, year }) {
                   <div>
                     <div className="flex justify-between text-[11px] mb-1">
                       <span className="text-muted">All-day conferences</span>
-                      <span className={`font-semibold ${allDayMet ? 'text-mint-deep' : 'text-ink'}`}>
+                      <span className={`font-semibold ${allDayMet ? 'text-emerald' : 'text-ink'}`}>
                         {p.allDay} / {t.allDay}
                       </span>
                     </div>
-                    <Bar value={p.allDay} max={t.allDay} color="#579bfc" />
+                    <Bar value={p.allDay} max={t.allDay} color="#2c5180" />
                   </div>
 
                   {/* Other events */}
                   <div>
                     <div className="flex justify-between text-[11px] mb-1">
                       <span className="text-muted">Other events</span>
-                      <span className={`font-semibold ${otherMet ? 'text-mint-deep' : 'text-ink'}`}>
+                      <span className={`font-semibold ${otherMet ? 'text-emerald' : 'text-ink'}`}>
                         {p.other} / {t.other}
                       </span>
                     </div>
-                    <Bar value={p.other} max={t.other} color="#00c875" />
+                    <Bar value={p.other} max={t.other} color="#027361" />
                   </div>
                 </div>
               </div>
 
               {/* Total + % */}
               <div className="text-right flex-shrink-0 pt-1">
-                <div className="font-display font-bold text-[24px] leading-none">{p.sum}</div>
+                <div className="font-display font-semibold text-[24px] leading-none">{p.sum}</div>
                 <div className="text-muted text-[10.5px]">of {total}</div>
                 <div className={`text-[11px] font-semibold mt-1 ${
-                  bothMet ? 'text-mint-deep' : pct >= 60 ? 'text-amber' : 'text-muted'
+                  bothMet ? 'text-emerald' : pct >= 60 ? 'text-amber' : 'text-muted'
                 }`}>
                   {pct}%
                 </div>
@@ -145,13 +145,13 @@ export default function EventLeaderboard({ events, userMap, year }) {
       </div>
 
       {/* Footer */}
-      <div className="px-5 py-3 border-t border-line bg-[#FAF8F5] flex gap-4 text-[11px] text-muted">
+      <div className="px-5 py-3 border-t border-line bg-sunken flex gap-4 text-[11px] text-muted">
         <span className="flex items-center gap-1.5">
-          <span className="w-2.5 h-1.5 rounded-full bg-[#579bfc]" />
+          <span className="w-2.5 h-1.5 rounded-full bg-navy-700" />
           All-day conference
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="w-2.5 h-1.5 rounded-full bg-[#00c875]" />
+          <span className="w-2.5 h-1.5 rounded-full bg-emerald" />
           Other event
         </span>
         <span className="ml-auto">Based on Attendees column · live data</span>
