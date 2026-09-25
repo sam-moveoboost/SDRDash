@@ -1,21 +1,14 @@
 import React from 'react';
+import { repMeetings, isLeaderboardRep } from '../../utils/meetingAttribution';
 
 function initials(name) {
   return name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
 }
 
-function parsePersonIds(value) {
-  try { return (JSON.parse(value).personsAndTeams ?? []).map(p => String(p.id)); }
-  catch { return []; }
-}
-
+// meetings carry an `attribution` (utils/meetingAttribution) so the podium
+// uses exactly the same credit rules as the team total and the meetings drawer
 function repMeetingCount(rep, meetings) {
-  if (!rep.mondayUserId) return 0;
-  return meetings.filter(m => {
-    // multiple_person_mm2bjm2z = the SDR column; lead_owner = the BDM
-    const raw = m.column_values?.find(c => c.id === 'multiple_person_mm2bjm2z')?.value;
-    return raw && parsePersonIds(raw).includes(rep.mondayUserId);
-  }).length;
+  return repMeetings(rep, meetings).length;
 }
 
 // credits = meetings × ramp multiplier (credit boost)
@@ -52,7 +45,7 @@ function RepPodium({ rep, meetings, rank, onRepClick }) {
       <button
         onClick={() => onRepClick?.(rep)}
         className="block mx-auto group"
-        title={`View ${rep.name.split(' ')[0]}'s calls`}
+        title={`View ${rep.name.split(' ')[0]}'s meetings`}
       >
         <div className={`rounded-full mx-auto mb-2.5 grid place-items-center font-display font-bold text-white relative bg-gradient-to-br ${podiumGradients[rank - 1]} ${avatarSizes[rank - 1]} ${rank === 1 ? 'shadow-[0_8px_20px_rgba(25,45,63,.30)]' : ''} group-hover:opacity-80 transition-opacity`}>
           {rep.photoThumb
@@ -91,7 +84,7 @@ function RepPodium({ rep, meetings, rank, onRepClick }) {
   );
 }
 
-export default function Leaderboard({ team, meetings, loading, region, onRepClick }) {
+export default function Leaderboard({ team, meetings, loading, region, onRepClick, onUnattributedClick }) {
   if (loading) {
     return (
       <div className="bg-card border border-line rounded-2xl p-8 animate-pulse">
@@ -109,7 +102,7 @@ export default function Leaderboard({ team, meetings, loading, region, onRepClic
   }
 
   const reps = team.filter(m => {
-    if (!['SDR', 'Hybrid'].includes(m.role)) return false;
+    if (!isLeaderboardRep(m)) return false;
     if (region && region !== 'All' && m.region !== region) return false;
     return true;
   });
@@ -119,6 +112,8 @@ export default function Leaderboard({ team, meetings, loading, region, onRepClic
     const credB = calcCredits(repMeetingCount(b, meetings), b.multiplier);
     return credB - credA;
   });
+
+  const unattributed = meetings.filter(m => !m.attribution.via).length;
 
   const top3 = sorted.slice(0, 3);
   const rest = sorted.slice(3);
@@ -176,7 +171,13 @@ export default function Leaderboard({ team, meetings, loading, region, onRepClic
 
       <div className="flex justify-between items-center px-5 py-3.5 border-t border-line bg-[#FAF8F5] text-[12.5px] text-muted">
         <span>Credits = qualified meetings × ramp multiplier (credit boost)</span>
-        <span>Live data</span>
+        {unattributed > 0 ? (
+          <button onClick={onUnattributedClick} className="font-semibold text-red hover:underline">
+            {unattributed} meeting{unattributed !== 1 ? 's' : ''} not credited to a rep · review ↗
+          </button>
+        ) : (
+          <span>All meetings credited · live data</span>
+        )}
       </div>
     </div>
   );
