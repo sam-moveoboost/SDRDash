@@ -570,6 +570,7 @@ const OPPORTUNITY_FIELD_IDS = [
   'color_mkzaet62',   // SOURCE
   'color_mm0gr7a7',   // REASON_LOST
   'dropdown_mkz4ve72', // INDUSTRY
+  'dropdown_mm7gk2vd', // MONDAY_REP
   'deal_expected_close_date',
   'deal_close_date',
   'deal_creation_date',
@@ -746,14 +747,16 @@ function memoizeAsync(fn, ttlMs) {
 // columnValues must already be in Monday's per-column wire shape
 // (e.g. { label: "X" } for status, { date: "YYYY-MM-DD" } for date,
 // { personsAndTeams: [...] } for person, plain string for text/numeric).
-export async function createOpportunity(name, columnValues) {
+// createLabelsIfMissing lets a dropdown value that isn't one of the column's
+// labels yet (e.g. a new monday rep) be added to the column instead of rejected.
+export async function createOpportunity(name, columnValues, { createLabelsIfMissing = false } = {}) {
   const cvJson = JSON.stringify(JSON.stringify(columnValues ?? {}));
   const data = await gql(`
     mutation {
       create_item(
         board_id: ${BOARDS.OPPORTUNITIES},
         item_name: ${JSON.stringify(name)},
-        column_values: ${cvJson}
+        column_values: ${cvJson}${createLabelsIfMissing ? ',\n        create_labels_if_missing: true' : ''}
       ) {
         id
         name
@@ -1360,14 +1363,15 @@ export async function updateItemColumnValue(boardId, itemId, columnId, value, co
 // leave them. Also returns the item's fresh column_values (with the
 // FormulaValue fragment) so callers don't need a separate refetch to pick up
 // recalculated formula columns (e.g. Hourly Rate / PS Value (USD)).
-export async function updateItemColumns(boardId, itemId, columnValues) {
+// createLabelsIfMissing: see createOpportunity.
+export async function updateItemColumns(boardId, itemId, columnValues, { createLabelsIfMissing = false } = {}) {
   const cvJson = JSON.stringify(JSON.stringify(columnValues));
   const data = await gql(`
     mutation {
       change_multiple_column_values(
         board_id: ${boardId},
         item_id: ${itemId},
-        column_values: ${cvJson}
+        column_values: ${cvJson}${createLabelsIfMissing ? ',\n        create_labels_if_missing: true' : ''}
       ) {
         id
         name

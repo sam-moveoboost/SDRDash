@@ -58,6 +58,8 @@ export const COL = {
   REGION: 'color_mkxerb02',
   SOURCE: 'color_mkzaet62',
   INDUSTRY: 'dropdown_mkz4ve72',
+  // Dropdown with free-typed labels — new names are added to the column on save.
+  MONDAY_REP: 'dropdown_mm7gk2vd',
   CONVERSION_ACTIVITY: 'color_mkza93q9',
   BIZDEV: 'deal_owner',
   SDR: 'multiple_person_mm4xadea',
@@ -117,6 +119,26 @@ function StatusField({ label, value, options, dirty, onChange }) {
         <option value="">—</option>
         {options.map(o => <option key={o} value={o}>{o}</option>)}
       </select>
+    </FieldRow>
+  );
+}
+
+// Pick an existing label or type a new one (the column may have no labels yet).
+function ComboField({ label, value, options, dirty, onChange, placeholder }) {
+  const listId = `combo-${label.replace(/\W+/g, '-').toLowerCase()}`;
+  return (
+    <FieldRow label={label}>
+      <input
+        type="text"
+        list={listId}
+        value={value ?? ''}
+        placeholder={placeholder}
+        onChange={e => onChange(e.target.value)}
+        className={inputCls(dirty)}
+      />
+      <datalist id={listId}>
+        {options.map(o => <option key={o} value={o} />)}
+      </datalist>
     </FieldRow>
   );
 }
@@ -244,13 +266,15 @@ export default function OpportunityDetailPanel({ item, isNew, boardCols, wsUsers
       for (const colId of changed) {
         if (colId === 'name') continue;
         const col = colOf(colId);
-        const type = col?.type
+        const type = colId === COL.MONDAY_REP ? 'dropdown' : col?.type
           ?? (colId === COL.BIZDEV || colId === COL.SDR || colId === COL.IC_CSM ? 'person' : 'text');
-        cv[colId] = buildColumnValue(type, edits[colId]);
+        cv[colId] = buildColumnValue(type, colId === COL.MONDAY_REP ? String(edits[colId]).trim() : edits[colId]);
       }
       if (changed.includes('name')) cv.name = edits.name.trim();
 
-      const updated = await updateItemColumns(BOARDS.OPPORTUNITIES, item.id, cv);
+      const updated = await updateItemColumns(BOARDS.OPPORTUNITIES, item.id, cv, {
+        createLabelsIfMissing: COL.MONDAY_REP in cv,
+      });
       onUpdate(item.id, updated.column_values, updated.name);
       setEdits({});
       setSavedMsg('Saved ✓');
@@ -270,10 +294,14 @@ export default function OpportunityDetailPanel({ item, isNew, boardCols, wsUsers
       const cv = {};
       for (const [colId, rawValue] of Object.entries(edits)) {
         if (rawValue === undefined || rawValue === null || rawValue === '') continue;
-        const type = PEOPLE_COL_IDS.has(colId) ? 'person' : (colOf(colId)?.type ?? 'text');
-        cv[colId] = buildColumnValue(type, rawValue);
+        const type = PEOPLE_COL_IDS.has(colId) ? 'person'
+          : colId === COL.MONDAY_REP ? 'dropdown'
+          : (colOf(colId)?.type ?? 'text');
+        cv[colId] = buildColumnValue(type, colId === COL.MONDAY_REP ? String(rawValue).trim() : rawValue);
       }
-      const created = await createOpportunity(newName.trim(), cv);
+      const created = await createOpportunity(newName.trim(), cv, {
+        createLabelsIfMissing: COL.MONDAY_REP in cv,
+      });
       onCreate(created);
     } catch (e) {
       setSavedMsg(`Error: ${e.message.slice(0, 100)}`);
@@ -423,10 +451,11 @@ export default function OpportunityDetailPanel({ item, isNew, boardCols, wsUsers
         {/* Team */}
         <div>
           <SectionLabel>Team</SectionLabel>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <PersonField label="BizDev" value={val(COL.BIZDEV, currentPerson(COL.BIZDEV))} wsUsers={wsUsers} dirty={dirty(COL.BIZDEV)} onChange={v => set(COL.BIZDEV, v)} />
             <PersonField label="SDR" value={val(COL.SDR, currentPerson(COL.SDR))} wsUsers={wsUsers} dirty={dirty(COL.SDR)} onChange={v => set(COL.SDR, v)} />
             <PersonField label="IC/CSM" value={val(COL.IC_CSM, currentPerson(COL.IC_CSM))} wsUsers={wsUsers} dirty={dirty(COL.IC_CSM)} onChange={v => set(COL.IC_CSM, v)} />
+            <ComboField label="monday rep" placeholder="Pick or type a name" value={val(COL.MONDAY_REP, currentText(COL.MONDAY_REP))} options={labelsOf(COL.MONDAY_REP)} dirty={dirty(COL.MONDAY_REP)} onChange={v => set(COL.MONDAY_REP, v)} />
           </div>
         </div>
 
