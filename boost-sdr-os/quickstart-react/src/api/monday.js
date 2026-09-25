@@ -1,5 +1,5 @@
 import mondaySdk from 'monday-sdk-js';
-import { MEETING_COLS, isQualifyingMeeting } from '../utils/meetingAttribution';
+import { MEETING_COLS, EXCLUDED_CHANNELS, isQualifyingMeeting } from '../utils/meetingAttribution';
 
 const monday = mondaySdk();
 
@@ -261,6 +261,53 @@ export async function fetchQualifiedMeetings({ month }) {
   }
 
   return allItems.filter(isQualifyingMeeting);
+}
+
+// ── Leads with a meeting date ─────────────────────────────────────
+// Every lead with MB Date set, for the "booked" (created in period + has a
+// meeting date) and "sitting" (meeting date in period) metrics. One query
+// covers both, for any week or month, and the set is small because a lead
+// only lands here once someone fills in its meeting date.
+export async function fetchLeadsWithMeetingDate() {
+  const LEAD_FIELDS = `
+    id name created_at updated_at
+    column_values(ids: [${Object.values(MEETING_COLS).map(c => `"${c}"`).join(', ')}]) {
+      id text value
+    }
+  `;
+  const rule = `{ column_id: "${MEETING_COLS.MEETING_DATE}", compare_value: [], operator: is_not_empty }`;
+
+  const first = await gql(`
+    query {
+      boards(ids: ["${BOARDS.LEADS}"]) {
+        items_page(limit: 500, query_params: { rules: [${rule}] }) {
+          cursor
+          items { ${LEAD_FIELDS} }
+        }
+      }
+    }
+  `);
+
+  let allItems = first.boards[0]?.items_page?.items ?? [];
+  let cursor   = first.boards[0]?.items_page?.cursor ?? null;
+
+  let pages = 0;
+  while (cursor && pages < 4) {
+    const next = await gql(`
+      query {
+        next_items_page(limit: 500, cursor: "${cursor}") {
+          cursor
+          items { ${LEAD_FIELDS} }
+        }
+      }
+    `);
+    allItems = [...allItems, ...(next.next_items_page?.items ?? [])];
+    cursor = next.next_items_page?.cursor ?? null;
+    pages++;
+  }
+
+  // Same channel rule as qualified meetings: monday.com-sourced leads aren't SDR-generated
+  return allItems.filter(item => !EXCLUDED_CHANNELS.has(colText(item, MEETING_COLS.CHANNEL)));
 }
 
 // ── Aircall calls (outbound, date-range filtered) ─────────────────

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { BOARDS, updateItemColumnValue } from '../../api/monday';
 import {
-  MEETING_COLS, LEAD_STATUS_OPTIONS, meetingCol, isQualifyingMeeting, repMeetings,
+  MEETING_COLS, LEAD_STATUS_OPTIONS, meetingCol, isQualifyingMeeting, repMeetings, isCounted, createdDate,
 } from '../../utils/meetingAttribution';
 
 // ── Helpers ───────────────────────────────────────────────────────
@@ -16,10 +16,6 @@ function fmtDate(d) {
 function daysBetween(a, b) {
   if (!a || !b) return 0;
   return Math.round((new Date(`${b.slice(0, 10)}T00:00:00`) - new Date(`${a.slice(0, 10)}T00:00:00`)) / 86400000);
-}
-
-function createdDate(m) {
-  return meetingCol(m, MEETING_COLS.CREATED) || m.created_at?.slice(0, 10) || '';
 }
 
 function firstName(rep) {
@@ -52,7 +48,17 @@ function Field({ label, children }) {
 }
 
 function AttributionBadge({ attribution }) {
-  const { reps, via } = attribution;
+  const { reps, via, excluded } = attribution;
+  if (excluded === 'No company') {
+    return (
+      <span
+        className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-soft text-red"
+        title="Leads with no Company Name aren't counted. Add the company in monday to include it."
+      >
+        Excluded · no company
+      </span>
+    );
+  }
   if (via === 'sdr') {
     return (
       <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-mint-soft text-teal">
@@ -73,14 +79,14 @@ function AttributionBadge({ attribution }) {
   return (
     <span
       className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-soft text-red"
-      title="Counted in the team total but not credited to anyone on the leaderboard. Assign an SDR or change the status."
+      title="Nobody on the leaderboard can be credited, so this isn't counted. Assign an SDR to include it."
     >
-      Not credited · no SDR
+      Excluded · no SDR
     </span>
   );
 }
 
-function MeetingRow({ meeting, reps, accountSlug, onUpdate }) {
+function MeetingRow({ meeting, tab, reps, accountSlug, onUpdate }) {
   const [saving, setSaving] = useState(null);
   const [error, setError] = useState(null);
 
@@ -96,7 +102,10 @@ function MeetingRow({ meeting, reps, accountSlug, onUpdate }) {
   const firstMtg  = meetingCol(meeting, MEETING_COLS.FIRST_MEETING);
   const company   = meetingCol(meeting, MEETING_COLS.COMPANY);
   const lag       = daysBetween(created, qualified);
-  const counted   = isQualifyingMeeting(meeting);
+  // Only the qualified tab depends on status; booked/sitting count on dates alone
+  const counted   = tab !== 'qualified' || isQualifyingMeeting(meeting);
+  const today     = new Date().toISOString().slice(0, 10);
+  const needsOutcome = tab === 'sitting' && meetingOn && meetingOn < today && status === 'Meeting Booked';
   // Only offer reps for the SDR picker; keep the current value selectable even if it's someone else.
   const sdrValue  = sdrIds.length === 1 ? sdrIds[0] : '';
 
@@ -115,6 +124,14 @@ function MeetingRow({ meeting, reps, accountSlug, onUpdate }) {
 
   function onStatusChange(label) {
     save('status', MEETING_COLS.STATUS, label, 'status', { id: MEETING_COLS.STATUS, text: label, value: null });
+  }
+
+  function onMeetingDateChange(date) {
+    save('mbDate', MEETING_COLS.MEETING_DATE, date, 'date', {
+      id: MEETING_COLS.MEETING_DATE,
+      text: date,
+      value: date ? JSON.stringify({ date }) : null,
+    });
   }
 
   function onSdrChange(userId) {
@@ -150,7 +167,15 @@ function MeetingRow({ meeting, reps, accountSlug, onUpdate }) {
         {!counted && (
           <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#E8E3DA] text-muted">No longer counted</span>
         )}
-        {lag > 60 && (
+        {needsOutcome && (
+          <span
+            className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-soft text-amber"
+            title="The meeting date has passed but the status is still Meeting Booked. Set the outcome."
+          >
+            Needs outcome
+          </span>
+        )}
+        {tab === 'qualified' && lag > 60 && (
           <span
             className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#E8E3DA] text-muted"
             title="Lead was created long before its Qualified Date. Check the date is right."
@@ -179,7 +204,17 @@ function MeetingRow({ meeting, reps, accountSlug, onUpdate }) {
         </Field>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 mt-3">
+      <div className="grid grid-cols-3 gap-3 mt-3">
+        <label className="block">
+          <span className="text-[10.5px] uppercase tracking-wide font-semibold text-muted">MB Date</span>
+          <input
+            type="date"
+            value={meetingOn}
+            disabled={saving === 'mbDate'}
+            onChange={e => onMeetingDateChange(e.target.value)}
+            className={`mt-0.5 w-full bg-card border rounded-lg px-2 py-1 text-[12.5px] outline-none focus:border-teal ${meetingOn ? 'border-line' : 'border-red/40'}`}
+          />
+        </label>
         <label className="block">
           <span className="text-[10.5px] uppercase tracking-wide font-semibold text-muted">SDR</span>
           <select
@@ -214,13 +249,28 @@ function MeetingRow({ meeting, reps, accountSlug, onUpdate }) {
 }
 
 // ── Main panel ────────────────────────────────────────────────────
-// filter: 'all' | 'unattributed' | <team register item id>
+// lists:  { qualified, sitting, booked } — attributed meetings, excluded ones included
+// tab:    which list is showing
+// filter: 'all' | 'excluded' | <team register item id>
 
-export default function MeetingsPanel({ meetings, reps, month, regionLabel, initialFilter = 'all', accountSlug, onClose, onMeetingUpdate }) {
+const TABS = [
+  { key: 'qualified', label: 'Qualified', sortCol: MEETING_COLS.QUALIFIED },
+  { key: 'sitting',   label: 'Sitting',   sortCol: MEETING_COLS.MEETING_DATE },
+  { key: 'booked',    label: 'Booked',    sortCol: MEETING_COLS.CREATED },
+];
+
+const TAB_NOTES = {
+  qualified: 'Qualified Date in the period. This is what commission is paid on.',
+  sitting:   'MB Date in the period.',
+  booked:    'Created in the period and has an MB Date. Leads without an MB Date get no credit.',
+};
+
+export default function MeetingsPanel({ lists, reps, periodLabel, regionLabel, initialTab = 'qualified', initialFilter = 'all', accountSlug, onClose, onMeetingUpdate }) {
+  const [tab, setTab] = useState(initialTab);
   const [filter, setFilter] = useState(initialFilter);
   const [query, setQuery] = useState('');
 
-  useEffect(() => { setFilter(initialFilter); }, [initialFilter]);
+  useEffect(() => { setTab(initialTab); setFilter(initialFilter); }, [initialTab, initialFilter]);
 
   useEffect(() => {
     const onKey = e => { if (e.key === 'Escape') onClose(); };
@@ -228,16 +278,17 @@ export default function MeetingsPanel({ meetings, reps, month, regionLabel, init
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const unattributed = meetings.filter(m => !m.attribution.via);
-  const counted = meetings.filter(isQualifyingMeeting);
-  const uncreditedCount = counted.filter(m => !m.attribution.via).length;
+  const meetings = lists[tab] ?? [];
+  const counted  = meetings.filter(isCounted);
+  const excluded = meetings.filter(m => !isCounted(m));
+  const sortCol  = TABS.find(t => t.key === tab).sortCol;
 
   const visible = useMemo(() => {
-    let list = meetings;
-    if (filter === 'unattributed') list = unattributed;
+    let list = counted;
+    if (filter === 'excluded') list = excluded;
     else if (filter !== 'all') {
       const rep = reps.find(r => r.id === filter);
-      list = rep ? repMeetings(rep, meetings) : [];
+      list = rep ? repMeetings(rep, counted) : [];
     }
     const q = query.trim().toLowerCase();
     if (q) {
@@ -246,12 +297,12 @@ export default function MeetingsPanel({ meetings, reps, month, regionLabel, init
           .some(v => v?.toLowerCase().includes(q))
       );
     }
-    return [...list].sort((a, b) =>
-      meetingCol(b, MEETING_COLS.QUALIFIED).localeCompare(meetingCol(a, MEETING_COLS.QUALIFIED))
-    );
-  }, [meetings, filter, query, reps]);
+    const key = m => (sortCol === MEETING_COLS.CREATED ? createdDate(m) : meetingCol(m, sortCol));
+    return [...list].sort((a, b) => key(b).localeCompare(key(a)));
+  }, [meetings, filter, query, reps, sortCol]);
 
   const selectedRep = reps.find(r => r.id === filter);
+  const tabLabel = TABS.find(t => t.key === tab).label.toLowerCase();
 
   return (
     <>
@@ -264,11 +315,11 @@ export default function MeetingsPanel({ meetings, reps, month, regionLabel, init
           <div className="flex items-center gap-3">
             <div className="flex-1 min-w-0">
               <div className="font-display font-bold text-[16px]">
-                {selectedRep ? `${selectedRep.name}'s qualified meetings` : 'Qualified meetings'}
+                {selectedRep ? `${selectedRep.name}'s ${tabLabel} meetings` : `Meetings ${tabLabel}`}
               </div>
               <div className="text-[11.5px] text-muted">
-                {month} · {regionLabel} · {counted.length} counted
-                {uncreditedCount > 0 && <span className="text-red"> · {uncreditedCount} not credited to a rep</span>}
+                {periodLabel} · {regionLabel} · {counted.filter(m => tab !== 'qualified' || isQualifyingMeeting(m)).length} counted
+                {excluded.length > 0 && <span className="text-red"> · {excluded.length} excluded</span>}
               </div>
             </div>
             <button
@@ -281,22 +332,37 @@ export default function MeetingsPanel({ meetings, reps, month, regionLabel, init
             </button>
           </div>
 
+          <div className="flex gap-1 mt-3 p-1 bg-canvas rounded-xl">
+            {TABS.map(t => (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className={`flex-1 px-3 py-1.5 rounded-lg text-[12.5px] font-semibold transition-all ${
+                  tab === t.key ? 'bg-card text-ink shadow-sm' : 'text-muted hover:text-ink'
+                }`}
+              >
+                {t.label} <span className="opacity-60">{(lists[t.key] ?? []).filter(isCounted).length}</span>
+              </button>
+            ))}
+          </div>
+          <p className="text-[11.5px] text-muted mt-2">{TAB_NOTES[tab]}</p>
+
           <div className="flex flex-wrap gap-1.5 mt-3">
-            <FilterChip active={filter === 'all'} onClick={() => setFilter('all')} label="All" count={meetings.length} />
+            <FilterChip active={filter === 'all'} onClick={() => setFilter('all')} label="All" count={counted.length} />
             {reps.map(r => (
               <FilterChip
                 key={r.id}
                 active={filter === r.id}
                 onClick={() => setFilter(r.id)}
                 label={firstName(r)}
-                count={repMeetings(r, meetings).length}
+                count={repMeetings(r, counted).length}
               />
             ))}
             <FilterChip
-              active={filter === 'unattributed'}
-              onClick={() => setFilter('unattributed')}
-              label="Needs SDR"
-              count={unattributed.length}
+              active={filter === 'excluded'}
+              onClick={() => setFilter('excluded')}
+              label="Excluded"
+              count={excluded.length}
               tone="warn"
             />
           </div>
@@ -315,14 +381,14 @@ export default function MeetingsPanel({ meetings, reps, month, regionLabel, init
             <div className="text-[13px] text-muted text-center py-10">No meetings match this filter.</div>
           ) : (
             visible.map(m => (
-              <MeetingRow key={m.id} meeting={m} reps={reps} accountSlug={accountSlug} onUpdate={onMeetingUpdate} />
+              <MeetingRow key={m.id} meeting={m} tab={tab} reps={reps} accountSlug={accountSlug} onUpdate={onMeetingUpdate} />
             ))
           )}
         </div>
 
         <div className="px-5 py-3 border-t border-line bg-[#FAF8F5] text-[11.5px] text-muted flex-shrink-0">
           Credit goes to the SDR column. If it's blank, credit goes to the Bizdev when they're an SDR or Hybrid rep.
-          Edits save straight to the Leads board.
+          Leads with no company or no creditable rep are excluded. Edits save straight to the Leads board.
         </div>
       </div>
     </>

@@ -16,7 +16,21 @@ function calcCredits(meetings, multiplier) {
   return meetings * (multiplier || 1);
 }
 
-function RepPodium({ rep, meetings, rank, onRepClick }) {
+// mode: 'qualified' ranks by ramp-adjusted credits (commission);
+// 'sitting' and 'booked' rank by plain meeting count.
+const MODE_UNITS = { qualified: 'meeting', sitting: 'sitting', booked: 'booked' };
+const MODE_FOOTERS = {
+  qualified: 'Credits = qualified meetings × ramp multiplier (credit boost)',
+  sitting:   'Meetings whose MB Date falls in this month',
+  booked:    'Leads created this month that have an MB Date. No MB Date, no credit',
+};
+
+function repScore(rep, meetings, mode) {
+  const count = repMeetingCount(rep, meetings);
+  return mode === 'qualified' ? calcCredits(count, rep.multiplier) : count;
+}
+
+function RepPodium({ rep, meetings, rank, mode, onRepClick }) {
   const meetingCount = repMeetingCount(rep, meetings);
   const credits = calcCredits(meetingCount, rep.multiplier);
   const isRamping = rep.rampMonth && rep.rampMonth !== 'None';
@@ -45,7 +59,7 @@ function RepPodium({ rep, meetings, rank, onRepClick }) {
       <button
         onClick={() => onRepClick?.(rep)}
         className="block mx-auto group"
-        title={`View ${rep.name.split(' ')[0]}'s meetings`}
+        title={`View ${rep.name.split(' ')[0]}'s ${mode} meetings`}
       >
         <div className={`rounded-full mx-auto mb-2.5 grid place-items-center font-display font-bold text-white relative bg-gradient-to-br ${podiumGradients[rank - 1]} ${avatarSizes[rank - 1]} ${rank === 1 ? 'shadow-[0_8px_20px_rgba(25,45,63,.30)]' : ''} group-hover:opacity-80 transition-opacity`}>
           {rep.photoThumb
@@ -59,13 +73,22 @@ function RepPodium({ rep, meetings, rank, onRepClick }) {
       </button>
       <button onClick={() => onRepClick?.(rep)} className="font-display font-bold text-[16px] hover:text-teal transition-colors">{rep.name.split(' ')[0]}</button>
       <div className="text-[11.5px] text-muted mt-0.5">{rep.role}</div>
-      <div className="font-display font-bold text-[30px] tracking-tight mt-2.5 leading-none">
-        {credits.toFixed(1)}<span className="text-[13px] font-medium text-muted"> cr</span>
-      </div>
-      <div className="text-[11.5px] mt-1 text-muted">
-        {meetingCount} meeting{meetingCount !== 1 ? 's' : ''}
-      </div>
-      {isRamping ? (
+      {mode === 'qualified' ? (
+        <>
+          <div className="font-display font-bold text-[30px] tracking-tight mt-2.5 leading-none">
+            {credits.toFixed(1)}<span className="text-[13px] font-medium text-muted"> cr</span>
+          </div>
+          <div className="text-[11.5px] mt-1 text-muted">
+            {meetingCount} meeting{meetingCount !== 1 ? 's' : ''}
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="font-display font-bold text-[30px] tracking-tight mt-2.5 leading-none">{meetingCount}</div>
+          <div className="text-[11.5px] mt-1 text-muted">{MODE_UNITS[mode]}</div>
+        </>
+      )}
+      {mode !== 'qualified' ? null : isRamping ? (
         <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-mint-soft text-teal mt-2">
           Ramp M{rep.rampMonth} · {rep.multiplier}×
         </span>
@@ -84,7 +107,7 @@ function RepPodium({ rep, meetings, rank, onRepClick }) {
   );
 }
 
-export default function Leaderboard({ team, meetings, loading, region, onRepClick, onUnattributedClick }) {
+export default function Leaderboard({ team, meetings, excludedCount = 0, mode = 'qualified', loading, region, onRepClick, onExcludedClick }) {
   if (loading) {
     return (
       <div className="bg-card border border-line rounded-2xl p-8 animate-pulse">
@@ -107,13 +130,7 @@ export default function Leaderboard({ team, meetings, loading, region, onRepClic
     return true;
   });
 
-  const sorted = [...reps].sort((a, b) => {
-    const credA = calcCredits(repMeetingCount(a, meetings), a.multiplier);
-    const credB = calcCredits(repMeetingCount(b, meetings), b.multiplier);
-    return credB - credA;
-  });
-
-  const unattributed = meetings.filter(m => !m.attribution.via).length;
+  const sorted = [...reps].sort((a, b) => repScore(b, meetings, mode) - repScore(a, meetings, mode));
 
   const top3 = sorted.slice(0, 3);
   const rest = sorted.slice(3);
@@ -130,7 +147,7 @@ export default function Leaderboard({ team, meetings, loading, region, onRepClic
         <div className="flex-1 grid grid-cols-3 items-end px-6 pt-7 bg-gradient-to-b from-[#F0EBE2] to-card">
           {podiumOrder.map(rep => {
             const rank = sorted.indexOf(rep) + 1;
-            return <RepPodium key={rep.id} rep={rep} meetings={meetings} rank={rank} onRepClick={onRepClick} />;
+            return <RepPodium key={rep.id} rep={rep} meetings={meetings} rank={rank} mode={mode} onRepClick={onRepClick} />;
           })}
         </div>
 
@@ -157,10 +174,19 @@ export default function Leaderboard({ team, meetings, loading, region, onRepClic
                     <div className="text-muted text-[10.5px]">{rep.role}</div>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <div className="font-display font-bold text-[16px]">
-                      {credits.toFixed(1)}<span className="text-[10px] font-normal text-muted ml-0.5">cr</span>
-                    </div>
-                    <div className="text-muted text-[10.5px]">{meetingCount} mtg</div>
+                    {mode === 'qualified' ? (
+                      <>
+                        <div className="font-display font-bold text-[16px]">
+                          {credits.toFixed(1)}<span className="text-[10px] font-normal text-muted ml-0.5">cr</span>
+                        </div>
+                        <div className="text-muted text-[10.5px]">{meetingCount} mtg</div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="font-display font-bold text-[16px]">{meetingCount}</div>
+                        <div className="text-muted text-[10.5px]">{MODE_UNITS[mode]}</div>
+                      </>
+                    )}
                   </div>
                 </button>
               );
@@ -170,13 +196,13 @@ export default function Leaderboard({ team, meetings, loading, region, onRepClic
       </div>
 
       <div className="flex justify-between items-center px-5 py-3.5 border-t border-line bg-[#FAF8F5] text-[12.5px] text-muted">
-        <span>Credits = qualified meetings × ramp multiplier (credit boost)</span>
-        {unattributed > 0 ? (
-          <button onClick={onUnattributedClick} className="font-semibold text-red hover:underline">
-            {unattributed} meeting{unattributed !== 1 ? 's' : ''} not credited to a rep · review ↗
+        <span>{MODE_FOOTERS[mode]}</span>
+        {excludedCount > 0 ? (
+          <button onClick={onExcludedClick} className="font-semibold text-red hover:underline">
+            {excludedCount} excluded (no company or SDR) · review ↗
           </button>
         ) : (
-          <span>All meetings credited · live data</span>
+          <span>Nothing excluded · live data</span>
         )}
       </div>
     </div>

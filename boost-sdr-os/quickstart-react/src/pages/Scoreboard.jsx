@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { fetchTeamRegister, fetchQualifiedMeetings, fetchAircallCalls, fetchOpportunities, fetchNewProspects, fetchEvents, fetchWorkspaceUsers, fetchCurrentUser } from '../api/monday';
+import { fetchTeamRegister, fetchQualifiedMeetings, fetchAircallCalls, fetchOpportunities, fetchNewProspects, fetchEvents, fetchWorkspaceUsers, fetchCurrentUser, fetchLeadsWithMeetingDate } from '../api/monday';
 import Leaderboard from '../components/scoreboard/Leaderboard';
 import MiniLeaderboard from '../components/scoreboard/MiniLeaderboard';
 import ActivityTracker from '../components/scoreboard/ActivityTracker';
@@ -10,7 +10,7 @@ import StatCard from '../components/shared/StatCard';
 import ProgressBar from '../components/shared/ProgressBar';
 import EventLeaderboard from '../components/events/EventLeaderboard';
 import { OPP_COLS } from '../utils/opportunityMetrics';
-import { withAttribution, inRegion, isQualifyingMeeting, isLeaderboardRep, repMeetings } from '../utils/meetingAttribution';
+import { withAttribution, inRegion, isQualifyingMeeting, isLeaderboardRep, repMeetings, isCounted, isBookedIn, isSittingIn, MEETING_COLS, meetingCol } from '../utils/meetingAttribution';
 
 const LEADERBOARD_YEAR_OPTIONS = [2025, 2026, 2027, 2028];
 const CLOSED_OPP_STAGES = new Set(['Won', 'Lost']);
@@ -76,6 +76,8 @@ export default function Scoreboard({ region, month }) {
   const [error, setError]           = useState(null);
   const [team, setTeam]             = useState([]);
   const [meetings, setMeetings]     = useState([]);
+  // Every lead with an MB Date: source for "booked" and "sitting" in any period
+  const [datedLeads, setDatedLeads] = useState([]);
   const [calls, setCalls]           = useState([]);
   const [opps, setOpps]             = useState([]);
   const [newProspects, setNewProspects] = useState([]);
@@ -84,8 +86,13 @@ export default function Scoreboard({ region, month }) {
   const [activityPeriod, setActivityPeriod] = useState('week');
   const [selectedRep, setSelectedRep] = useState(null);
   const [showStaleModal, setShowStaleModal] = useState(false);
-  // Meetings drawer: null (closed) | 'all' | 'unattributed' | team register item id
-  const [meetingsFilter, setMeetingsFilter] = useState(null);
+  // Leaderboard ranking: 'qualified' (credits, commission) | 'sitting' | 'booked'
+  const [leaderboardMode, setLeaderboardMode] = useState('qualified');
+  // Meetings drawer: null (closed) or { tab, filter, scope }
+  //   tab:    'qualified' | 'sitting' | 'booked'
+  //   filter: 'all' | 'excluded' | team register item id
+  //   scope:  'month' (stat cards, leaderboard) | 'activity' (activity cards: week or month)
+  const [meetingsPanel, setMeetingsPanel] = useState(null);
   // Leads edited in the drawer this session stay listed even if their new status stops them counting
   const [touchedMeetingIds, setTouchedMeetingIds] = useState(() => new Set());
   const [accountSlug, setAccountSlug] = useState('');
@@ -106,12 +113,14 @@ export default function Scoreboard({ region, month }) {
     async function load() {
       try {
         // Phase 1 — run team + meetings in parallel; render leaderboard as soon as they land
-        const [t, m] = await Promise.all([
+        const [t, m, d] = await Promise.all([
           fetchTeamRegister(),
           fetchQualifiedMeetings({ month }),
+          fetchLeadsWithMeetingDate(),
         ]);
         setTeam(t);
         setMeetings(m);
+        setDatedLeads(d);
         setLoadingPrimary(false);
 
         // Phase 2 — run calls + opps + new prospects in parallel
@@ -155,20 +164,57 @@ export default function Scoreboard({ region, month }) {
     ),
     [meetings, team, region, touchedMeetingIds]
   );
-  const countedMeetings = useMemo(() => regionMeetings.filter(isQualifyingMeeting), [regionMeetings]);
+  const countedMeetings = useMemo(
+    () => regionMeetings.filter(m => isQualifyingMeeting(m) && isCounted(m)),
+    [regionMeetings]
+  );
+  const excludedQualified = regionMeetings.filter(m => isQualifyingMeeting(m) && !isCounted(m)).length;
 
+  // Booked / sitting — computed for the selected month (cards, leaderboard)
+  // and for the activity period (week or month toggle on the activity cards).
+  const datedRegionLeads = useMemo(
+    () => withAttribution(datedLeads, team).filter(m => inRegion(m, region)),
+    [datedLeads, team, region]
+  );
+  const monthDates    = monthRange(month);
+  const activityDates = activityPeriod === 'week' ? thisWeekRange() : monthRange(month);
+  const sittingMonth    = datedRegionLeads.filter(m => isSittingIn(m, monthDates));
+  const bookedMonth     = datedRegionLeads.filter(m => isBookedIn(m, monthDates));
+  const sittingActivity = datedRegionLeads.filter(m => isSittingIn(m, activityDates));
+  const bookedActivity  = datedRegionLeads.filter(m => isBookedIn(m, activityDates));
+
+  const monthLists = { qualified: regionMeetings, sitting: sittingMonth, booked: bookedMonth };
+  const activityLists = {
+    qualified: regionMeetings.filter(m => {
+      const d = meetingCol(m, MEETING_COLS.QUALIFIED);
+      return d >= activityDates.startDate && d <= activityDates.endDate;
+    }),
+    sitting: sittingActivity,
+    booked: bookedActivity,
+  };
+
+  function applyPatch(m, patch) {
+    const exists = m.column_values.some(c => c.id === patch.id);
+    return {
+      ...m,
+      column_values: exists
+        ? m.column_values.map(c => (c.id === patch.id ? { ...c, ...patch } : c))
+        : [...m.column_values, patch],
+    };
+  }
+
+  // Drawer edits update both sources. Setting an MB Date on a qualified lead
+  // that had none adds it to the dated set so it shows up as booked/sitting.
   function handleMeetingUpdate(id, patch) {
     setTouchedMeetingIds(prev => new Set(prev).add(id));
-    setMeetings(prev => prev.map(m => {
-      if (m.id !== id) return m;
-      const exists = m.column_values.some(c => c.id === patch.id);
-      return {
-        ...m,
-        column_values: exists
-          ? m.column_values.map(c => (c.id === patch.id ? { ...c, ...patch } : c))
-          : [...m.column_values, patch],
-      };
-    }));
+    setMeetings(prev => prev.map(m => (m.id === id ? applyPatch(m, patch) : m)));
+    setDatedLeads(prev => {
+      if (prev.some(m => m.id === id)) return prev.map(m => (m.id === id ? applyPatch(m, patch) : m));
+      const source = meetings.find(m => m.id === id);
+      return source && patch.id === MEETING_COLS.MEETING_DATE && patch.text
+        ? [...prev, applyPatch(source, patch)]
+        : prev;
+    });
   }
 
   if (error) return (
@@ -197,7 +243,17 @@ export default function Scoreboard({ region, month }) {
   // historical closed deal that hadn't been touched in 14+ days.
   const staleOpps = opps.filter(o => daysSince(o.updated_at) >= 14 && !CLOSED_OPP_STAGES.has(oppStage(o)));
   const totalMeetings = countedMeetings.length;
-  const uncreditedMeetings = countedMeetings.filter(m => !m.attribution.via).length;
+  const leaderboardLists = {
+    qualified: countedMeetings,
+    sitting:   sittingMonth.filter(isCounted),
+    booked:    bookedMonth.filter(isCounted),
+  };
+  const leaderboardExcluded = {
+    qualified: excludedQualified,
+    sitting:   sittingMonth.length - leaderboardLists.sitting.length,
+    booked:    bookedMonth.length - leaderboardLists.booked.length,
+  };
+  const activityLabel = activityPeriod === 'week' ? `Week of ${activityDates.startDate}` : month;
   const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
   const monthProgress = new Date().getDate() / daysInMonth;
 
@@ -219,27 +275,37 @@ export default function Scoreboard({ region, month }) {
         </p>
         <h1 className="font-display text-[27px] font-bold tracking-tight mb-1">The Scoreboard</h1>
         <p className="text-muted text-[15px] mb-7 max-w-xl">
-          Live qualified meetings, ramp-adjusted credits and weekly activity.
+          Meetings qualified, sitting and booked, ramp-adjusted credits and weekly activity.
         </p>
 
-        <div className="grid grid-cols-4 gap-3.5 mb-8">
-          {/* Phase 1 stat cards — ready as soon as meetings land */}
-          <button
-            onClick={() => !loadingPrimary && setMeetingsFilter('all')}
-            className="text-left"
-            disabled={loadingPrimary}
-          >
-            <StatCard
-              feature
-              label="Team qualified meetings"
-              value={loadingPrimary ? '—' : totalMeetings}
-              meta={loadingPrimary
-                ? `Qualified/SQL · ${month}`
-                : uncreditedMeetings > 0
-                  ? `${uncreditedMeetings} not credited to a rep · review ↗`
-                  : `Qualified/SQL · ${month} · view ↗`}
-            />
-          </button>
+        {/* Meeting stat cards (phase 1): qualified = commission, sitting + booked = celebrate */}
+        <div className="grid grid-cols-3 gap-3.5 mb-3.5">
+          {[
+            { tab: 'qualified', label: 'Team qualified meetings', value: totalMeetings, rule: 'Qualified Date', feature: true },
+            { tab: 'sitting',   label: 'Meetings sitting',        value: leaderboardLists.sitting.length, rule: 'MB Date' },
+            { tab: 'booked',    label: 'Meetings booked',         value: leaderboardLists.booked.length,  rule: 'Created + MB Date' },
+          ].map(card => (
+            <button
+              key={card.tab}
+              onClick={() => !loadingPrimary && setMeetingsPanel({ tab: card.tab, filter: 'all', scope: 'month' })}
+              className="text-left"
+              disabled={loadingPrimary}
+            >
+              <StatCard
+                feature={card.feature}
+                label={card.label}
+                value={loadingPrimary ? '—' : card.value}
+                meta={loadingPrimary
+                  ? `${card.rule} · ${month}`
+                  : leaderboardExcluded[card.tab] > 0
+                    ? `${card.rule} · ${month} · ${leaderboardExcluded[card.tab]} excluded ↗`
+                    : `${card.rule} · ${month} · view ↗`}
+              />
+            </button>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-3 gap-3.5 mb-8">
           <StatCard
             label="On-track reps"
             value={loadingPrimary ? '—' : `${onTrack}/${regionReps.length}`}
@@ -266,16 +332,36 @@ export default function Scoreboard({ region, month }) {
         </div>
 
         {/* Meetings leaderboard — appears as soon as phase 1 completes */}
-        <div className="font-display text-[13px] font-semibold tracking-[.04em] uppercase text-muted mt-8 mb-3.5 flex items-center gap-2.5 after:content-[''] after:flex-1 after:h-px after:bg-line">
-          Leaderboard · qualified meetings · {month}
+        <div className="mt-8 mb-3.5 flex items-center gap-2.5">
+          <span className="font-display text-[13px] font-semibold tracking-[.04em] uppercase text-muted">
+            Leaderboard · meetings {leaderboardMode} · {month}
+          </span>
+          <div className="flex items-center gap-1 ml-auto">
+            {['qualified', 'sitting', 'booked'].map(mode => (
+              <button
+                key={mode}
+                onClick={() => setLeaderboardMode(mode)}
+                className={`px-3 py-1 rounded-lg text-[12px] font-semibold capitalize transition-all ${
+                  leaderboardMode === mode
+                    ? 'bg-teal text-white'
+                    : 'bg-transparent text-muted hover:text-ink border border-line'
+                }`}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
+          <span className="h-px flex-1 bg-line" />
         </div>
         <Leaderboard
           team={team}
-          meetings={countedMeetings}
+          meetings={leaderboardLists[leaderboardMode]}
+          excludedCount={leaderboardExcluded[leaderboardMode]}
+          mode={leaderboardMode}
           loading={loadingPrimary}
           region={region}
-          onRepClick={rep => setMeetingsFilter(rep.id)}
-          onUnattributedClick={() => setMeetingsFilter('unattributed')}
+          onRepClick={rep => setMeetingsPanel({ tab: leaderboardMode, filter: rep.id, scope: 'month' })}
+          onExcludedClick={() => setMeetingsPanel({ tab: leaderboardMode, filter: 'excluded', scope: 'month' })}
         />
 
         {/* Outbound calls leaderboard — phase 2 */}
@@ -322,7 +408,19 @@ export default function Scoreboard({ region, month }) {
           </div>
           <span className="h-px flex-1 bg-line" />
         </div>
-        <ActivityTracker team={team} calls={calls} newProspects={newProspects} loading={loadingSecondary} period={activityPeriod} region={region} onRepClick={rep => setSelectedRep(rep)} />
+        <ActivityTracker
+          team={team}
+          calls={calls}
+          newProspects={newProspects}
+          bookedMeetings={bookedActivity.filter(isCounted)}
+          sittingMeetings={sittingActivity.filter(isCounted)}
+          loading={loadingSecondary}
+          meetingsLoading={loadingPrimary}
+          period={activityPeriod}
+          region={region}
+          onRepClick={rep => setSelectedRep(rep)}
+          onMeetingStatClick={(rep, tab) => setMeetingsPanel({ tab, filter: rep.id, scope: 'activity' })}
+        />
 
         {/* Attendance Leaderboard */}
         <div className="mt-10 mb-3.5 flex items-center gap-2.5">
@@ -363,15 +461,16 @@ export default function Scoreboard({ region, month }) {
           onClose={() => setSelectedRep(null)}
         />
       )}
-      {meetingsFilter && (
+      {meetingsPanel && (
         <MeetingsPanel
-          meetings={regionMeetings}
+          lists={meetingsPanel.scope === 'activity' ? activityLists : monthLists}
           reps={regionReps}
-          month={month}
+          periodLabel={meetingsPanel.scope === 'activity' ? activityLabel : month}
           regionLabel={region === 'All' || !region ? 'All regions' : region}
-          initialFilter={meetingsFilter}
+          initialTab={meetingsPanel.tab}
+          initialFilter={meetingsPanel.filter}
           accountSlug={accountSlug}
-          onClose={() => setMeetingsFilter(null)}
+          onClose={() => setMeetingsPanel(null)}
           onMeetingUpdate={handleMeetingUpdate}
         />
       )}

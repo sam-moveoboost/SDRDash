@@ -55,11 +55,37 @@ export function isLeaderboardRep(member) {
   return ['SDR', 'Hybrid'].includes(member.role);
 }
 
-// Returns { reps, via, region } for a lead:
+export function createdDate(item) {
+  return meetingCol(item, MEETING_COLS.CREATED) || item.created_at?.slice(0, 10) || '';
+}
+
+export function meetingDate(item) {
+  return meetingCol(item, MEETING_COLS.MEETING_DATE);
+}
+
+function inDateRange(date, { startDate, endDate }) {
+  return !!date && date >= startDate && date <= endDate;
+}
+
+// Booked: the lead was created in the period AND has a meeting date. No MB
+// Date means no credit: filling it in is what puts a booking on the board.
+export function isBookedIn(item, range) {
+  return !!meetingDate(item) && inDateRange(createdDate(item), range);
+}
+
+// Sitting: the meeting date (MB Date) falls in the period.
+export function isSittingIn(item, range) {
+  return inDateRange(meetingDate(item), range);
+}
+
+// Returns { reps, via, region, excluded } for a lead:
 //   via = 'sdr'    — credited to the rep(s) in the SDR column
 //   via = 'bizdev' — SDR column blank, Bizdev is an SDR/Hybrid rep, so they booked it themselves
 //   via = null     — nobody on the leaderboard can be credited (needs an SDR assigned)
 // region falls back to the credited rep's region when the lead's Region is blank.
+// excluded = why the lead doesn't count anywhere ('No company' | 'No SDR'), or null.
+// Excluded leads stay visible in the drawer but never reach a total or the podium,
+// so the team figures always equal the sum of the reps.
 export function attributeMeeting(item, team) {
   const reps = team.filter(isLeaderboardRep).filter(r => r.mondayUserId);
   const byId = new Map(reps.map(r => [r.mondayUserId, r]));
@@ -74,7 +100,10 @@ export function attributeMeeting(item, team) {
   }
 
   const region = meetingCol(item, MEETING_COLS.REGION) || credited[0]?.region || '';
-  return { reps: credited, via, region };
+  const excluded = !meetingCol(item, MEETING_COLS.COMPANY).trim() ? 'No company'
+    : !via ? 'No SDR'
+    : null;
+  return { reps: credited, via, region, excluded };
 }
 
 export function withAttribution(meetings, team) {
@@ -83,6 +112,10 @@ export function withAttribution(meetings, team) {
 
 export function inRegion(meeting, region) {
   return !region || region === 'All' || meeting.attribution.region === region;
+}
+
+export function isCounted(meeting) {
+  return !meeting.attribution.excluded;
 }
 
 export function repMeetings(rep, meetings) {
