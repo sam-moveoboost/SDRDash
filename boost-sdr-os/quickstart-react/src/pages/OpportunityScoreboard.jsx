@@ -1,5 +1,8 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { fetchOpportunities, fetchBoardColumns, fetchWorkspaceUsers, BOARDS } from '../api/monday';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
+import {
+  fetchOpportunitySnapshot, peekCachedOpportunities, patchCachedOpportunity,
+  fetchBoardColumns, fetchWorkspaceUsers, BOARDS,
+} from '../api/monday';
 import ProgressBar from '../components/shared/ProgressBar';
 import OpportunityDetailPanel from '../components/opportunities/OpportunityDetailPanel';
 import {
@@ -185,6 +188,15 @@ function MonthlyTrendChart({ data }) {
   );
 }
 
+function timeAgo(ts, now) {
+  const mins = Math.floor((now - ts) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
 function fmtDate(d) {
   return d ? d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 }
@@ -341,20 +353,61 @@ export default function OpportunityScoreboard({ region, user }) {
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(null);
   const [rawOpps, setRawOpps] = useState([]);
+  const [hasData, setHasData] = useState(false);
+  const [fetchedAt, setFetchedAt] = useState(null);
+  const [clock, setClock] = useState(() => Date.now());
+  const [reloadKey, setReloadKey] = useState(0);
+  const forceRefresh = useRef(false); // set by the Refresh button
   const [wsUsers, setWsUsers] = useState([]);
   const [boardCols, setBoardCols] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
   const [filters, setFilters] = useState(DEFAULT_DEAL_FILTERS);
 
+  // Stale-while-revalidate: paint whatever snapshot is already on hand (shared
+  // with the Scoreboard / My Work, or persisted from the last visit) right
+  // away, then refresh from monday in the background. Changing region just
+  // re-filters the shared board copy, so it's instant once loaded.
   useEffect(() => {
+    let cancelled = false;
+    let networkLanded = false;
+    const forced = forceRefresh.current;
+    forceRefresh.current = false;
     setLoading(true);
     setError(null);
-    Promise.all([fetchOpportunities({ region }), fetchBoardColumns(BOARDS.OPPORTUNITIES), fetchWorkspaceUsers()])
-      .then(([o, cols, u]) => { setRawOpps(o); setBoardCols(cols); setWsUsers(u); })
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false));
-  }, [region]);
+
+    peekCachedOpportunities({ region }).then(snap => {
+      if (cancelled || networkLanded || !snap) return;
+      setRawOpps(snap.items);
+      setFetchedAt(snap.fetchedAt);
+      setHasData(true);
+    });
+
+    fetchOpportunitySnapshot({ region, ...(forced ? { maxAgeMs: 0 } : {}) })
+      .then(snap => {
+        if (cancelled) return;
+        networkLanded = true;
+        setRawOpps(snap.items);
+        setFetchedAt(snap.fetchedAt);
+        setHasData(true);
+      })
+      .catch(e => { if (!cancelled) setError(e.message); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+
+    return () => { cancelled = true; };
+  }, [region, reloadKey]);
+
+  // Only the edit panel needs these — load them alongside, never blocking the page.
+  useEffect(() => {
+    fetchBoardColumns(BOARDS.OPPORTUNITIES).then(setBoardCols).catch(() => {});
+    fetchWorkspaceUsers().then(setWsUsers).catch(() => {});
+  }, []);
+
+  // Keeps the "Updated X ago" label honest while the page sits open.
+  useEffect(() => {
+    const t = setInterval(() => setClock(Date.now()), 30000);
+    return () => clearInterval(t);
+  }, []);
 
   const accountSlug = user?.account?.slug ?? '';
 
@@ -418,6 +471,7 @@ export default function OpportunityScoreboard({ region, user }) {
   );
 
   function handleUpdate(itemId, updatedCvs, updatedName) {
+    patchCachedOpportunity(itemId, { column_values: updatedCvs, name: updatedName });
     setRawOpps(prev => prev.map(o => (o.id === itemId
       ? { ...o, column_values: updatedCvs, ...(updatedName !== undefined ? { name: updatedName } : {}) }
       : o)));
@@ -438,7 +492,9 @@ export default function OpportunityScoreboard({ region, user }) {
     setSelectedId(id);
   }
 
-  if (error) return (
+  // A failed background refresh keeps showing the cached snapshot (with a
+  // notice below); only fail the whole page when there's nothing to show.
+  if (error && !hasData) return (
     <div className="max-w-[2100px] mx-auto px-7 py-10 text-red">Failed to load opportunities: {error}</div>
   );
 
@@ -455,9 +511,28 @@ export default function OpportunityScoreboard({ region, user }) {
               Pipeline
             </p>
             <h1 className="font-display text-[36px] leading-[1.1] font-semibold tracking-tight mb-2">Opportunities</h1>
-            <p className="text-muted text-[15px] max-w-xl">
-              {region && region !== 'All' ? `${region} territory` : 'All territories'} · live from monday.com
+            <p className="text-muted text-[15px] max-w-xl flex items-center gap-2 flex-wrap">
+              <span>{region && region !== 'All' ? `${region} territory` : 'All territories'} · live from monday.com</span>
+              {fetchedAt && (
+                <span className="text-[13px]">
+                  · {loading ? 'Refreshing…' : `Updated ${timeAgo(fetchedAt, Math.max(clock, fetchedAt))}`}
+                </span>
+              )}
+              {!loading && (
+                <button
+                  onClick={() => { forceRefresh.current = true; setReloadKey(k => k + 1); }}
+                  className="text-[13px] font-semibold text-navy hover:text-navy-700 transition-colors"
+                >
+                  Refresh
+                </button>
+              )}
             </p>
+            {error && hasData && (
+              <p className="text-red text-[13px] mt-1.5">Couldn't refresh from monday.com ({error.slice(0, 120)}). Showing the last loaded data.</p>
+            )}
+            {!hasData && loading && (
+              <p className="text-muted text-[13px] mt-1.5">Loading every opportunity on the board. The first load takes a few seconds; later visits open instantly.</p>
+            )}
           </div>
           <button
             onClick={openCreate}
