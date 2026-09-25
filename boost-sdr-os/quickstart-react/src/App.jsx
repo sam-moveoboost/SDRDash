@@ -4,6 +4,7 @@ import { fetchCurrentUser } from './api/monday';
 import Scoreboard from './pages/Scoreboard';
 import Workflow from './pages/Workflow';
 import Events from './pages/Events';
+import MissingData from './pages/MissingData';
 import OpportunityScoreboard from './pages/OpportunityScoreboard';
 import boostLockup from './assets/brand/boost-lockup-white.png';
 import './App.css';
@@ -54,6 +55,7 @@ export default function App() {
             { id: 'opportunities', label: 'Pipeline' },
             { id: 'events',        label: 'Events' },
             { id: 'workflow',      label: 'My Work' },
+            { id: 'missing',       label: 'My Missing Data' },
           ].map(t => (
             <button
               key={t.id}
@@ -119,6 +121,7 @@ export default function App() {
           <OpportunityScoreboard region={region} user={user} />
         )}
         {tab === 'events'        && <Events user={user} />}
+        {tab === 'missing'       && <MissingData user={user} />}
       </main>
     </div>
   );
