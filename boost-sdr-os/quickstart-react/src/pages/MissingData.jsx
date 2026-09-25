@@ -12,6 +12,8 @@ import ProgressBar from '../components/shared/ProgressBar';
 import {
   MISSING_BOARDS,
   missingFields,
+  inScope,
+  STATUS_COLUMN,
   buildMissingList,
   statusOptions,
   mergeSavedColumns,
@@ -126,7 +128,18 @@ function FixPanel({ entry, boardCols, users, accountSlug, onClose, onSaved }) {
 
   const cols = boardCols[cfg.boardId] ?? [];
   const optionsFor = id => statusOptions(cols.find(c => c.id === id));
-  const filledCount = Object.values(values).filter(v => v !== undefined && String(v).trim() !== '').length;
+
+  // Status / Stage is always editable, pre-filled with the current value
+  const statusCol = STATUS_COLUMN[entry.board];
+  const currentStatusIndex = (() => {
+    try { return String(JSON.parse(entry.item.column_values?.find(c => c.id === statusCol.id)?.value ?? '{}').index ?? ''); }
+    catch { return ''; }
+  })();
+  const statusValue = values[statusCol.id] ?? currentStatusIndex;
+  const statusChanged = values[statusCol.id] !== undefined && values[statusCol.id] !== currentStatusIndex;
+  const filledCount = Object.entries(values)
+    .filter(([id, v]) => id !== statusCol.id && v !== undefined && String(v).trim() !== '').length
+    + (statusChanged ? 1 : 0);
 
   async function handleSave() {
     const cv = {};
@@ -136,6 +149,7 @@ function FixPanel({ entry, boardCols, users, accountSlug, onClose, onSaved }) {
       // Status columns are saved by index (see statusOptions)
       cv[f.id] = f.type === 'status' ? { index: Number(v) } : buildColumnValue(f.type, v);
     });
+    if (statusChanged) cv[statusCol.id] = { index: Number(values[statusCol.id]) };
     if (!Object.keys(cv).length) return;
     if (values.numeric_mm5pgbax !== undefined) {
       const n = Number(values.numeric_mm5pgbax);
@@ -183,6 +197,19 @@ function FixPanel({ entry, boardCols, users, accountSlug, onClose, onSaved }) {
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+        <div className="pb-2 mb-1 border-b border-line">
+          <label className="text-[10.5px] font-bold uppercase tracking-wider text-muted block mb-1">{statusCol.label}</label>
+          <select
+            value={statusValue}
+            onChange={e => setValues(prev => ({ ...prev, [statusCol.id]: e.target.value }))}
+            className={`w-full border rounded-xl px-3 py-2 text-[13px] bg-white focus:outline-none focus:ring-1 focus:ring-navy focus:border-navy transition-colors ${
+              statusChanged ? 'border-navy bg-pale/30' : 'border-line'
+            }`}
+          >
+            <option value="">—</option>
+            {optionsFor(statusCol.id).map(o => <option key={o.index} value={String(o.index)}>{o.label}</option>)}
+          </select>
+        </div>
         <p className="text-[10.5px] font-bold uppercase tracking-wider text-muted">
           Missing · {entry.missing.length} field{entry.missing.length !== 1 ? 's' : ''}
         </p>
@@ -276,13 +303,16 @@ export default function MissingData({ user: userProp }) {
     const updatedItem = { ...entry.item, column_values: columnValues };
     setData(prev => ({ ...prev, [key]: prev[key].map(i => (i.id === entry.item.id ? updatedItem : i)) }));
     const stillMissing = missingFields(updatedItem, entry.board);
-    if (stillMissing.length === 0) {
+    const outOfScope = !inScope(updatedItem, entry.board);
+    if (stillMissing.length === 0 || outOfScope) {
       // Complete: move on to the next record in the same list
       const list = { [MISSING_BOARDS.PROSPECT]: prospects, [MISSING_BOARDS.OPP]: opps, [MISSING_BOARDS.LEAD]: leads }[entry.board];
       const idx = list.findIndex(e => e.item.id === entry.item.id);
       const next = list[idx + 1] ?? list[idx - 1] ?? null;
       setSelected(next ? { id: next.item.id, board: next.board } : null);
-      setToast(`${entry.item.name} is complete ✓`);
+      setToast(outOfScope
+        ? `${entry.item.name} saved and removed from the list (${STATUS_COLUMN[entry.board].label.toLowerCase()} changed) ✓`
+        : `${entry.item.name} is complete ✓`);
     } else {
       setToast(`Saved · ${stillMissing.length} still to fill in`);
     }

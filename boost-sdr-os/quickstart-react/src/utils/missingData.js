@@ -130,6 +130,21 @@ function leadMissing(item) {
 }
 
 // ── Public API ────────────────────────────────────────────────────
+// The status column shown (and editable) at the top of the sidebar
+export const STATUS_COLUMN = {
+  [MISSING_BOARDS.PROSPECT]: { id: 'status',         label: 'Status' },
+  [MISSING_BOARDS.LEAD]:     { id: 'lead_status',    label: 'Status' },
+  [MISSING_BOARDS.OPP]:      { id: 'color_mkz28c27', label: 'Stage' },
+};
+
+// Whether a record still belongs in the list at all — a status change (a deal
+// marked Won/Lost, a lead marked Unqualified) can take it out of scope.
+export function inScope(item, board, now = Date.now()) {
+  if (board === MISSING_BOARDS.PROSPECT) return prospectInScope(item);
+  if (board === MISSING_BOARDS.LEAD) return leadInScope(item, now);
+  return !['Won', 'Lost'].includes(text(item, 'color_mkz28c27'));
+}
+
 export function missingFields(item, board) {
   if (board === MISSING_BOARDS.PROSPECT) return prospectMissing(item);
   return board === MISSING_BOARDS.OPP ? oppMissing(item) : leadMissing(item);
@@ -149,7 +164,7 @@ export function buildMissingList({ prospects = [], leads, opportunities }, now =
     const missing = prospectMissing(item);
     if (missing.length) out.push({ item, board: MISSING_BOARDS.PROSPECT, missing, owners: ownerIds(item, MISSING_BOARDS.PROSPECT) });
   });
-  opportunities.forEach(item => {
+  opportunities.filter(item => inScope(item, MISSING_BOARDS.OPP)).forEach(item => {
     const missing = oppMissing(item);
     if (missing.length) out.push({ item, board: MISSING_BOARDS.OPP, missing, owners: ownerIds(item, MISSING_BOARDS.OPP) });
   });
