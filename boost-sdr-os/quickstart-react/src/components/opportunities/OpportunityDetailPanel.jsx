@@ -174,11 +174,16 @@ const PEOPLE_COL_IDS = new Set([COL.BIZDEV, COL.SDR, COL.IC_CSM]);
 // computed number in display_value — text/value are always empty — so a
 // refresh must copy display_value too, and any "did it change" check must
 // read through the same fallback colText() uses, not a bare .text lookup.
+// Appends fresh columns the item doesn't carry yet — Hourly Rate isn't part
+// of the bulk board load, so it only arrives through this refetch.
 function mergeFreshColumnValues(baseCvs, fresh) {
-  return (baseCvs ?? []).map(cv => {
+  const base = baseCvs ?? [];
+  const merged = base.map(cv => {
     const match = fresh.find(f => f.id === cv.id);
     return match ? { ...cv, text: match.text, value: match.value, display_value: match.display_value } : cv;
   });
+  const added = fresh.filter(f => !base.some(cv => cv.id === f.id));
+  return [...merged, ...added];
 }
 function freshText(fresh, id) {
   const cv = fresh.find(f => f.id === id);

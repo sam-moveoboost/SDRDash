@@ -1,4 +1,5 @@
 import mondaySdk from 'monday-sdk-js';
+import { MEETING_COLS, EXCLUDED_CHANNELS, isQualifyingMeeting } from '../utils/meetingAttribution';
 
 const monday = mondaySdk();
 
@@ -383,22 +384,25 @@ function parseTeamMember(item) {
 }
 
 // ── Qualified Meetings ────────────────────────────────────────────
-// month: "YYYY-MM" — server-side filter on Qualified Date (date_mm4wkg8g)
-// SDR attribution uses multiple_person_mm2bjm2z, NOT lead_owner (which is the BDM)
-export async function fetchQualifiedMeetings({ region, month }) {
+// month: "YYYY-MM" — server-side filter on Qualified Date (date_mm4wkg8g).
+// Returns every region: the region filter is applied client-side after
+// attribution (utils/meetingAttribution), because a lead with a blank Region
+// column belongs to the region of the rep who booked it — filtering on the
+// raw column here silently dropped those meetings from regional views.
+export async function fetchQualifiedMeetings({ month }) {
   const startDate = `${month}-01`;
   const [y, m] = month.split('-').map(Number);
   const lastDay = new Date(y, m, 0).getDate();
   const endDate = `${month}-${String(lastDay).padStart(2, '0')}`;
 
   const rules = [
-    `{ column_id: "date_mm4wkg8g", compare_value: ["${startDate}"], operator: greater_than_or_equals }`,
-    `{ column_id: "date_mm4wkg8g", compare_value: ["${endDate}"],   operator: lower_than_or_equal }`,
+    `{ column_id: "${MEETING_COLS.QUALIFIED}", compare_value: ["${startDate}"], operator: greater_than_or_equals }`,
+    `{ column_id: "${MEETING_COLS.QUALIFIED}", compare_value: ["${endDate}"],   operator: lower_than_or_equal }`,
   ];
 
   const LEAD_FIELDS = `
-    id name updated_at
-    column_values(ids: ["lead_status", "multiple_person_mm2bjm2z", "date_mm4wkg8g", "color_mkz4y1yv", "color_mkxeqbfx"]) {
+    id name created_at updated_at
+    column_values(ids: [${Object.values(MEETING_COLS).map(c => `"${c}"`).join(', ')}]) {
       id text value
     }
   `;
@@ -432,18 +436,54 @@ export async function fetchQualifiedMeetings({ region, month }) {
     pages++;
   }
 
-  const QUALIFYING_STATUSES = ['Qualified Opportunity', 'Qualifed Lead No Opp'];
-  const EXCLUDED_CHANNELS = new Set(['monday.com Channel', 'monday.com Sales', 'monday.com PS']);
+  return allItems.filter(isQualifyingMeeting);
+}
 
-  return allItems.filter(item => {
-    const status = colText(item, 'lead_status');
-    if (!QUALIFYING_STATUSES.includes(status)) return false;
-    if (EXCLUDED_CHANNELS.has(colText(item, 'color_mkxeqbfx'))) return false;
-    if (region && region !== 'All') {
-      if (colText(item, 'color_mkz4y1yv') !== region) return false;
+// ── Leads with a meeting date ─────────────────────────────────────
+// Every lead with MB Date set, for the "booked" (created in period + has a
+// meeting date) and "sitting" (meeting date in period) metrics. One query
+// covers both, for any week or month, and the set is small because a lead
+// only lands here once someone fills in its meeting date.
+export async function fetchLeadsWithMeetingDate() {
+  const LEAD_FIELDS = `
+    id name created_at updated_at
+    column_values(ids: [${Object.values(MEETING_COLS).map(c => `"${c}"`).join(', ')}]) {
+      id text value
     }
-    return true;
-  });
+  `;
+  const rule = `{ column_id: "${MEETING_COLS.MEETING_DATE}", compare_value: [], operator: is_not_empty }`;
+
+  const first = await gql(`
+    query {
+      boards(ids: ["${BOARDS.LEADS}"]) {
+        items_page(limit: 500, query_params: { rules: [${rule}] }) {
+          cursor
+          items { ${LEAD_FIELDS} }
+        }
+      }
+    }
+  `);
+
+  let allItems = first.boards[0]?.items_page?.items ?? [];
+  let cursor   = first.boards[0]?.items_page?.cursor ?? null;
+
+  let pages = 0;
+  while (cursor && pages < 4) {
+    const next = await gql(`
+      query {
+        next_items_page(limit: 500, cursor: "${cursor}") {
+          cursor
+          items { ${LEAD_FIELDS} }
+        }
+      }
+    `);
+    allItems = [...allItems, ...(next.next_items_page?.items ?? [])];
+    cursor = next.next_items_page?.cursor ?? null;
+    pages++;
+  }
+
+  // Same channel rule as qualified meetings: monday.com-sourced leads aren't SDR-generated
+  return allItems.filter(item => !EXCLUDED_CHANNELS.has(colText(item, MEETING_COLS.CHANNEL)));
 }
 
 // ── Aircall calls (outbound, date-range filtered) ─────────────────
@@ -513,7 +553,10 @@ export async function fetchAircallCalls({ startDate, endDate }) {
 // paginated page, which blows past monday's per-minute rate limit for that
 // field (FIELD_MINUTE_RATE_LIMIT_EXCEEDED). Only two columns here are
 // formulas (PS_VALUE_USD, HOURLY_RATE) — keep this list to what the
-// Pipeline list and OpportunityDetailPanel actually read.
+// Pipeline list and OpportunityDetailPanel actually read. HOURLY_RATE is
+// deliberately left out: only the detail panel shows it, and the panel
+// already refetches it for the one item being opened, so computing it for
+// every item on the board was pure overhead on the bulk load.
 const OPPORTUNITY_FIELD_IDS = [
   'color_mkz28c27',   // STAGE
   'color_mkz2atw5',   // TYPE_OF_DEAL
@@ -541,31 +584,163 @@ const OPPORTUNITY_FIELD_IDS = [
   'color_mkza93q9',   // CONVERSION_ACTIVITY
   'multiple_person_mm1cxqfr', // IC_CSM
   'color_mkz4dtzp',   // ARR_LENGTH
-  'formula_mm5pp5kk', // HOURLY_RATE (formula)
   'color_mm59ttnd',   // CALCULATE_TRIGGER
   'connect_boards31', // ACCOUNT
   'text8',            // COMPANY
   'color_mm4x2xm1',   // PAYMENT_TERMS
 ];
 
-export async function fetchOpportunities({ region }) {
-  const items = await paginateBoard(BOARDS.OPPORTUNITIES, `
-    id
-    name
-    created_at
-    updated_at
-    column_values(ids: ${JSON.stringify(OPPORTUNITY_FIELD_IDS)}) {
-      id
-      text
-      value
-      ... on FormulaValue { display_value }
-    }
-  `);
+// ── Opportunities board cache ─────────────────────────────────────
+// The whole board is always fetched (region is filtered client-side), so
+// Scoreboard, Pipeline and My Work all share one copy instead of each
+// re-paginating 1000+ items on every mount, tab switch and region change.
+//   - In memory: reused while younger than OPP_CACHE_TTL_MS; concurrent
+//     callers share one in-flight request.
+//   - In IndexedDB: the last snapshot survives a reload, so the Pipeline can
+//     paint it immediately and revalidate in the background.
+// Mutations below patch or invalidate it so edits don't disappear on the
+// next tab switch.
+const OPP_CACHE_TTL_MS = 2 * 60 * 1000;
+const OPP_SNAPSHOT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+// Keyed on the field list so a column change never paints a snapshot that's
+// missing a field the UI now expects.
+const OPP_SNAPSHOT_KEY = `opportunities:${OPPORTUNITY_FIELD_IDS.join(',')}`;
 
-  return items.filter(item => {
-    if (!region || region === 'All') return true;
-    return colText(item, 'color_mkxerb02') === region;
-  });
+let _oppCache = null;    // { items, fetchedAt, stale }
+let _oppInFlight = null; // Promise<{ items, fetchedAt }>
+
+function filterByRegion(items, region) {
+  if (!region || region === 'All') return items;
+  return items.filter(item => colText(item, 'color_mkxerb02') === region);
+}
+
+function setOppCache(items, fetchedAt, stale = false) {
+  _oppCache = { items, fetchedAt, stale };
+  idbSet(OPP_SNAPSHOT_KEY, { items, fetchedAt });
+}
+
+function loadOpportunityBoard() {
+  if (!_oppInFlight) {
+    _oppInFlight = paginateBoard(BOARDS.OPPORTUNITIES, `
+      id
+      name
+      created_at
+      updated_at
+      column_values(ids: ${JSON.stringify(OPPORTUNITY_FIELD_IDS)}) {
+        id
+        text
+        value
+        ... on FormulaValue { display_value }
+      }
+    `)
+      .then(items => { setOppCache(items, Date.now()); return _oppCache; })
+      .finally(() => { _oppInFlight = null; });
+  }
+  return _oppInFlight;
+}
+
+// maxAgeMs: 0 forces a network refetch (the Pipeline's Refresh button).
+export async function fetchOpportunitySnapshot({ region, maxAgeMs = OPP_CACHE_TTL_MS } = {}) {
+  const fresh = _oppCache && !_oppCache.stale && Date.now() - _oppCache.fetchedAt < maxAgeMs
+    ? _oppCache
+    : await loadOpportunityBoard();
+  return { items: filterByRegion(fresh.items, region), fetchedAt: fresh.fetchedAt };
+}
+
+export async function fetchOpportunities({ region, maxAgeMs } = {}) {
+  return (await fetchOpportunitySnapshot({ region, maxAgeMs })).items;
+}
+
+// Whatever is already on hand — memory first, then the persisted snapshot —
+// without touching the network. Resolves null when there's nothing usable.
+export async function peekCachedOpportunities({ region } = {}) {
+  let snap = _oppCache;
+  if (!snap) {
+    const stored = await idbGet(OPP_SNAPSHOT_KEY);
+    if (!stored?.items || Date.now() - stored.fetchedAt > OPP_SNAPSHOT_MAX_AGE_MS) return null;
+    // A network load may have landed while IndexedDB was being read.
+    if (!_oppCache) _oppCache = { ...stored, stale: true }; // usable, but always revalidated
+    snap = _oppCache;
+  }
+  return { items: filterByRegion(snap.items, region), fetchedAt: snap.fetchedAt };
+}
+
+// Replace one item's column_values (and name) in the shared cache, e.g. after
+// a save or a formula refetch in the detail panel.
+export function patchCachedOpportunity(itemId, { column_values, name } = {}) {
+  if (!_oppCache) return;
+  const items = _oppCache.items.map(o => (o.id === itemId
+    ? { ...o, ...(column_values ? { column_values } : {}), ...(name !== undefined ? { name } : {}) }
+    : o));
+  setOppCache(items, _oppCache.fetchedAt, _oppCache.stale);
+}
+
+// Mark the cache stale without dropping it — the next view still paints it
+// instantly but refetches in the background.
+function invalidateOpportunityCache() {
+  if (_oppCache) _oppCache = { ..._oppCache, stale: true };
+}
+
+// ── Tiny IndexedDB key/value store ────────────────────────────────
+// Best-effort only: storage can be unavailable (private mode, blocked
+// third-party storage inside the monday iframe), in which case every call
+// quietly resolves to nothing and the app just behaves as before.
+let _idb = null;
+function idbOpen() {
+  if (!_idb) {
+    _idb = new Promise((resolve, reject) => {
+      const req = indexedDB.open('sdr-os-cache', 1);
+      req.onupgradeneeded = () => req.result.createObjectStore('kv');
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    }).catch(() => null);
+  }
+  return _idb;
+}
+
+async function idbGet(key) {
+  try {
+    const db = await idbOpen();
+    if (!db) return null;
+    return await new Promise(resolve => {
+      const req = db.transaction('kv').objectStore('kv').get(key);
+      req.onsuccess = () => resolve(req.result ?? null);
+      req.onerror = () => resolve(null);
+    });
+  } catch { return null; }
+}
+
+async function idbSet(key, value) {
+  try {
+    const db = await idbOpen();
+    if (!db) return;
+    const tx = db.transaction('kv', 'readwrite');
+    const store = tx.objectStore('kv');
+    // Drop snapshots written under an older field list.
+    const keysReq = store.getAllKeys();
+    keysReq.onsuccess = () => {
+      keysReq.result
+        .filter(k => typeof k === 'string' && k.startsWith('opportunities:') && k !== key)
+        .forEach(k => store.delete(k));
+    };
+    store.put(value, key);
+  } catch {}
+}
+
+// ── Short-lived memo for rarely-changing lookups ──────────────────
+// Board schemas and the workspace user list are requested by nearly every
+// page; share one in-flight request and reuse the result for a few minutes.
+function memoizeAsync(fn, ttlMs) {
+  const entries = new Map();
+  return (...args) => {
+    const key = JSON.stringify(args);
+    const hit = entries.get(key);
+    if (hit && Date.now() - hit.at < ttlMs) return hit.promise;
+    const promise = fn(...args);
+    entries.set(key, { promise, at: Date.now() });
+    promise.catch(() => entries.delete(key));
+    return promise;
+  };
 }
 
 // columnValues must already be in Monday's per-column wire shape
@@ -593,6 +768,7 @@ export async function createOpportunity(name, columnValues) {
       }
     }
   `);
+  if (_oppCache) setOppCache([data.create_item, ..._oppCache.items], _oppCache.fetchedAt, _oppCache.stale);
   return data.create_item;
 }
 
@@ -648,10 +824,10 @@ export async function fetchNewProspects({ startDate, endDate }) {
 }
 
 // ── Workspace users (for owner filter dropdown) ───────────────────
-export async function fetchWorkspaceUsers() {
+export const fetchWorkspaceUsers = memoizeAsync(async () => {
   const data = await gql(`query { users(kind: non_guests) { id name email photo_thumb } }`);
   return data.users ?? [];
-}
+}, 10 * 60 * 1000);
 
 // ── UK opportunity search (for event linking) ─────────────────────
 // Uses column_id:"name" with contains_text — the correct Monday API approach.
@@ -798,7 +974,7 @@ export async function fetchItemColumnValues(itemId, columnIds) {
 
 // ── Board column schema ───────────────────────────────────────────
 // settings_str included so status columns can render their label options as a dropdown
-export async function fetchBoardColumns(boardId) {
+export const fetchBoardColumns = memoizeAsync(async boardId => {
   const data = await gql(`
     query {
       boards(ids: ["${boardId}"]) {
@@ -807,7 +983,7 @@ export async function fetchBoardColumns(boardId) {
     }
   `);
   return data.boards[0]?.columns ?? [];
-}
+}, 10 * 60 * 1000);
 
 // change_simple_column_value was deprecated in newer Monday API versions.
 // Use change_column_value for everything — the value format depends on column type.
@@ -844,6 +1020,7 @@ export async function updateOpportunityColumn(itemId, columnId, value, fieldKey,
       ) { id }
     }
   `);
+  invalidateOpportunityCache();
   return data.change_column_value;
 }
 
@@ -1172,6 +1349,7 @@ export async function updateItemColumnValue(boardId, itemId, columnId, value, co
       ) { id }
     }
   `);
+  if (String(boardId) === BOARDS.OPPORTUNITIES) invalidateOpportunityCache();
   return data.change_column_value;
 }
 
@@ -1202,5 +1380,9 @@ export async function updateItemColumns(boardId, itemId, columnValues) {
       }
     }
   `);
+  if (String(boardId) === BOARDS.OPPORTUNITIES) {
+    const updated = data.change_multiple_column_values;
+    patchCachedOpportunity(String(updated.id), { column_values: updated.column_values, name: updated.name });
+  }
   return data.change_multiple_column_values;
 }

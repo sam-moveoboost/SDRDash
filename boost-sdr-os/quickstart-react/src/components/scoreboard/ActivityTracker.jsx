@@ -1,4 +1,5 @@
 import React from 'react';
+import { repMeetings, isLeaderboardRep } from '../../utils/meetingAttribution';
 
 function parsePersonIds(value) {
   try { return (JSON.parse(value).personsAndTeams ?? []).map(p => String(p.id)); }
@@ -65,7 +66,24 @@ function ConnectRateStat({ rate, loading }) {
   );
 }
 
-function RepCard({ rep, calls, newProspects, loading, period, onRepClick }) {
+// Booked = created in the period with an MB Date; sitting = MB Date in the period.
+// Clicking opens the meetings drawer on that tab, filtered to the rep.
+function MeetingStat({ label, value, loading, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={loading}
+      className="flex-1 text-left rounded-xl border border-line bg-canvas/60 hover:border-navy px-3 py-2 transition-colors"
+    >
+      <div className={`font-heading font-bold text-[20px] leading-none ${value > 0 ? 'text-emerald' : 'text-muted'}`}>
+        {loading ? '—' : value}
+      </div>
+      <div className="text-[11px] text-muted mt-1">{label} ↗</div>
+    </button>
+  );
+}
+
+function RepCard({ rep, calls, newProspects, bookedMeetings, sittingMeetings, loading, meetingsLoading, period, onRepClick, onMeetingStatClick }) {
   const mul = period === 'month' ? 4 : 1;
   const callTarget     = (rep.weeklyCallTarget || 0) * mul;
   const prospectTarget = (rep.weeklyProspects  || 0) * mul;
@@ -144,14 +162,29 @@ function RepCard({ rep, calls, newProspects, loading, period, onRepClick }) {
       <MetricBar label="Meaningful convos"  value={convoCount}    target={convoTarget}    loading={loading} />
       <MetricBar label="New prospects"      value={prospectCount} target={prospectTarget} loading={loading} />
 
+      <div className="flex gap-2 mt-3 pt-3 border-t border-line">
+        <MeetingStat
+          label="Meetings booked"
+          value={repMeetings(rep, bookedMeetings).length}
+          loading={meetingsLoading}
+          onClick={() => onMeetingStatClick?.(rep, 'booked')}
+        />
+        <MeetingStat
+          label="Meetings sitting"
+          value={repMeetings(rep, sittingMeetings).length}
+          loading={meetingsLoading}
+          onClick={() => onMeetingStatClick?.(rep, 'sitting')}
+        />
+      </div>
+
       <ConnectRateStat rate={connectRate} loading={loading} />
     </div>
   );
 }
 
-export default function ActivityTracker({ team, calls, newProspects = [], loading, period = 'week', region, onRepClick }) {
+export default function ActivityTracker({ team, calls, newProspects = [], bookedMeetings = [], sittingMeetings = [], loading, meetingsLoading, period = 'week', region, onRepClick, onMeetingStatClick }) {
   const reps = team.filter(m => {
-    if (!['SDR', 'Hybrid'].includes(m.role)) return false;
+    if (!isLeaderboardRep(m)) return false;
     if (region && region !== 'All' && m.region !== region) return false;
     return true;
   });
@@ -168,9 +201,13 @@ export default function ActivityTracker({ team, calls, newProspects = [], loadin
               rep={rep}
               calls={calls}
               newProspects={newProspects}
+              bookedMeetings={bookedMeetings}
+              sittingMeetings={sittingMeetings}
               loading={loading}
+              meetingsLoading={meetingsLoading}
               period={period}
               onRepClick={onRepClick}
+              onMeetingStatClick={onMeetingStatClick}
             />
           ))
       }
