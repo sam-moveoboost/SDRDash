@@ -1,4 +1,5 @@
 import mondaySdk from 'monday-sdk-js';
+import { MEETING_COLS, EXCLUDED_CHANNELS, isQualifyingMeeting } from '../utils/meetingAttribution';
 
 const monday = mondaySdk();
 
@@ -207,22 +208,25 @@ function parseTeamMember(item) {
 }
 
 // ── Qualified Meetings ────────────────────────────────────────────
-// month: "YYYY-MM" — server-side filter on Qualified Date (date_mm4wkg8g)
-// SDR attribution uses multiple_person_mm2bjm2z, NOT lead_owner (which is the BDM)
-export async function fetchQualifiedMeetings({ region, month }) {
+// month: "YYYY-MM" — server-side filter on Qualified Date (date_mm4wkg8g).
+// Returns every region: the region filter is applied client-side after
+// attribution (utils/meetingAttribution), because a lead with a blank Region
+// column belongs to the region of the rep who booked it — filtering on the
+// raw column here silently dropped those meetings from regional views.
+export async function fetchQualifiedMeetings({ month }) {
   const startDate = `${month}-01`;
   const [y, m] = month.split('-').map(Number);
   const lastDay = new Date(y, m, 0).getDate();
   const endDate = `${month}-${String(lastDay).padStart(2, '0')}`;
 
   const rules = [
-    `{ column_id: "date_mm4wkg8g", compare_value: ["${startDate}"], operator: greater_than_or_equals }`,
-    `{ column_id: "date_mm4wkg8g", compare_value: ["${endDate}"],   operator: lower_than_or_equal }`,
+    `{ column_id: "${MEETING_COLS.QUALIFIED}", compare_value: ["${startDate}"], operator: greater_than_or_equals }`,
+    `{ column_id: "${MEETING_COLS.QUALIFIED}", compare_value: ["${endDate}"],   operator: lower_than_or_equal }`,
   ];
 
   const LEAD_FIELDS = `
-    id name updated_at
-    column_values(ids: ["lead_status", "multiple_person_mm2bjm2z", "date_mm4wkg8g", "color_mkz4y1yv", "color_mkxeqbfx"]) {
+    id name created_at updated_at
+    column_values(ids: [${Object.values(MEETING_COLS).map(c => `"${c}"`).join(', ')}]) {
       id text value
     }
   `;
@@ -256,18 +260,54 @@ export async function fetchQualifiedMeetings({ region, month }) {
     pages++;
   }
 
-  const QUALIFYING_STATUSES = ['Qualified Opportunity', 'Qualifed Lead No Opp'];
-  const EXCLUDED_CHANNELS = new Set(['monday.com Channel', 'monday.com Sales', 'monday.com PS']);
+  return allItems.filter(isQualifyingMeeting);
+}
 
-  return allItems.filter(item => {
-    const status = colText(item, 'lead_status');
-    if (!QUALIFYING_STATUSES.includes(status)) return false;
-    if (EXCLUDED_CHANNELS.has(colText(item, 'color_mkxeqbfx'))) return false;
-    if (region && region !== 'All') {
-      if (colText(item, 'color_mkz4y1yv') !== region) return false;
+// ── Leads with a meeting date ─────────────────────────────────────
+// Every lead with MB Date set, for the "booked" (created in period + has a
+// meeting date) and "sitting" (meeting date in period) metrics. One query
+// covers both, for any week or month, and the set is small because a lead
+// only lands here once someone fills in its meeting date.
+export async function fetchLeadsWithMeetingDate() {
+  const LEAD_FIELDS = `
+    id name created_at updated_at
+    column_values(ids: [${Object.values(MEETING_COLS).map(c => `"${c}"`).join(', ')}]) {
+      id text value
     }
-    return true;
-  });
+  `;
+  const rule = `{ column_id: "${MEETING_COLS.MEETING_DATE}", compare_value: [], operator: is_not_empty }`;
+
+  const first = await gql(`
+    query {
+      boards(ids: ["${BOARDS.LEADS}"]) {
+        items_page(limit: 500, query_params: { rules: [${rule}] }) {
+          cursor
+          items { ${LEAD_FIELDS} }
+        }
+      }
+    }
+  `);
+
+  let allItems = first.boards[0]?.items_page?.items ?? [];
+  let cursor   = first.boards[0]?.items_page?.cursor ?? null;
+
+  let pages = 0;
+  while (cursor && pages < 4) {
+    const next = await gql(`
+      query {
+        next_items_page(limit: 500, cursor: "${cursor}") {
+          cursor
+          items { ${LEAD_FIELDS} }
+        }
+      }
+    `);
+    allItems = [...allItems, ...(next.next_items_page?.items ?? [])];
+    cursor = next.next_items_page?.cursor ?? null;
+    pages++;
+  }
+
+  // Same channel rule as qualified meetings: monday.com-sourced leads aren't SDR-generated
+  return allItems.filter(item => !EXCLUDED_CHANNELS.has(colText(item, MEETING_COLS.CHANNEL)));
 }
 
 // ── Aircall calls (outbound, date-range filtered) ─────────────────
