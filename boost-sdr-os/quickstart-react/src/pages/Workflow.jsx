@@ -82,11 +82,17 @@ function isAssignedToUser(item, userId) {
   });
 }
 
+// Labels switched off on the board (deactivated_labels) are left out, and
+// duplicate label names (e.g. Source has "Make" twice) are collapsed.
 function parseStatusLabels(column) {
   if (!column?.settings_str) return [];
   try {
     const s = JSON.parse(column.settings_str);
-    return Object.values(s.labels ?? {}).filter(l => l && l.trim());
+    const off = new Set((s.deactivated_labels ?? []).map(String));
+    const labels = Object.entries(s.labels ?? {})
+      .filter(([idx, l]) => !off.has(idx) && l && l.trim())
+      .map(([, l]) => l);
+    return [...new Set(labels)];
   } catch { return []; }
 }
 
@@ -154,6 +160,10 @@ const SECTION_CFG = {
     hardcodedFields: [
       { id: 'lead_status', label: 'Status', type: 'color', isPeople: false, statusLabels: null },
       { id: 'multiple_person_mm2bjm2z', label: 'SDR', type: 'multiple-person', isPeople: true, statusLabels: null },
+      { id: 'date_mm45gm2e', label: 'MB Date', type: 'date', isPeople: false, statusLabels: null },
+      { id: 'color_mkwrdphn', label: 'Source', type: 'color', isPeople: false, statusLabels: null },
+      { id: 'color_mkxeqbfx', label: 'Conversion Activity', type: 'color', isPeople: false, statusLabels: null },
+      { id: 'color_mkz4y1yv', label: 'Region', type: 'color', isPeople: false, statusLabels: null },
     ],
   },
   opportunity: {
@@ -362,9 +372,10 @@ function DetailPanel({ item, boardType, boardCols, wsUsers, events, accountSlug,
   let editFields = cfg.hardcodedFields ?? [];
 
   if (boardType === 'lead' && boardCols) {
+    // Status columns take their options from the live board
     editFields = editFields.map(f => {
-      if (f.id === 'lead_status') {
-        const col = boardCols.find(c => c.id === 'lead_status');
+      if (f.type === 'color' && f.statusLabels === null) {
+        const col = boardCols.find(c => c.id === f.id);
         return { ...f, statusLabels: col ? parseStatusLabels(col) : [] };
       }
       return f;
@@ -395,9 +406,10 @@ function DetailPanel({ item, boardType, boardCols, wsUsers, events, accountSlug,
 
       // Linking to an event pre-fills Source / Conversion Activity, but only
       // where they're blank — never overwrites what a rep already set.
+      // A value the rep picked in the Source / Conversion Activity dropdowns wins.
       if (pickedEvent) {
-        if (!currentSource) cv[LEAD_COLS.SOURCE] = { label: EVENT_SOURCE };
-        if (!currentConversion && howMet) cv[LEAD_COLS.CONVERSION] = { label: howMet };
+        if (!currentSource && !(LEAD_COLS.SOURCE in edits)) cv[LEAD_COLS.SOURCE] = { label: EVENT_SOURCE };
+        if (!currentConversion && howMet && !(LEAD_COLS.CONVERSION in edits)) cv[LEAD_COLS.CONVERSION] = { label: howMet };
       }
 
       const updated = Object.keys(cv).length
@@ -593,6 +605,8 @@ function DetailPanel({ item, boardType, boardCols, wsUsers, events, accountSlug,
                         className={inputCls(dirty)}
                       >
                         <option value="">—</option>
+                        {/* Keep a current value visible even if its label is now deactivated */}
+                        {currentTxt && !field.statusLabels.includes(currentTxt) && <option value={currentTxt}>{currentTxt}</option>}
                         {field.statusLabels.map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
                     </div>
