@@ -1276,7 +1276,7 @@ export async function fetchAllLeads() {
   const FIELDS = `
     id name updated_at
     column_values(ids: [
-      "lead_status", "color_mkz4y1yv", "multiple_person_mm2bjm2z", "lead_owner", "lead_company",
+      "lead_status", "color_mkz4y1yv", "multiple_person_mm2bjm2z", "lead_owner", "lead_company", "date_mm45gm2e",
       "${LEAD_COLS.SOURCE}", "${LEAD_COLS.CONVERSION}", "${REL.LEAD_EVENT}", "${REL.LEAD_OPPS}"
     ]) { id text value ${REL_FRAGMENT} }
   `;

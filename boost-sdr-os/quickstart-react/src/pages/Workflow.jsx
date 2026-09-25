@@ -154,6 +154,7 @@ const SECTION_CFG = {
     hardcodedFields: [
       { id: 'lead_status', label: 'Status', type: 'color', isPeople: false, statusLabels: null },
       { id: 'multiple_person_mm2bjm2z', label: 'SDR', type: 'multiple-person', isPeople: true, statusLabels: null },
+      { id: 'date_mm45gm2e', label: 'MB Date', type: 'date', isPeople: false, statusLabels: null },
     ],
   },
   opportunity: {
