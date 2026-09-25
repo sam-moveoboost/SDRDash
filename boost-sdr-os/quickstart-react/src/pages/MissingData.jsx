@@ -18,6 +18,13 @@ import {
 } from '../utils/missingData';
 
 const BOARD_CFG = {
+  [MISSING_BOARDS.PROSPECT]: {
+    label: 'Prospects',
+    boardId: BOARDS.PROSPECTS,
+    accentColor: '#1a385e',
+    pillClass: 'bg-navy/10 text-navy',
+    subtitle: item => [colText(item, 'text_mkw7ezh6'), colText(item, 'status')].filter(Boolean).join(' · '),
+  },
   [MISSING_BOARDS.OPP]: {
     label: 'Opportunities',
     boardId: BOARDS.OPPORTUNITIES,
@@ -255,8 +262,9 @@ export default function MissingData({ user: userProp }) {
   const byBoard = board => visible
     .filter(e => e.board === board)
     .sort((a, b) => b.missing.length - a.missing.length);
-  const opps  = byBoard(MISSING_BOARDS.OPP);
-  const leads = byBoard(MISSING_BOARDS.LEAD);
+  const prospects = byBoard(MISSING_BOARDS.PROSPECT);
+  const opps      = byBoard(MISSING_BOARDS.OPP);
+  const leads     = byBoard(MISSING_BOARDS.LEAD);
   const fieldTotal = visible.reduce((n, e) => n + e.missing.length, 0);
 
   const selectedEntry = selected
@@ -264,13 +272,13 @@ export default function MissingData({ user: userProp }) {
     : null;
 
   function handleSaved(entry, columnValues) {
-    const key = entry.board === MISSING_BOARDS.OPP ? 'opportunities' : 'leads';
+    const key = { [MISSING_BOARDS.PROSPECT]: 'prospects', [MISSING_BOARDS.OPP]: 'opportunities', [MISSING_BOARDS.LEAD]: 'leads' }[entry.board];
     const updatedItem = { ...entry.item, column_values: columnValues };
     setData(prev => ({ ...prev, [key]: prev[key].map(i => (i.id === entry.item.id ? updatedItem : i)) }));
     const stillMissing = missingFields(updatedItem, entry.board);
     if (stillMissing.length === 0) {
       // Complete: move on to the next record in the same list
-      const list = entry.board === MISSING_BOARDS.OPP ? opps : leads;
+      const list = { [MISSING_BOARDS.PROSPECT]: prospects, [MISSING_BOARDS.OPP]: opps, [MISSING_BOARDS.LEAD]: leads }[entry.board];
       const idx = list.findIndex(e => e.item.id === entry.item.id);
       const next = list[idx + 1] ?? list[idx - 1] ?? null;
       setSelected(next ? { id: next.item.id, board: next.board } : null);
@@ -351,8 +359,9 @@ export default function MissingData({ user: userProp }) {
           <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
             {error && <div className="text-red text-[13px] bg-red-soft px-4 py-3 rounded-xl">Failed to load: {error}</div>}
             {toast && <div className="text-emerald text-[13px] font-semibold bg-pale px-4 py-2.5 rounded-xl">{toast}</div>}
-            <Section board={MISSING_BOARDS.OPP} entries={opps} />
+            <Section board={MISSING_BOARDS.PROSPECT} entries={prospects} />
             <Section board={MISSING_BOARDS.LEAD} entries={leads} />
+            <Section board={MISSING_BOARDS.OPP} entries={opps} />
             {!isMe && personId && (
               <p className="text-[11.5px] text-muted text-center">Showing {personId === 'all' ? 'everyone’s' : `${owners.find(o => o.id === personId)?.name ?? 'this person'}’s`} records.</p>
             )}
@@ -384,7 +393,7 @@ export default function MissingData({ user: userProp }) {
             <div className="flex items-center justify-center h-full text-center px-8">
               <div>
                 <p className="font-semibold text-[14px] text-ink">Select a record</p>
-                <p className="text-muted text-[13px] mt-1 max-w-[220px] mx-auto">Click any lead or opportunity to fill in what's missing. It disappears from the list once it's complete.</p>
+                <p className="text-muted text-[13px] mt-1 max-w-[220px] mx-auto">Click any prospect, lead or opportunity to fill in what's missing. It disappears from the list once it's complete.</p>
               </div>
             </div>
           )}

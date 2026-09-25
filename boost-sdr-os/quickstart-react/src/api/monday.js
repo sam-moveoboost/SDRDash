@@ -1411,15 +1411,31 @@ const MISSING_LEAD_FIELDS = `
   ]) { id text value }
 `;
 
+const MISSING_PROSPECT_FIELDS = `
+  id name
+  column_values(ids: [
+    "status", "person", "text_mkw7ezh6", "email_mm14rb30", "phone_mm1t253", "text_mm4hkx37", "color_mm4fna6"
+  ]) { id text value }
+`;
+
 export async function fetchMissingDataCandidates() {
-  const [oppUK, won, lost, leadUK] = await Promise.all([
+  const [prospectUK, newProspect, notRelevant, oppUK, won, lost, leadUK] = await Promise.all([
+    statusIndex(BOARDS.PROSPECTS, 'color_mm4fna6', 'UK'),
+    statusIndex(BOARDS.PROSPECTS, 'status', 'New Prospect'),
+    statusIndex(BOARDS.PROSPECTS, 'status', 'Not Relevant'),
     statusIndex(BOARDS.OPPORTUNITIES, 'color_mkxerb02', 'UK'),
     statusIndex(BOARDS.OPPORTUNITIES, 'color_mkz28c27', 'Won'),
     statusIndex(BOARDS.OPPORTUNITIES, 'color_mkz28c27', 'Lost'),
     statusIndex(BOARDS.LEADS, LEAD_COLS.REGION, 'UK'),
   ]);
-  if ([oppUK, won, lost, leadUK].includes(null)) throw new Error('Could not resolve UK / Won / Lost status labels');
-  const [opportunities, leads] = await Promise.all([
+  if ([prospectUK, newProspect, notRelevant, oppUK, won, lost, leadUK].includes(null)) {
+    throw new Error('Could not resolve the status labels the missing-data rules filter on');
+  }
+  const [prospects, opportunities, leads] = await Promise.all([
+    paginateQuery(BOARDS.PROSPECTS, MISSING_PROSPECT_FIELDS, `{ rules: [
+      { column_id: "color_mm4fna6", compare_value: [${prospectUK}], operator: any_of },
+      { column_id: "status", compare_value: [${newProspect}, ${notRelevant}], operator: not_any_of }
+    ], operator: and }`, 4),
     paginateQuery(BOARDS.OPPORTUNITIES, MISSING_OPP_FIELDS, `{ rules: [
       { column_id: "color_mkxerb02", compare_value: [${oppUK}], operator: any_of },
       { column_id: "color_mkz28c27", compare_value: [${won}, ${lost}], operator: not_any_of }
@@ -1428,5 +1444,5 @@ export async function fetchMissingDataCandidates() {
       { column_id: "${LEAD_COLS.REGION}", compare_value: [${leadUK}], operator: any_of }
     ] }`, 4),
   ]);
-  return { opportunities, leads };
+  return { prospects, opportunities, leads };
 }
