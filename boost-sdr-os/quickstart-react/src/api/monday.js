@@ -1333,6 +1333,8 @@ export function buildColumnValue(type, value) {
     return isEmpty ? null : { date: String(value) };
   } else if (type === 'numbers') {
     return isEmpty ? null : String(value);
+  } else if (type === 'email') {
+    return isEmpty ? null : { email: String(value).trim(), text: String(value).trim() };
   }
   return String(value ?? '');
 }
@@ -1389,4 +1391,62 @@ export async function updateItemColumns(boardId, itemId, columnValues, { createL
     patchCachedOpportunity(String(updated.id), { column_values: updated.column_values, name: updated.name });
   }
   return data.change_multiple_column_values;
+}
+
+// ── Missing data (UK leads + open UK opportunities) ───────────────
+// Only the columns the missing-data rules check (see utils/missingData.js),
+// filtered server-side so closed deals and other regions never load.
+const MISSING_OPP_FIELDS = `
+  id name updated_at
+  column_values(ids: [
+    "color_mkz28c27", "color_mkz2atw5", "color_mkxerb02", "color_mm4xexb2",
+    "numeric_mm1j3hkq", "numeric_mkz3h4rp", "color_mkzaet62", "color_mkza93q9",
+    "deal_expected_close_date", "deal_owner", "numeric_mm5pgbax", "color_mm5phjr9",
+    "text_mkz2m8qz", "date_mkz2b26d", "deal_contact", "email", "text8"
+  ]) { id text value ${REL_FRAGMENT} }
+`;
+
+const MISSING_LEAD_FIELDS = `
+  id name created_at updated_at
+  column_values(ids: [
+    "${LEAD_COLS.STATUS}", "${LEAD_COLS.COMPANY}", "${LEAD_COLS.EMAIL}", "${LEAD_COLS.SDR}",
+    "${LEAD_COLS.BIZDEV}", "${LEAD_COLS.SOURCE}", "${LEAD_COLS.CONVERSION}",
+    "${LEAD_COLS.REGION}", "date_mm45gm2e"
+  ]) { id text value }
+`;
+
+const MISSING_PROSPECT_FIELDS = `
+  id name
+  column_values(ids: [
+    "status", "person", "text_mkw7ezh6", "email_mm14rb30", "phone_mm1t253", "text_mm4hkx37", "color_mm4fna6"
+  ]) { id text value }
+`;
+
+export async function fetchMissingDataCandidates() {
+  const [prospectUK, newProspect, notRelevant, oppUK, won, lost, leadUK] = await Promise.all([
+    statusIndex(BOARDS.PROSPECTS, 'color_mm4fna6', 'UK'),
+    statusIndex(BOARDS.PROSPECTS, 'status', 'New Prospect'),
+    statusIndex(BOARDS.PROSPECTS, 'status', 'Not Relevant'),
+    statusIndex(BOARDS.OPPORTUNITIES, 'color_mkxerb02', 'UK'),
+    statusIndex(BOARDS.OPPORTUNITIES, 'color_mkz28c27', 'Won'),
+    statusIndex(BOARDS.OPPORTUNITIES, 'color_mkz28c27', 'Lost'),
+    statusIndex(BOARDS.LEADS, LEAD_COLS.REGION, 'UK'),
+  ]);
+  if ([prospectUK, newProspect, notRelevant, oppUK, won, lost, leadUK].includes(null)) {
+    throw new Error('Could not resolve the status labels the missing-data rules filter on');
+  }
+  const [prospects, opportunities, leads] = await Promise.all([
+    paginateQuery(BOARDS.PROSPECTS, MISSING_PROSPECT_FIELDS, `{ rules: [
+      { column_id: "color_mm4fna6", compare_value: [${prospectUK}], operator: any_of },
+      { column_id: "status", compare_value: [${newProspect}, ${notRelevant}], operator: not_any_of }
+    ], operator: and }`, 4),
+    paginateQuery(BOARDS.OPPORTUNITIES, MISSING_OPP_FIELDS, `{ rules: [
+      { column_id: "color_mkxerb02", compare_value: [${oppUK}], operator: any_of },
+      { column_id: "color_mkz28c27", compare_value: [${won}, ${lost}], operator: not_any_of }
+    ], operator: and }`, 4),
+    paginateQuery(BOARDS.LEADS, MISSING_LEAD_FIELDS, `{ rules: [
+      { column_id: "${LEAD_COLS.REGION}", compare_value: [${leadUK}], operator: any_of }
+    ] }`, 4),
+  ]);
+  return { prospects, opportunities, leads };
 }
