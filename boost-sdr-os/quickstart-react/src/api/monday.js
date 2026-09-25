@@ -121,6 +121,182 @@ async function paginateBoard(boardId, fields) {
   return allItems;
 }
 
+// Filtered variant of paginateBoard — same cursor walk, but with an
+// items_page query_params block (rules etc.) applied server-side.
+async function paginateQuery(boardId, fields, queryParams, maxPages = 10) {
+  const first = await gql(`
+    query {
+      boards(ids: ["${boardId}"]) {
+        items_page(limit: 500, query_params: ${queryParams}) {
+          cursor
+          items { ${fields} }
+        }
+      }
+    }
+  `);
+  let allItems = first.boards[0]?.items_page?.items ?? [];
+  let cursor   = first.boards[0]?.items_page?.cursor ?? null;
+  let pages = 0;
+  while (cursor && pages < maxPages) {
+    const next = await gql(`
+      query {
+        next_items_page(limit: 500, cursor: "${cursor}") {
+          cursor
+          items { ${fields} }
+        }
+      }
+    `);
+    allItems = [...allItems, ...(next.next_items_page?.items ?? [])];
+    cursor   = next.next_items_page?.cursor ?? null;
+    pages++;
+  }
+  return allItems;
+}
+
+// Fetches items by id in batches — items(ids:) accepts at most 100 ids per call.
+async function fetchItemsByIds(ids, fields) {
+  const unique = [...new Set(ids.map(String))];
+  const out = [];
+  for (let i = 0; i < unique.length; i += 100) {
+    const batch = unique.slice(i, i + 100);
+    const data = await gql(`query { items(ids: [${batch.join(', ')}]) { ${fields} } }`);
+    out.push(...(data.items ?? []));
+  }
+  return out;
+}
+
+// ── Connect-board columns used for event attribution ─────────────
+// Each pair is two-way (verified live: linking a lead from the lead side shows
+// up on the event's Leads Boost column). Reads use BoardRelationValue's
+// linked_item_ids — the older `linked_items` field returns an empty list for
+// these columns, which is why event insights always showed zero.
+export const REL = {
+  EVENT_LEADS:  'board_relation_mm7g9cm7', // Events → Leads
+  EVENT_OPPS:   'board_relation_mm5hvv3n', // Events → Opportunities
+  LEAD_EVENT:   'board_relation_mm7gjat2', // Leads → Events
+  LEAD_OPPS:    'board_relation_mkyh8bbz', // Leads → Opportunities (set by lead conversion)
+  OPP_EVENT:    'board_relation_mm5h61mf', // Opportunities → Events
+  OPP_LEADS:    'board_relation_mkyhhjta', // Opportunities → Leads
+};
+
+export const LEAD_COLS = {
+  STATUS:     'lead_status',
+  COMPANY:    'lead_company',
+  EMAIL:      'lead_email',
+  REGION:     'color_mkz4y1yv',
+  SDR:        'multiple_person_mm2bjm2z',
+  BIZDEV:     'lead_owner',
+  SOURCE:     'color_mkwrdphn',
+  CONVERSION: 'color_mkxeqbfx',
+};
+
+export const EVENT_ACTUAL_SPEND = 'numeric_mm7hyyma'; // numbers, GBP
+
+const REL_FRAGMENT = '... on BoardRelationValue { linked_item_ids }';
+
+// Linked item ids of a board_relation column (requires REL_FRAGMENT in the query).
+export function relIds(item, columnId) {
+  const cv = item?.column_values?.find(c => c.id === columnId);
+  return (cv?.linked_item_ids ?? []).map(String);
+}
+
+// Replaces a connect-boards column's links. Uses change_column_value because
+// change_multiple_column_values silently ignores board_relation values.
+export async function setRelation(boardId, itemId, columnId, linkedIds) {
+  const value = JSON.stringify(JSON.stringify({ item_ids: (linkedIds ?? []).map(Number) }));
+  await gql(`
+    mutation {
+      change_column_value(
+        board_id: ${boardId},
+        item_id: ${itemId},
+        column_id: "${columnId}",
+        value: ${value}
+      ) { id }
+    }
+  `);
+}
+
+// Adds eventId to an opportunity's event links without dropping existing ones.
+// Reads the current value first so a stale local copy can't clobber links
+// someone else added in monday.
+export async function addOpportunityEvent(oppId, eventId) {
+  const data = await gql(`query { items(ids: [${oppId}]) { column_values(ids: ["${REL.OPP_EVENT}"]) { id ${REL_FRAGMENT} } } }`);
+  const current = relIds(data.items?.[0], REL.OPP_EVENT);
+  if (current.includes(String(eventId))) return false;
+  await setRelation(BOARDS.OPPORTUNITIES, oppId, REL.OPP_EVENT, [...current, String(eventId)]);
+  return true;
+}
+
+export async function removeOpportunityEvent(oppId, eventId) {
+  const data = await gql(`query { items(ids: [${oppId}]) { column_values(ids: ["${REL.OPP_EVENT}"]) { id ${REL_FRAGMENT} } } }`);
+  const current = relIds(data.items?.[0], REL.OPP_EVENT);
+  await setRelation(BOARDS.OPPORTUNITIES, oppId, REL.OPP_EVENT, current.filter(id => id !== String(eventId)));
+}
+
+// Links a lead to exactly one event (or none), then write-through links the
+// lead's existing opportunities to that event too, so monday's own views match
+// what the Events report derives. Returns the ids of opportunities newly linked.
+export async function setLeadEvent(leadId, eventId, leadOppIds = []) {
+  await setRelation(BOARDS.LEADS, leadId, REL.LEAD_EVENT, eventId ? [eventId] : []);
+  const linked = [];
+  if (eventId) {
+    for (const oppId of leadOppIds) {
+      if (await addOpportunityEvent(oppId, eventId)) linked.push(String(oppId));
+    }
+  }
+  return linked;
+}
+
+// ── Lead search / quick-add (event Leads tab) ─────────────────────
+const LEAD_SEARCH_FIELDS = `
+  id name
+  column_values(ids: ["${LEAD_COLS.STATUS}", "${LEAD_COLS.COMPANY}", "${LEAD_COLS.SOURCE}", "${LEAD_COLS.CONVERSION}", "${REL.LEAD_EVENT}", "${REL.LEAD_OPPS}"]) {
+    id text value ${REL_FRAGMENT}
+  }
+`;
+
+// Name and company are matched with two contains_text queries in parallel —
+// monday can't OR two contains_text rules on different columns reliably.
+export async function searchLeads(term) {
+  if (!term || term.trim().length < 2) return [];
+  const safe = term.replace(/["\n\r\\]/g, ' ').trim();
+  const q = col => gql(`
+    query {
+      boards(ids: ["${BOARDS.LEADS}"]) {
+        items_page(limit: 25, query_params: {
+          rules: [{ column_id: "${col}", compare_value: ["${safe}"], operator: contains_text }]
+        }) { items { ${LEAD_SEARCH_FIELDS} } }
+      }
+    }
+  `).then(d => d.boards[0]?.items_page?.items ?? []);
+  const [byName, byCompany] = await Promise.all([q('name'), q(LEAD_COLS.COMPANY)]);
+  const seen = new Set();
+  return [...byName, ...byCompany].filter(i => !seen.has(i.id) && seen.add(i.id));
+}
+
+// Creates a lead already attached to an event. Status is left to the board's
+// default so the Leads board's own creation automations behave as normal.
+export async function createEventLead({ name, company, email, sdrId, source, conversion }, eventId) {
+  const cv = { [LEAD_COLS.REGION]: { label: 'UK' } };
+  if (company)    cv[LEAD_COLS.COMPANY] = company;
+  if (email)      cv[LEAD_COLS.EMAIL] = { email, text: email };
+  if (sdrId)      cv[LEAD_COLS.SDR] = { personsAndTeams: [{ id: parseInt(sdrId, 10), kind: 'person' }] };
+  if (source)     cv[LEAD_COLS.SOURCE] = { label: source };
+  if (conversion) cv[LEAD_COLS.CONVERSION] = { label: conversion };
+  const data = await gql(`
+    mutation {
+      create_item(
+        board_id: ${BOARDS.LEADS},
+        item_name: ${JSON.stringify(name)},
+        column_values: ${JSON.stringify(JSON.stringify(cv))}
+      ) { id }
+    }
+  `);
+  const id = data.create_item.id;
+  await setRelation(BOARDS.LEADS, id, REL.LEAD_EVENT, [eventId]);
+  return id;
+}
+
 // Helper: get a column value's text by ID. Formula columns never populate
 // `text` (monday's API only computes it into `display_value`), so fall back
 // to that — otherwise every formula column silently reads as empty/zero.
@@ -849,11 +1025,7 @@ export async function updateOpportunityColumn(itemId, columnId, value, fieldKey,
 }
 
 // ── Events board ──────────────────────────────────────────────────
-// Used by mutations — board_relation excluded because change_multiple_column_values
-// returns it as null. Fetch queries use linked_items instead (see fetchEvents).
-const EVENT_FIELDS = `
-  id name
-  column_values(ids: [
+const EVENT_COLUMN_IDS = `
     "timerange_mm5hahhc",
     "multiple_person_mm5hnbf2",
     "color_mm5g1ye5",
@@ -864,8 +1036,22 @@ const EVENT_FIELDS = `
     "dropdown_mm5g237s",
     "text_mm5gf376",
     "text_mm5gj1xb",
-    "link_mm5gn10g"
-  ]) { id text value }
+    "link_mm5gn10g",
+    "${EVENT_ACTUAL_SPEND}"
+`;
+
+// Used by mutations — board_relation excluded because change_multiple_column_values
+// returns it as null; callers merge the links they just wrote into local state.
+const EVENT_FIELDS = `
+  id name
+  column_values(ids: [${EVENT_COLUMN_IDS}]) { id text value }
+`;
+
+const EVENT_FETCH_FIELDS = `
+  id name
+  column_values(ids: [${EVENT_COLUMN_IDS}, "${REL.EVENT_LEADS}", "${REL.EVENT_OPPS}"]) {
+    id text value ${REL_FRAGMENT}
+  }
 `;
 
 function parseEventItem(item) {
@@ -889,29 +1075,90 @@ function parseEventItem(item) {
     visitorCost:          text('text_mm5gf376'),
     standCost:            text('text_mm5gj1xb'),
     website:              link?.url ?? text('link_mm5gn10g'),
+    actualSpend:          text(EVENT_ACTUAL_SPEND),
     attendeeIds:          (people?.personsAndTeams ?? []).map(p => String(p.id)),
-    // linked_items is populated by fetchEvents; mutations use optimistic update
-    linkedOpportunityIds: (item.linked_items ?? []).map(li => li.id),
+    // Populated by fetchEvents; mutation responses omit them, so callers merge
+    // in the links they just wrote.
+    linkedOpportunityIds: relIds(item, REL.EVENT_OPPS),
+    linkedLeadIds:        relIds(item, REL.EVENT_LEADS),
   };
 }
 
 export async function fetchEvents() {
-  const data = await gql(`
-    query {
-      boards(ids: ["${BOARDS.EVENTS}"]) {
-        items_page(limit: 500) {
-          items {
-            ${EVENT_FIELDS}
-            linked_items(
-              link_to_item_column_id: "board_relation_mm5hvv3n",
-              linked_board_id: ${BOARDS.OPPORTUNITIES}
-            ) { id name }
-          }
-        }
-      }
-    }
-  `);
-  return (data.boards[0]?.items_page?.items ?? []).map(parseEventItem);
+  const items = await paginateBoard(BOARDS.EVENTS, EVENT_FETCH_FIELDS);
+  return items.map(parseEventItem);
+}
+
+// ── Event attribution report ──────────────────────────────────────
+// Pulls only what's attached to an event, never whole boards:
+//   1. every event (with its lead + opp links)
+//   2. every lead whose event column is set
+//   3. every opportunity whose event column is set
+//   4. every opportunity reached through (1)-(3), including the ones a linked
+//      lead converted into, fetched by id with the fields reporting needs
+// plus two small data-quality lists: event-sourced leads/opps with no event.
+const REPORT_LEAD_FIELDS = `
+  id name created_at
+  column_values(ids: [
+    "${LEAD_COLS.STATUS}", "${LEAD_COLS.COMPANY}", "${LEAD_COLS.SOURCE}", "${LEAD_COLS.CONVERSION}",
+    "${LEAD_COLS.SDR}", "${LEAD_COLS.REGION}", "date_mm4wkg8g", "${REL.LEAD_EVENT}", "${REL.LEAD_OPPS}"
+  ]) { id text value ${REL_FRAGMENT} }
+`;
+
+const REPORT_OPP_FIELDS = `
+  id name created_at updated_at
+  column_values(ids: ${JSON.stringify([...OPPORTUNITY_FIELD_IDS, 'numeric_mm5qaeda', REL.OPP_EVENT, REL.OPP_LEADS])}) {
+    id text value
+    ... on FormulaValue { display_value }
+    ${REL_FRAGMENT}
+  }
+`;
+
+// Resolves a status label to its index — status rules filter by index, not text.
+async function statusIndex(boardId, columnId, label) {
+  const data = await gql(`query { boards(ids: ["${boardId}"]) { columns(ids: ["${columnId}"]) { settings_str } } }`);
+  try {
+    const labels = JSON.parse(data.boards[0]?.columns?.[0]?.settings_str ?? '{}').labels ?? {};
+    const hit = Object.entries(labels).find(([, l]) => l === label);
+    return hit ? Number(hit[0]) : null;
+  } catch { return null; }
+}
+
+async function fetchUnlinkedEventSourced(boardId, sourceCol, eventCol, fields) {
+  const idx = await statusIndex(boardId, sourceCol, 'Events/Conferences');
+  if (idx === null) return [];
+  return paginateQuery(boardId, fields, `{ rules: [
+    { column_id: "${sourceCol}", compare_value: [${idx}], operator: any_of },
+    { column_id: "${eventCol}", compare_value: [], operator: is_empty }
+  ], operator: and }`, 2);
+}
+
+export async function fetchEventReport() {
+  const [events, leads, directOpps, unlinkedLeads, unlinkedOpps] = await Promise.all([
+    fetchEvents(),
+    paginateQuery(BOARDS.LEADS, REPORT_LEAD_FIELDS,
+      `{ rules: [{ column_id: "${REL.LEAD_EVENT}", compare_value: [], operator: is_not_empty }] }`),
+    paginateQuery(BOARDS.OPPORTUNITIES, `id ${`column_values(ids: ["${REL.OPP_EVENT}"]) { id ${REL_FRAGMENT} }`}`,
+      `{ rules: [{ column_id: "${REL.OPP_EVENT}", compare_value: [], operator: is_not_empty }] }`),
+    fetchUnlinkedEventSourced(BOARDS.LEADS, LEAD_COLS.SOURCE, REL.LEAD_EVENT, REPORT_LEAD_FIELDS).catch(() => []),
+    fetchUnlinkedEventSourced(BOARDS.OPPORTUNITIES, 'color_mkzaet62', REL.OPP_EVENT, REPORT_OPP_FIELDS).catch(() => []),
+  ]);
+
+  // Leads linked only from the event side (shouldn't happen with a two-way
+  // column, but cheap insurance) are fetched by id.
+  const leadIdSet = new Set(leads.map(l => l.id));
+  const missingLeadIds = events.flatMap(e => e.linkedLeadIds).filter(id => !leadIdSet.has(id));
+  const extraLeads = missingLeadIds.length ? await fetchItemsByIds(missingLeadIds, REPORT_LEAD_FIELDS) : [];
+  const allLeads = [...leads, ...extraLeads];
+
+  const oppIds = [
+    ...directOpps.map(o => o.id),
+    ...events.flatMap(e => e.linkedOpportunityIds),
+    ...allLeads.flatMap(l => relIds(l, REL.LEAD_OPPS)),
+  ];
+  const opportunities = oppIds.length ? await fetchItemsByIds(oppIds, REPORT_OPP_FIELDS) : [];
+
+  return { events, leads: allLeads, opportunities, unlinkedLeads, unlinkedOpps };
 }
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -948,26 +1195,17 @@ function buildEventColumnValues(form) {
   cv['text_mm5gj1xb'] = form.standCost   ?? '';
   if (form.sector)   cv['dropdown_mm5g237s'] = { labels: [form.sector] };
   if (form.website)  cv['link_mm5gn10g']    = { url: form.website, text: form.website };
+  if (form.actualSpend !== undefined) cv[EVENT_ACTUAL_SPEND] = buildColumnValue('numbers', form.actualSpend);
   // board_relation is intentionally excluded — change_multiple_column_values silently
   // ignores it. Use linkEventOpportunities() separately after the main mutation.
   return cv;
 }
 
-// board_relation columns are silently ignored by change_multiple_column_values.
-// This dedicated mutation uses change_column_value which does support them.
+// board_relation columns are silently ignored by change_multiple_column_values,
+// so the direct opportunity links go through setRelation. An empty list clears
+// the column (previously it returned early, so removing the last opp did nothing).
 async function linkEventOpportunities(itemId, opportunityIds) {
-  if (!opportunityIds?.length) return;
-  const value = JSON.stringify(JSON.stringify({ item_ids: opportunityIds.map(Number) }));
-  await gql(`
-    mutation {
-      change_column_value(
-        board_id: ${BOARDS.EVENTS},
-        item_id: ${itemId},
-        column_id: "board_relation_mm5hvv3n",
-        value: ${value}
-      ) { id }
-    }
-  `);
+  await setRelation(BOARDS.EVENTS, itemId, REL.EVENT_OPPS, opportunityIds ?? []);
 }
 
 export async function createEvent(form) {
@@ -1033,9 +1271,14 @@ export async function fetchAllLeads() {
   // lead_owner (Bizdev) and multiple_person_mm2bjm2z (SDR) are the two people
   // columns on this board — both are fetched so "My Work" assignment matching
   // (isAssignedToUser) can check either, not just the SDR column.
+  // Event, source, conversion and the lead's opportunities feed the sidebar's
+  // Event field (and its write-through to converted opportunities).
   const FIELDS = `
     id name updated_at
-    column_values(ids: ["lead_status", "color_mkz4y1yv", "multiple_person_mm2bjm2z", "lead_owner", "lead_company"]) { id text value }
+    column_values(ids: [
+      "lead_status", "color_mkz4y1yv", "multiple_person_mm2bjm2z", "lead_owner", "lead_company",
+      "${LEAD_COLS.SOURCE}", "${LEAD_COLS.CONVERSION}", "${REL.LEAD_EVENT}", "${REL.LEAD_OPPS}"
+    ]) { id text value ${REL_FRAGMENT} }
   `;
 
   const first = await gql(`

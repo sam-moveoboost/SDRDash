@@ -118,7 +118,7 @@ export default function App() {
         {tab === 'opportunities' && (
           <OpportunityScoreboard region={region} user={user} />
         )}
-        {tab === 'events'        && <Events />}
+        {tab === 'events'        && <Events user={user} />}
       </main>
     </div>
   );
