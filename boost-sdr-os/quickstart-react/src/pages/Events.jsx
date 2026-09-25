@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { fetchEvents, fetchWorkspaceUsers } from '../api/monday';
+import { fetchEventReport, fetchWorkspaceUsers } from '../api/monday';
+import { buildEventReport } from '../utils/eventMetrics';
 import EventCalendar from '../components/events/EventCalendar';
 import EventModal from '../components/events/EventModal';
 import EventInsights from '../components/events/EventInsights';
@@ -7,23 +8,29 @@ import ProgressBar from '../components/shared/ProgressBar';
 
 const YEAR_OPTIONS = [2025, 2026, 2027, 2028];
 
-export default function Events() {
+export default function Events({ user }) {
   const [loading, setLoading]   = useState(true);
-  const [events, setEvents]     = useState([]);
+  const [raw, setRaw]           = useState(null);
   const [users, setUsers]       = useState([]);
   const [userMap, setUserMap]   = useState({});
   const [year, setYear]         = useState(new Date().getFullYear());
   const [error, setError]       = useState(null);
 
-  // Modal state: null = closed, 'new' = create, event object = edit
-  const [modalEvent, setModalEvent] = useState(undefined);
-  const modalOpen = modalEvent !== undefined;
+  // Modal: undefined = closed, { id: null } = create, { id, tab } = existing event
+  const [modal, setModal] = useState(undefined);
+
+  // Reloads the whole report — called after any link is added or removed, so
+  // every tile, table and tab reflects what's actually on the boards.
+  const reload = useCallback(() => (
+    fetchEventReport()
+      .then(setRaw)
+      .catch(err => setError(err.message))
+  ), []);
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([fetchEvents(), fetchWorkspaceUsers()])
-      .then(([evts, allUsers]) => {
-        setEvents(evts);
+    Promise.all([reload(), fetchWorkspaceUsers()])
+      .then(([, allUsers]) => {
         setUsers(allUsers);
         const map = {};
         allUsers.forEach(u => { map[String(u.id)] = u; });
@@ -31,33 +38,26 @@ export default function Events() {
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [reload]);
 
-  // Called after a successful create or update
-  const handleSaved = useCallback((savedEvent) => {
-    setEvents(prev => {
-      const idx = prev.findIndex(e => e.id === savedEvent.id);
-      if (idx >= 0) {
-        // Update existing
-        const next = [...prev];
-        next[idx] = savedEvent;
-        return next;
-      }
-      // New event — append and re-sort by start date
-      return [...prev, savedEvent].sort((a, b) =>
-        (a.startDate ?? '').localeCompare(b.startDate ?? '')
-      );
-    });
-    setModalEvent(undefined);
-  }, []);
+  const report = useMemo(() => (raw ? buildEventReport(raw, year) : null), [raw, year]);
+  const events = raw?.events ?? [];
 
-  // Events filtered to selected year for the leaderboard
-  // All events in the selected year — used for Opportunity Insights
-  const yearEvents = useMemo(() => {
-    const start = `${year}-01-01`;
-    const end   = `${year}-12-31`;
-    return events.filter(e => e.startDate && e.startDate >= start && e.startDate <= end);
-  }, [events, year]);
+  const handleSaved = useCallback(async () => {
+    setModal(undefined);
+    setLoading(true);
+    await reload();
+    setLoading(false);
+  }, [reload]);
+
+  const handleChanged = useCallback(async () => {
+    setLoading(true);
+    await reload();
+    setLoading(false);
+  }, [reload]);
+
+  const modalEvent = modal?.id ? events.find(e => e.id === modal.id) ?? null : null;
+  const modalRow   = modal?.id ? report?.rows.find(r => r.event.id === modal.id) ?? null : null;
 
   if (error) return (
     <div className="max-w-5xl mx-auto px-7 py-10 text-red">Failed to load events: {error}</div>
@@ -67,7 +67,7 @@ export default function Events() {
     <>
       <ProgressBar loading={loading} />
 
-      <div className="max-w-5xl mx-auto px-7 py-8 pb-20">
+      <div className="max-w-6xl mx-auto px-7 py-8 pb-20">
 
         {/* Page title + controls */}
         <div className="flex items-end justify-between mb-7">
@@ -77,15 +77,13 @@ export default function Events() {
             </p>
             <h1 className="font-display text-[36px] leading-[1.1] font-semibold tracking-tight mb-2">Events</h1>
             <p className="text-muted text-[15px] max-w-xl">
-              UK event calendar and team attendance tracking.
-              {year === 2026 && ' Leaderboard counts events from 1 Sep 2026.'}
+              UK event calendar, plus the leads, opportunities and revenue each event brings in.
             </p>
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Create event button */}
             <button
-              onClick={() => setModalEvent(null)}
+              onClick={() => setModal({ id: null })}
               className="flex items-center gap-2 px-4 py-2 bg-navy text-white rounded-full text-[13.5px] font-semibold hover:bg-navy-700 transition-colors shadow-sm"
             >
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -95,7 +93,6 @@ export default function Events() {
               New Event
             </button>
 
-            {/* Year selector */}
             <div className="flex items-center gap-2 bg-card border border-line rounded-xl px-3 py-2 shadow-sm">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-muted flex-shrink-0">
                 <rect x="1" y="2" width="12" height="11" rx="2" />
@@ -113,42 +110,54 @@ export default function Events() {
           </div>
         </div>
 
-        {/* Calendar — shows ALL events, free month navigation */}
+        {/* Event results */}
         <div className="text-[13px] font-semibold tracking-[.08em] uppercase text-muted mb-3.5 flex items-center gap-2.5 after:content-[''] after:flex-1 after:h-px after:bg-line">
-          Event Calendar
+          Event Results · {year}
         </div>
-        {loading
-          ? <div className="bg-card border border-line rounded-2xl h-[420px] animate-pulse mb-8" />
+        {!report
+          ? <div className="bg-card border border-line rounded-2xl h-48 animate-pulse mb-8" />
           : (
-            <div className="mb-8">
-              <EventCalendar
-                events={events}
+            <div className="mb-10">
+              <EventInsights
+                report={report}
                 userMap={userMap}
-                onEventClick={e => setModalEvent(e)}
+                year={year}
+                onOpenEvent={(id, tab) => setModal({ id, tab })}
+                onChanged={handleChanged}
               />
             </div>
           )
         }
 
-        {/* Opportunity Insights — full year, no Sep 1 cutoff */}
+        {/* Calendar — shows ALL events, free month navigation */}
         <div className="text-[13px] font-semibold tracking-[.08em] uppercase text-muted mb-3.5 flex items-center gap-2.5 after:content-[''] after:flex-1 after:h-px after:bg-line">
-          Opportunity Insights · {year}
+          Event Calendar
         </div>
-        {loading
-          ? <div className="bg-card border border-line rounded-2xl h-48 animate-pulse mb-8" />
-          : <div className="mb-8"><EventInsights events={yearEvents} userMap={userMap} /></div>
+        {!raw
+          ? <div className="bg-card border border-line rounded-2xl h-[420px] animate-pulse" />
+          : (
+            <EventCalendar
+              events={events}
+              userMap={userMap}
+              onEventClick={e => setModal({ id: e.id, tab: 'details' })}
+            />
+          )
         }
-
-
       </div>
 
-      {/* Modal — null = create new, event object = edit */}
-      {modalOpen && (
+      {modal !== undefined && (modal.id === null || modalEvent) && (
         <EventModal
+          key={modal.id ?? 'new'}
           event={modalEvent}
+          row={modalRow}
+          events={events}
           users={users}
-          onSave={handleSaved}
-          onClose={() => setModalEvent(undefined)}
+          me={user}
+          fx={report?.fx}
+          initialTab={modal.tab}
+          onSaved={handleSaved}
+          onChanged={handleChanged}
+          onClose={() => setModal(undefined)}
         />
       )}
     </>

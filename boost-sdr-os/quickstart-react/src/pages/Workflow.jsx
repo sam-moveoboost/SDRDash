@@ -8,11 +8,18 @@ import {
   fetchBoardColumns,
   updateItemColumns,
   buildColumnValue,
+  fetchEvents,
+  setLeadEvent,
+  relIds,
+  REL,
+  LEAD_COLS,
   BOARDS,
 } from '../api/monday';
 import ProgressBar from '../components/shared/ProgressBar';
 import OpportunityDetailPanel from '../components/opportunities/OpportunityDetailPanel';
 import { parseOpportunity, formatMoney, OPP_COLS } from '../utils/opportunityMetrics';
+import { EventPicker, HowMetChoice } from '../components/events/EventPicker';
+import { EVENT_SOURCE, defaultHowMet } from '../utils/eventMetrics';
 
 // ── Helpers ────────────────────────────────────────────────────────
 
@@ -313,11 +320,37 @@ function inputCls(dirty) {
   }`;
 }
 
-function DetailPanel({ item, boardType, boardCols, wsUsers, accountSlug, onClose, onUpdate }) {
+// Keeps connect-board values after a save — the mutation response's
+// column_values carry no linked_item_ids, so without this the lead would look
+// unlinked from its event and opportunities until the next full reload.
+function withRelations(cvs, relations) {
+  const out = (cvs ?? []).filter(cv => !(cv.id in relations));
+  Object.entries(relations).forEach(([id, ids]) => out.push({ id, text: null, value: null, linked_item_ids: ids }));
+  return out;
+}
+
+function DetailPanel({ item, boardType, boardCols, wsUsers, events, accountSlug, onClose, onUpdate }) {
   const cfg = SECTION_CFG[boardType];
   const [edits, setEdits]       = useState({});
   const [saving, setSaving]     = useState(false);
   const [savedMsg, setSavedMsg] = useState('');
+
+  // Event link (leads only) — one event per lead
+  const isLead         = boardType === 'lead';
+  const currentEventId = isLead ? (relIds(item, REL.LEAD_EVENT)[0] ?? null) : null;
+  const leadOppIds     = isLead ? relIds(item, REL.LEAD_OPPS) : [];
+  const [eventEdit, setEventEdit] = useState(undefined); // undefined = unchanged
+  const [howMet, setHowMet]       = useState(null);
+  const eventChanged = eventEdit !== undefined && eventEdit !== currentEventId;
+  const pickedEvent  = eventChanged && eventEdit ? events.find(e => e.id === eventEdit) : null;
+  const currentSource     = isLead ? colText(item, LEAD_COLS.SOURCE) : '';
+  const currentConversion = isLead ? colText(item, LEAD_COLS.CONVERSION) : '';
+
+  function pickEvent(id) {
+    setEventEdit(id);
+    const ev = events.find(e => e.id === id);
+    setHowMet(ev ? defaultHowMet(ev) : null);
+  }
 
   const name    = cfg.getName(item);
   const company = cfg.getCompany(item);
@@ -340,7 +373,7 @@ function DetailPanel({ item, boardType, boardCols, wsUsers, accountSlug, onClose
 
   async function handleSave() {
     const changed = Object.keys(edits);
-    if (!changed.length) return;
+    if (!changed.length && !eventChanged) return;
     if (changed.includes('name') && !String(edits.name).trim()) {
       setSavedMsg('Error: Name cannot be empty');
       return;
@@ -360,10 +393,31 @@ function DetailPanel({ item, boardType, boardCols, wsUsers, accountSlug, onClose
       }
       if (changed.includes('name')) cv.name = edits.name.trim();
 
-      const updated = await updateItemColumns(cfg.boardId, item.id, cv);
-      onUpdate(item.id, boardType, updated.column_values, updated.name);
+      // Linking to an event pre-fills Source / Conversion Activity, but only
+      // where they're blank — never overwrites what a rep already set.
+      if (pickedEvent) {
+        if (!currentSource) cv[LEAD_COLS.SOURCE] = { label: EVENT_SOURCE };
+        if (!currentConversion && howMet) cv[LEAD_COLS.CONVERSION] = { label: howMet };
+      }
+
+      const updated = Object.keys(cv).length
+        ? await updateItemColumns(cfg.boardId, item.id, cv)
+        : { column_values: item.column_values, name: undefined };
+
+      let linkedOpps = [];
+      let relations = {};
+      if (isLead) {
+        const eventIds = eventChanged ? (eventEdit ? [eventEdit] : []) : relIds(item, REL.LEAD_EVENT);
+        if (eventChanged) linkedOpps = await setLeadEvent(item.id, eventEdit, leadOppIds);
+        relations = { [REL.LEAD_EVENT]: eventIds, [REL.LEAD_OPPS]: leadOppIds };
+      }
+
+      onUpdate(item.id, boardType, isLead ? withRelations(updated.column_values, relations) : updated.column_values, updated.name);
       setEdits({});
-      setSavedMsg('Saved ✓');
+      setEventEdit(undefined);
+      setSavedMsg(linkedOpps.length
+        ? `Saved ✓ · ${linkedOpps.length} opportunit${linkedOpps.length > 1 ? 'ies' : 'y'} linked to the event too`
+        : 'Saved ✓');
       setTimeout(() => setSavedMsg(''), 3000);
     } catch (e) {
       setSavedMsg(`Error: ${e.message}`);
@@ -372,7 +426,7 @@ function DetailPanel({ item, boardType, boardCols, wsUsers, accountSlug, onClose
     }
   }
 
-  const dirtyCount = Object.keys(edits).length;
+  const dirtyCount = Object.keys(edits).length + (eventChanged ? 1 : 0);
 
   return (
     <div className="h-full flex flex-col">
@@ -573,6 +627,43 @@ function DetailPanel({ item, boardType, boardCols, wsUsers, accountSlug, onClose
           </div>
         )}
 
+        {/* Event — which event this lead came from */}
+        {isLead && (
+          <div>
+            <p className="text-[10.5px] font-bold uppercase tracking-wider text-muted mb-2.5">Event</p>
+            <EventPicker
+              events={events}
+              value={eventChanged ? eventEdit : currentEventId}
+              onChange={pickEvent}
+              dirty={eventChanged}
+            />
+            {pickedEvent && (
+              <div className="mt-2.5 bg-canvas rounded-xl px-3 py-2.5 space-y-2">
+                {currentConversion ? (
+                  <p className="text-[12px] text-muted">
+                    Conversion Activity is already <span className="font-semibold text-ink">{currentConversion}</span>, so it won't be changed.
+                  </p>
+                ) : (
+                  <>
+                    <p className="text-[11.5px] font-semibold text-ink">How did you meet them?</p>
+                    <HowMetChoice value={howMet} onChange={setHowMet} />
+                  </>
+                )}
+                <p className="text-[11px] text-muted">
+                  {[
+                    !currentSource && `Source → ${EVENT_SOURCE}`,
+                    !currentConversion && howMet && `Conversion Activity → ${howMet}`,
+                    leadOppIds.length > 0 && `${leadOppIds.length} existing opportunit${leadOppIds.length > 1 ? 'ies' : 'y'} will be linked to this event`,
+                  ].filter(Boolean).join(' · ') || 'Only the event link will change.'}
+                </p>
+              </div>
+            )}
+            {eventChanged && !eventEdit && currentEventId && (
+              <p className="mt-2 text-[11.5px] text-muted">The event link will be removed on save. Opportunities already linked to the event stay linked.</p>
+            )}
+          </div>
+        )}
+
         {/* Notes — any long_text column matching "notes" keywords */}
         {boardCols && (() => {
           const notesCol = boardCols.find(c =>
@@ -649,6 +740,7 @@ function SectionEmpty({ boardType }) {
 export default function Workflow({ region, user: userProp }) {
   const [me, setMe]           = useState(userProp ?? null);
   const [wsUsers, setWsUsers] = useState([]);
+  const [events, setEvents]   = useState([]);
   const [prospects, setProspects] = useState([]);
   const [leads, setLeads]         = useState([]);
   const [opps, setOpps]           = useState([]);
@@ -690,6 +782,8 @@ export default function Workflow({ region, user: userProp }) {
 
       // Workspace users — needed for detail panel people pickers
       fetchWorkspaceUsers().then(setWsUsers).catch(() => {});
+      // Events — for the lead sidebar's Event picker
+      fetchEvents().then(setEvents).catch(() => {});
 
       // Fire all three sections independently so each renders as its data arrives
       fetchProspects({ userId: uid, cursor: null })
@@ -980,6 +1074,7 @@ export default function Workflow({ region, user: userProp }) {
                 boardType={selected.boardType}
                 boardCols={selectedBoardCols}
                 wsUsers={wsUsers}
+                events={events}
                 accountSlug={accountSlug}
                 onClose={() => setSelected(null)}
                 onUpdate={handleUpdate}
