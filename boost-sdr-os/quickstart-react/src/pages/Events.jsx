@@ -111,20 +111,8 @@ export default function Events({ user }) {
         </div>
 
         {/* Calendar — shows ALL events, free month navigation */}
-        <div className="flex items-center gap-3 mb-3.5">
-          <div className="flex-1 text-[13px] font-semibold tracking-[.08em] uppercase text-muted flex items-center gap-2.5 after:content-[''] after:flex-1 after:h-px after:bg-line">
-            Event Calendar
-          </div>
-          <button
-            onClick={() => setModal({ id: null })}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-navy text-white rounded-full text-[12.5px] font-semibold hover:bg-navy-700 transition-colors shadow-sm flex-shrink-0"
-          >
-            <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <line x1="7" y1="1" x2="7" y2="13" />
-              <line x1="1" y1="7" x2="13" y2="7" />
-            </svg>
-            New Event
-          </button>
+        <div className="text-[13px] font-semibold tracking-[.08em] uppercase text-muted mb-3.5 flex items-center gap-2.5 after:content-[''] after:flex-1 after:h-px after:bg-line">
+          Event Calendar
         </div>
         {!raw
           ? <div className="bg-card border border-line rounded-2xl h-[420px] animate-pulse mb-10" />
