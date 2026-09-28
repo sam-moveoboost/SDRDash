@@ -70,7 +70,7 @@ export default function Events({ user }) {
       <div className="max-w-6xl mx-auto px-7 py-8 pb-20">
 
         {/* Page title + controls */}
-        <div className="flex items-end justify-between mb-7">
+        <div className="flex flex-wrap items-end justify-between gap-4 mb-7">
           <div>
             <p className="text-[12px] font-semibold tracking-[.08em] uppercase text-emerald mb-1.5">
               Event Planning
@@ -110,6 +110,23 @@ export default function Events({ user }) {
           </div>
         </div>
 
+        {/* Calendar — shows ALL events, free month navigation */}
+        <div className="text-[13px] font-semibold tracking-[.08em] uppercase text-muted mb-3.5 flex items-center gap-2.5 after:content-[''] after:flex-1 after:h-px after:bg-line">
+          Event Calendar
+        </div>
+        {!raw
+          ? <div className="bg-card border border-line rounded-2xl h-[420px] animate-pulse mb-10" />
+          : (
+            <div className="mb-10">
+              <EventCalendar
+                events={events}
+                userMap={userMap}
+                onEventClick={e => setModal({ id: e.id, tab: 'details' })}
+              />
+            </div>
+          )
+        }
+
         {/* Event results */}
         <div className="text-[13px] font-semibold tracking-[.08em] uppercase text-muted mb-3.5 flex items-center gap-2.5 after:content-[''] after:flex-1 after:h-px after:bg-line">
           Event Results · {year}
@@ -117,7 +134,7 @@ export default function Events({ user }) {
         {!report
           ? <div className="bg-card border border-line rounded-2xl h-48 animate-pulse mb-8" />
           : (
-            <div className="mb-10">
+            <div>
               <EventInsights
                 report={report}
                 userMap={userMap}
@@ -126,21 +143,6 @@ export default function Events({ user }) {
                 onChanged={handleChanged}
               />
             </div>
-          )
-        }
-
-        {/* Calendar — shows ALL events, free month navigation */}
-        <div className="text-[13px] font-semibold tracking-[.08em] uppercase text-muted mb-3.5 flex items-center gap-2.5 after:content-[''] after:flex-1 after:h-px after:bg-line">
-          Event Calendar
-        </div>
-        {!raw
-          ? <div className="bg-card border border-line rounded-2xl h-[420px] animate-pulse" />
-          : (
-            <EventCalendar
-              events={events}
-              userMap={userMap}
-              onEventClick={e => setModal({ id: e.id, tab: 'details' })}
-            />
           )
         }
       </div>
