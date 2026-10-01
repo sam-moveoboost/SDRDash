@@ -10,6 +10,7 @@ import {
   buildColumnValue,
   fetchEvents,
   setLeadEvent,
+  setProspectEvent,
   relIds,
   REL,
   LEAD_COLS,
@@ -347,9 +348,13 @@ function DetailPanel({ item, boardType, boardCols, wsUsers, events, accountSlug,
   const [saving, setSaving]     = useState(false);
   const [savedMsg, setSavedMsg] = useState('');
 
-  // Event link (leads only) — one event per lead
+  // Event link (leads and prospects) — one event per record. Only leads get
+  // the Source / Conversion Activity pre-fill; the Prospects board has neither.
   const isLead         = boardType === 'lead';
-  const currentEventId = isLead ? (relIds(item, REL.LEAD_EVENT)[0] ?? null) : null;
+  const isProspect     = boardType === 'prospect';
+  const hasEvent       = isLead || isProspect;
+  const eventCol       = isLead ? REL.LEAD_EVENT : REL.PROSPECT_EVENT;
+  const currentEventId = hasEvent ? (relIds(item, eventCol)[0] ?? null) : null;
   const leadOppIds     = isLead ? relIds(item, REL.LEAD_OPPS) : [];
   const [eventEdit, setEventEdit] = useState(undefined); // undefined = unchanged
   const [howMet, setHowMet]       = useState(null);
@@ -409,7 +414,7 @@ function DetailPanel({ item, boardType, boardCols, wsUsers, events, accountSlug,
       // Linking to an event pre-fills Source / Conversion Activity, but only
       // where they're blank — never overwrites what a rep already set.
       // A value the rep picked in the Source / Conversion Activity dropdowns wins.
-      if (pickedEvent) {
+      if (pickedEvent && isLead) {
         if (!currentSource && !(LEAD_COLS.SOURCE in edits)) cv[LEAD_COLS.SOURCE] = { label: EVENT_SOURCE };
         if (!currentConversion && howMet && !(LEAD_COLS.CONVERSION in edits)) cv[LEAD_COLS.CONVERSION] = { label: howMet };
       }
@@ -420,13 +425,14 @@ function DetailPanel({ item, boardType, boardCols, wsUsers, events, accountSlug,
 
       let linkedOpps = [];
       let relations = {};
-      if (isLead) {
-        const eventIds = eventChanged ? (eventEdit ? [eventEdit] : []) : relIds(item, REL.LEAD_EVENT);
-        if (eventChanged) linkedOpps = await setLeadEvent(item.id, eventEdit, leadOppIds);
-        relations = { [REL.LEAD_EVENT]: eventIds, [REL.LEAD_OPPS]: leadOppIds };
+      if (hasEvent) {
+        const eventIds = eventChanged ? (eventEdit ? [eventEdit] : []) : relIds(item, eventCol);
+        if (eventChanged && isLead) linkedOpps = await setLeadEvent(item.id, eventEdit, leadOppIds);
+        if (eventChanged && isProspect) await setProspectEvent(item.id, eventEdit);
+        relations = isLead ? { [REL.LEAD_EVENT]: eventIds, [REL.LEAD_OPPS]: leadOppIds } : { [REL.PROSPECT_EVENT]: eventIds };
       }
 
-      onUpdate(item.id, boardType, isLead ? withRelations(updated.column_values, relations) : updated.column_values, updated.name);
+      onUpdate(item.id, boardType, hasEvent ? withRelations(updated.column_values, relations) : updated.column_values, updated.name);
       setEdits({});
       setEventEdit(undefined);
       setSavedMsg(linkedOpps.length
@@ -643,17 +649,17 @@ function DetailPanel({ item, boardType, boardCols, wsUsers, events, accountSlug,
           </div>
         )}
 
-        {/* Event — which event this lead came from */}
-        {isLead && (
+        {/* Event — which UK event this lead / prospect came from */}
+        {hasEvent && (
           <div>
-            <p className="text-[10.5px] font-bold uppercase tracking-wider text-muted mb-2.5">Event</p>
+            <p className="text-[10.5px] font-bold uppercase tracking-wider text-muted mb-2.5">UK Event</p>
             <EventPicker
               events={events}
               value={eventChanged ? eventEdit : currentEventId}
               onChange={pickEvent}
               dirty={eventChanged}
             />
-            {pickedEvent && (
+            {pickedEvent && isLead && (
               <div className="mt-2.5 bg-canvas rounded-xl px-3 py-2.5 space-y-2">
                 {currentConversion ? (
                   <p className="text-[12px] text-muted">
@@ -675,7 +681,7 @@ function DetailPanel({ item, boardType, boardCols, wsUsers, events, accountSlug,
               </div>
             )}
             {eventChanged && !eventEdit && currentEventId && (
-              <p className="mt-2 text-[11.5px] text-muted">The event link will be removed on save. Opportunities already linked to the event stay linked.</p>
+              <p className="mt-2 text-[11.5px] text-muted">The event link will be removed on save.{isLead ? ' Opportunities already linked to the event stay linked.' : ''}</p>
             )}
           </div>
         )}
@@ -1147,6 +1153,7 @@ export default function Workflow({ region, user: userProp }) {
               wsUsers={wsUsers}
               me={me}
               region={region}
+              events={events}
               onClose={() => setCreating(null)}
               onCreated={created => handleCreated(creating, created)}
             />

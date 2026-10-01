@@ -177,6 +177,7 @@ export const REL = {
   LEAD_OPPS:    'board_relation_mkyh8bbz', // Leads → Opportunities (set by lead conversion)
   OPP_EVENT:    'board_relation_mm5h61mf', // Opportunities → Events
   OPP_LEADS:    'board_relation_mkyhhjta', // Opportunities → Leads
+  PROSPECT_EVENT: 'board_relation_mm7qczjc', // Prospects → Events ("UK Event", one-way)
 };
 
 export const LEAD_COLS = {
@@ -231,6 +232,15 @@ export async function removeOpportunityEvent(oppId, eventId) {
   const data = await gql(`query { items(ids: [${oppId}]) { column_values(ids: ["${REL.OPP_EVENT}"]) { id ${REL_FRAGMENT} } } }`);
   const current = relIds(data.items?.[0], REL.OPP_EVENT);
   await setRelation(BOARDS.OPPORTUNITIES, oppId, REL.OPP_EVENT, current.filter(id => id !== String(eventId)));
+}
+
+// One event (or none) on a prospect or an opportunity — replaces whatever was
+// linked, matching the one-event-per-record rule used for leads.
+export async function setProspectEvent(prospectId, eventId) {
+  await setRelation(BOARDS.PROSPECTS, prospectId, REL.PROSPECT_EVENT, eventId ? [eventId] : []);
+}
+export async function setOpportunityEvent(oppId, eventId) {
+  await setRelation(BOARDS.OPPORTUNITIES, oppId, REL.OPP_EVENT, eventId ? [eventId] : []);
 }
 
 // Links a lead to exactly one event (or none), then write-through links the
@@ -589,6 +599,7 @@ const OPPORTUNITY_FIELD_IDS = [
   'connect_boards31', // ACCOUNT
   'text8',            // COMPANY
   'color_mm4x2xm1',   // PAYMENT_TERMS
+  'board_relation_mm5h61mf', // UK event (REL.OPP_EVENT)
 ];
 
 // ── Opportunities board cache ─────────────────────────────────────
@@ -632,6 +643,7 @@ function loadOpportunityBoard() {
         text
         value
         ... on FormulaValue { display_value }
+        ${REL_FRAGMENT}
       }
     `)
       .then(items => { setOppCache(items, Date.now()); return _oppCache; })
@@ -871,8 +883,8 @@ const PROSPECT_FIELDS = `
   column_values(ids: [
     "status", "person", "text_mkw7ezh6", "color_mm4fna6",
     "date4", "date_mkwr8xcd", "numeric_mkwrtyh6", "numeric_mkwr3x6d",
-    "text_mm4hbfhh", "text_mm441v8n", "email_mm14rb30", "text_mm09kzh1"
-  ]) { id text value }
+    "text_mm4hbfhh", "text_mm441v8n", "email_mm14rb30", "text_mm09kzh1", "board_relation_mm7qczjc"
+  ]) { id text value ${REL_FRAGMENT} }
 `;
 
 export async function fetchProspects({ userId }) {
@@ -1040,6 +1052,10 @@ export async function fetchEvents() {
   return items.map(parseEventItem);
 }
 
+// Same list, shared for 5 minutes — for the Event pickers in sidebars, which
+// only need names and dates and shouldn't refetch on every record opened.
+export const fetchEventsCached = memoizeAsync(() => fetchEvents(), 5 * 60 * 1000);
+
 // ── Event attribution report ──────────────────────────────────────
 // Pulls only what's attached to an event, never whole boards:
 //   1. every event (with its lead + opp links)
@@ -1058,7 +1074,7 @@ const REPORT_LEAD_FIELDS = `
 
 const REPORT_OPP_FIELDS = `
   id name created_at updated_at
-  column_values(ids: ${JSON.stringify([...OPPORTUNITY_FIELD_IDS, 'numeric_mm5qaeda', REL.OPP_EVENT, REL.OPP_LEADS])}) {
+  column_values(ids: ${JSON.stringify([...new Set([...OPPORTUNITY_FIELD_IDS, 'numeric_mm5qaeda', REL.OPP_EVENT, REL.OPP_LEADS])])}) {
     id text value
     ... on FormulaValue { display_value }
     ${REL_FRAGMENT}

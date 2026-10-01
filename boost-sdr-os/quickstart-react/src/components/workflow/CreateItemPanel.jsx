@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { createItem, buildColumnValue, BOARDS } from '../../api/monday';
+import { createItem, buildColumnValue, setLeadEvent, setProspectEvent, REL, BOARDS } from '../../api/monday';
+import { EventPicker } from '../events/EventPicker';
 
 // Create form for a new prospect or lead, shown in the My Work sidebar.
 // (New opportunities use OpportunityDetailPanel's own create mode.)
@@ -66,7 +67,7 @@ function inputCls(filled) {
   }`;
 }
 
-export default function CreateItemPanel({ boardType, boardCols, wsUsers, me, region, onClose, onCreated }) {
+export default function CreateItemPanel({ boardType, boardCols, wsUsers, me, region, events = [], onClose, onCreated }) {
   const form = FORMS[boardType];
   const optionsFor = id => statusLabels(boardCols?.find(c => c.id === id));
 
@@ -79,6 +80,7 @@ export default function CreateItemPanel({ boardType, boardCols, wsUsers, me, reg
     });
     return v;
   });
+  const [eventId, setEventId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState('');
 
@@ -100,7 +102,17 @@ export default function CreateItemPanel({ boardType, boardCols, wsUsers, me, reg
         cv[f.id] = buildColumnValue(f.type, v);
       });
       const created = await createItem(form.boardId, name, cv);
-      onCreated(created);
+      // Event link is a connect column, set separately after the create
+      const eventCol = boardType === 'lead' ? REL.LEAD_EVENT : REL.PROSPECT_EVENT;
+      if (eventId) {
+        if (boardType === 'lead') await setLeadEvent(created.id, eventId, []);
+        else await setProspectEvent(created.id, eventId);
+      }
+      onCreated({
+        ...created,
+        column_values: [...created.column_values.filter(c => c.id !== eventCol),
+          { id: eventCol, text: null, value: null, linked_item_ids: eventId ? [eventId] : [] }],
+      });
     } catch (e) {
       setError(e.message.slice(0, 200));
       setSaving(false);
@@ -158,6 +170,10 @@ export default function CreateItemPanel({ boardType, boardCols, wsUsers, me, reg
               {renderField(f)}
             </div>
           ))}
+          <div className="col-span-2">
+            <label className="text-[10.5px] font-bold uppercase tracking-wider text-muted block mb-1">UK Event</label>
+            <EventPicker events={events} value={eventId} onChange={setEventId} />
+          </div>
         </div>
       </div>
 
