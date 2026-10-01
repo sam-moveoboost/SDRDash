@@ -1422,9 +1422,9 @@ export async function createItem(boardId, name, columnValues) {
 const UPDATES_API_VERSION = '2026-01';
 
 const UPDATE_FIELDS = `
-  id text_body created_at
+  id body text_body created_at
   creator { id name photo_thumb }
-  replies { id text_body created_at creator { id name photo_thumb } }
+  replies { id body text_body created_at creator { id name photo_thumb } }
 `;
 
 export async function fetchUpdates(itemId) {
@@ -1452,24 +1452,54 @@ export function buildUpdateBody(text, mentions, accountSlug) {
 }
 
 // Posts an update as the person using the app (via monday's own connection),
-// so it shows under their name and @mentions notify exactly as on the board.
-// If the app isn't allowed to write updates that way, falls back to the shared
-// API token and states the real author at the top of the update.
-export async function createUpdate(itemId, { text, mentions = [], accountSlug, authorName, parentId }) {
+// so it shows under their name, then notifies everyone tagged.
+//
+// Tags are written inline in the body as monday mention links (as monday's
+// own editor does). mentions_list is deliberately NOT used: monday appends a
+// second copy of every tag to the end of the update when it's set, even if
+// the person is already tagged in the text. Instead each tagged person gets a
+// notification linking straight to the update.
+//
+// If the app isn't allowed to write as the user, falls back to the shared API
+// token and states the real author at the top of the update.
+async function asUserThenToken(query) {
+  try {
+    return { data: await gql(query, { forceBridge: true, apiVersion: UPDATES_API_VERSION }), viaFallback: false };
+  } catch (e) {
+    if (!DIRECT_TOKEN) throw e;
+    return { data: await gql(query, { apiVersion: UPDATES_API_VERSION }), viaFallback: true };
+  }
+}
+
+export async function createUpdate(itemId, { text, mentions = [], accountSlug, authorName, authorId, itemName, parentId }) {
   const uniq = [...new Map(mentions.map(m => [String(m.id), m])).values()];
-  const mentionsArg = uniq.length
-    ? `, mentions_list: [${uniq.map(m => `{ id: ${Number(m.id)}, type: User }`).join(', ')}]`
-    : '';
   const target = parentId ? `parent_id: ${parentId}` : `item_id: ${itemId}`;
-  const mutation = body => `mutation { create_update(${target}, body: ${JSON.stringify(body)}${mentionsArg}) { ${UPDATE_FIELDS} } }`;
   const body = buildUpdateBody(text, uniq, accountSlug);
+  const mutation = b => `mutation { create_update(${target}, body: ${JSON.stringify(b)}) { ${UPDATE_FIELDS} } }`;
+
+  let result;
   try {
     const data = await gql(mutation(body), { forceBridge: true, apiVersion: UPDATES_API_VERSION });
-    return { update: data.create_update, viaFallback: false };
+    result = { update: data.create_update, viaFallback: false };
   } catch (e) {
     if (!DIRECT_TOKEN) throw e;
     const attributed = `<p><em>Posted by ${escapeHtml(authorName || 'a teammate')} from SDR OS</em></p>${body}`;
     const data = await gql(mutation(attributed), { apiVersion: UPDATES_API_VERSION });
-    return { update: data.create_update, viaFallback: true };
+    result = { update: data.create_update, viaFallback: true };
   }
+
+  // monday returns the new update before its plain-text body is computed
+  if (result.update && !result.update.text_body) result.update = { ...result.update, text_body: text };
+
+  // Notify each tagged person (not the author), linking to the update itself
+  const snippet = text.length > 120 ? `${text.slice(0, 117)}…` : text;
+  const notifyText = `${authorName || 'Someone'} mentioned you${itemName ? ` on ${itemName}` : ''}: "${snippet}"`;
+  const failed = [];
+  for (const m of uniq) {
+    if (authorId && String(m.id) === String(authorId)) continue;
+    try {
+      await asUserThenToken(`mutation { create_notification(user_id: ${Number(m.id)}, target_id: ${result.update.id}, target_type: Post, text: ${JSON.stringify(notifyText)}) { text } }`);
+    } catch { failed.push(m.name); }
+  }
+  return { ...result, notifyFailed: failed };
 }

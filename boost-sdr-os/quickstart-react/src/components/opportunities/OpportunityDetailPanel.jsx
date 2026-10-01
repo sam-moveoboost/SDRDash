@@ -4,7 +4,7 @@ import {
   fetchItemColumnValues, fetchEventsCached, setOpportunityEvent, relIds, REL, BOARDS,
 } from '../../api/monday';
 import { EventPicker } from '../events/EventPicker';
-import UpdatesSection from '../shared/UpdatesSection';
+import UpdatesButton from '../shared/UpdatesButton';
 
 // Puts the event link back onto column values returned by a mutation —
 // mutation responses carry no linked_item_ids, so without this the deal would
@@ -412,11 +412,14 @@ export default function OpportunityDetailPanel({ item, isNew, boardCols, wsUsers
             </a>
           )}
         </div>
-        <button onClick={onClose} className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-line text-muted hover:text-ink transition-colors mt-0.5">
-          <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none">
-            <path d="M12 4L4 12M4 4L12 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-          </svg>
-        </button>
+        <div className="flex items-start gap-1.5 flex-shrink-0">
+          {!isNew && item.id && <UpdatesButton itemId={item.id} itemName={item.name} users={wsUsers} me={me} accountSlug={accountSlug} />}
+          <button onClick={onClose} className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-line text-muted hover:text-ink transition-colors mt-0.5">
+            <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none">
+              <path d="M12 4L4 12M4 4L12 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Body */}
@@ -521,9 +524,6 @@ export default function OpportunityDetailPanel({ item, isNew, boardCols, wsUsers
             </>
           )}
         </div>
-
-        {/* Updates — comments with @mentions (not shown until the deal exists) */}
-        {!isNew && <UpdatesSection itemId={item.id} users={wsUsers} me={me} accountSlug={accountSlug} />}
       </div>
 
       {/* Footer: save / create */}

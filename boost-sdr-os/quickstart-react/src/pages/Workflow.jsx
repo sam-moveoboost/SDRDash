@@ -19,7 +19,7 @@ import {
 import ProgressBar from '../components/shared/ProgressBar';
 import OpportunityDetailPanel from '../components/opportunities/OpportunityDetailPanel';
 import CreateItemPanel from '../components/workflow/CreateItemPanel';
-import UpdatesSection from '../components/shared/UpdatesSection';
+import UpdatesButton from '../components/shared/UpdatesButton';
 import { parseOpportunity, formatMoney, OPP_COLS } from '../utils/opportunityMetrics';
 import { EventPicker, HowMetChoice } from '../components/events/EventPicker';
 import { EVENT_SOURCE, defaultHowMet } from '../utils/eventMetrics';
@@ -494,14 +494,17 @@ function DetailPanel({ item, boardType, boardCols, wsUsers, events, me, accountS
             </a>
           )}
         </div>
-        <button
-          onClick={onClose}
-          className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-line text-muted hover:text-ink transition-colors mt-0.5"
-        >
-          <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none">
-            <path d="M12 4L4 12M4 4L12 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-          </svg>
-        </button>
+        <div className="flex items-start gap-1.5 flex-shrink-0">
+          <UpdatesButton itemId={item.id} itemName={name} users={wsUsers} me={me} accountSlug={accountSlug} />
+          <button
+            onClick={onClose}
+            className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-line text-muted hover:text-ink transition-colors mt-0.5"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none">
+              <path d="M12 4L4 12M4 4L12 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Body */}
@@ -705,9 +708,6 @@ function DetailPanel({ item, boardType, boardCols, wsUsers, events, me, accountS
             </div>
           );
         })()}
-
-        {/* Updates — comments with @mentions, posted to the item on monday */}
-        <UpdatesSection itemId={item.id} users={wsUsers} me={me} accountSlug={accountSlug} />
 
       </div>
 
