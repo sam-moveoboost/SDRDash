@@ -102,7 +102,7 @@ async function paginateBoard(boardId, fields) {
   let cursor   = first.boards[0]?.items_page?.cursor ?? null;
 
   let pages = 0;
-  while (cursor && pages < 10) {
+  while (cursor && pages < 20) {
     const next = await gql(`
       query {
         next_items_page(limit: 500, cursor: "${cursor}") {
@@ -422,7 +422,7 @@ export async function fetchQualifiedMeetings({ month }) {
   let cursor   = first.boards[0]?.items_page?.cursor ?? null;
 
   let pages = 0;
-  while (cursor && pages < 4) {
+  while (cursor && pages < 20) {
     const next = await gql(`
       query {
         next_items_page(limit: 500, cursor: "${cursor}") {
@@ -468,7 +468,7 @@ export async function fetchLeadsWithMeetingDate() {
   let cursor   = first.boards[0]?.items_page?.cursor ?? null;
 
   let pages = 0;
-  while (cursor && pages < 4) {
+  while (cursor && pages < 20) {
     const next = await gql(`
       query {
         next_items_page(limit: 500, cursor: "${cursor}") {
@@ -526,7 +526,7 @@ export async function fetchAircallCalls({ startDate, endDate }) {
 
   // Paginate if needed (cap at 4 extra pages = 2500 total items)
   let pages = 0;
-  while (cursor && pages < 4) {
+  while (cursor && pages < 20) {
     const next = await gql(`
       query {
         next_items_page(limit: 500, cursor: "${cursor}") {
@@ -780,46 +780,23 @@ export async function createOpportunity(name, columnValues, { createLabelsIfMiss
 // Paginates up to 2,500 items (5 pages × 500). New items are typically
 // near the top of the default board sort so this should capture them.
 export async function fetchNewProspects({ startDate, endDate }) {
+  // Filtered server-side on the Creation log column. Previously this read the
+  // first 2,500 items unfiltered and filtered by date in the browser, but the
+  // board returns oldest first and has 8,000+ items, so the newest prospects —
+  // the ones this count is about — were never read.
   const FIELDS = `
     id
     created_at
     column_values(ids: ["person"]) { id value }
   `;
+  const items = await paginateQuery(BOARDS.PROSPECTS, FIELDS, `{ rules: [
+    { column_id: "pulse_log_mm4e2db2", compare_value: ["${startDate}", "${endDate}"], operator: between }
+  ] }`, 40);
 
-  const first = await gql(`
-    query {
-      boards(ids: ["${BOARDS.PROSPECTS}"]) {
-        items_page(limit: 500) {
-          cursor
-          items { ${FIELDS} }
-        }
-      }
-    }
-  `);
-
-  let allItems = first.boards[0]?.items_page?.items ?? [];
-  let cursor   = first.boards[0]?.items_page?.cursor ?? null;
-
-  let pages = 0;
-  while (cursor && pages < 4) {
-    const next = await gql(`
-      query {
-        next_items_page(limit: 500, cursor: "${cursor}") {
-          cursor
-          items { ${FIELDS} }
-        }
-      }
-    `);
-    allItems = [...allItems, ...(next.next_items_page?.items ?? [])];
-    cursor = next.next_items_page?.cursor ?? null;
-    pages++;
-  }
-
-  // Filter client-side by created_at within the date range
+  // Keep the exact UTC window check as a safety net on the server-side filter
   const start = new Date(startDate + 'T00:00:00Z');
   const end   = new Date(endDate   + 'T23:59:59Z');
-
-  return allItems.filter(item => {
+  return items.filter(item => {
     if (!item.created_at) return false;
     const d = new Date(item.created_at);
     return d >= start && d <= end;
@@ -898,44 +875,15 @@ const PROSPECT_FIELDS = `
   ]) { id text value }
 `;
 
-export async function fetchProspects({ userId, cursor }) {
-  if (cursor) {
-    const data = await gql(`
-      query {
-        next_items_page(limit: 50, cursor: "${cursor}") {
-          cursor
-          items { ${PROSPECT_FIELDS} }
-        }
-      }
-    `);
-    return {
-      items: data.next_items_page?.items ?? [],
-      cursor: data.next_items_page?.cursor ?? null,
-    };
-  }
-
-  // monday's items_page filter for a "people" column requires the compare_value
-  // to be prefixed ("person-<id>"), not the bare numeric id — a bare id silently
-  // matches nothing rather than erroring, which is why this can look like "no
-  // prospects assigned to me" even when the board clearly shows an assignment.
-  const personRule = userId
-    ? `rules: [{ column_id: "person", compare_value: ["person-${userId}"], operator: any_of }]`
-    : '';
-
-  const data = await gql(`
-    query {
-      boards(ids: ["${BOARDS.PROSPECTS}"]) {
-        items_page(limit: 50, query_params: { ${personRule} }) {
-          cursor
-          items { ${PROSPECT_FIELDS} }
-        }
-      }
-    }
-  `);
-  return {
-    items: data.boards[0]?.items_page?.items ?? [],
-    cursor: data.boards[0]?.items_page?.cursor ?? null,
-  };
+export async function fetchProspects({ userId }) {
+  // Every prospect assigned to the user, filtered server-side and paged in
+  // full (it used to return only the first 50). monday's people filter needs
+  // the "person-<id>" form — a bare id silently matches nothing.
+  if (!userId) return { items: [], cursor: null };
+  const items = await paginateQuery(BOARDS.PROSPECTS, PROSPECT_FIELDS, `{ rules: [
+    { column_id: "person", compare_value: ["person-${userId}"], operator: any_of }
+  ] }`, 40);
+  return { items, cursor: null };
 }
 
 // ── Item name lookup (used to resolve connected board column values) ─
@@ -1270,50 +1218,26 @@ export const fetchProspectsByOwner = fetchProspects;
 // ── All leads (for My Work — client-side user filter) ─────────────
 // Fetches only the columns needed for display and person-matching so
 // we don't pull every column's full JSON blob for 1,000+ lead items.
-export async function fetchAllLeads() {
-  // lead_owner (Bizdev) and multiple_person_mm2bjm2z (SDR) are the two people
-  // columns on this board — both are fetched so "My Work" assignment matching
-  // (isAssignedToUser) can check either, not just the SDR column.
+export async function fetchAllLeads({ userId } = {}) {
+  // Only leads where the user is the SDR or the Bizdev, filtered server-side
+  // and paged in full. This used to read the first 1,200 leads of the whole
+  // board and filter in the browser; the board returns oldest first and has
+  // 2,000+ leads, so every recent lead (e.g. anything created this month)
+  // silently never appeared in My Work.
   // Event, source, conversion and the lead's opportunities feed the sidebar's
   // Event field (and its write-through to converted opportunities).
   const FIELDS = `
     id name updated_at
     column_values(ids: [
       "lead_status", "color_mkz4y1yv", "multiple_person_mm2bjm2z", "lead_owner", "lead_company", "date_mm45gm2e",
-      "${LEAD_COLS.SOURCE}", "${LEAD_COLS.CONVERSION}", "${REL.LEAD_EVENT}", "${REL.LEAD_OPPS}"
+      "date_mm7qvv38", "${LEAD_COLS.SOURCE}", "${LEAD_COLS.CONVERSION}", "${REL.LEAD_EVENT}", "${REL.LEAD_OPPS}"
     ]) { id text value ${REL_FRAGMENT} }
   `;
-
-  const first = await gql(`
-    query {
-      boards(ids: ["${BOARDS.LEADS}"]) {
-        items_page(limit: 200) {
-          cursor
-          items { ${FIELDS} }
-        }
-      }
-    }
-  `);
-
-  let allItems = first.boards[0]?.items_page?.items ?? [];
-  let cursor   = first.boards[0]?.items_page?.cursor ?? null;
-
-  let pages = 0;
-  while (cursor && pages < 5) {
-    const next = await gql(`
-      query {
-        next_items_page(limit: 200, cursor: "${cursor}") {
-          cursor
-          items { ${FIELDS} }
-        }
-      }
-    `);
-    allItems = [...allItems, ...(next.next_items_page?.items ?? [])];
-    cursor   = next.next_items_page?.cursor ?? null;
-    pages++;
-  }
-
-  return allItems;
+  if (!userId) return [];
+  return paginateQuery(BOARDS.LEADS, FIELDS, `{ rules: [
+    { column_id: "multiple_person_mm2bjm2z", compare_value: ["person-${userId}"], operator: any_of },
+    { column_id: "lead_owner", compare_value: ["person-${userId}"], operator: any_of }
+  ], operator: or }`, 40);
 }
 
 // Builds the per-column value structure change_multiple_column_values (and, once
@@ -1439,14 +1363,36 @@ export async function fetchMissingDataCandidates() {
     paginateQuery(BOARDS.PROSPECTS, MISSING_PROSPECT_FIELDS, `{ rules: [
       { column_id: "color_mm4fna6", compare_value: [${prospectUK}], operator: any_of },
       { column_id: "status", compare_value: [${newProspect}, ${notRelevant}], operator: not_any_of }
-    ], operator: and }`, 4),
+    ], operator: and }`, 20),
     paginateQuery(BOARDS.OPPORTUNITIES, MISSING_OPP_FIELDS, `{ rules: [
       { column_id: "color_mkxerb02", compare_value: [${oppUK}], operator: any_of },
       { column_id: "color_mkz28c27", compare_value: [${won}, ${lost}], operator: not_any_of }
-    ], operator: and }`, 4),
+    ], operator: and }`, 20),
     paginateQuery(BOARDS.LEADS, MISSING_LEAD_FIELDS, `{ rules: [
       { column_id: "${LEAD_COLS.REGION}", compare_value: [${leadUK}], operator: any_of }
-    ] }`, 4),
+    ] }`, 20),
   ]);
   return { prospects, opportunities, leads };
+}
+
+// ── Generic item create (My Work "+ New" for leads and prospects) ──
+// Returns the same shape the My Work lists hold, so the new item can be
+// dropped straight into its list and opened in the sidebar.
+export async function createItem(boardId, name, columnValues) {
+  const data = await gql(`
+    mutation {
+      create_item(
+        board_id: ${boardId},
+        item_name: ${JSON.stringify(name)},
+        column_values: ${JSON.stringify(JSON.stringify(columnValues ?? {}))}
+      ) {
+        id
+        name
+        created_at
+        updated_at
+        column_values { id text value }
+      }
+    }
+  `);
+  return data.create_item;
 }
