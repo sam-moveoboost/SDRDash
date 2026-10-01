@@ -1450,3 +1450,25 @@ export async function fetchMissingDataCandidates() {
   ]);
   return { prospects, opportunities, leads };
 }
+
+// ── Generic item create (My Work "+ New" for leads and prospects) ──
+// Returns the same shape the My Work lists hold, so the new item can be
+// dropped straight into its list and opened in the sidebar.
+export async function createItem(boardId, name, columnValues) {
+  const data = await gql(`
+    mutation {
+      create_item(
+        board_id: ${boardId},
+        item_name: ${JSON.stringify(name)},
+        column_values: ${JSON.stringify(JSON.stringify(columnValues ?? {}))}
+      ) {
+        id
+        name
+        created_at
+        updated_at
+        column_values { id text value }
+      }
+    }
+  `);
+  return data.create_item;
+}

@@ -17,6 +17,7 @@ import {
 } from '../api/monday';
 import ProgressBar from '../components/shared/ProgressBar';
 import OpportunityDetailPanel from '../components/opportunities/OpportunityDetailPanel';
+import CreateItemPanel from '../components/workflow/CreateItemPanel';
 import { parseOpportunity, formatMoney, OPP_COLS } from '../utils/opportunityMetrics';
 import { EventPicker, HowMetChoice } from '../components/events/EventPicker';
 import { EVENT_SOURCE, defaultHowMet } from '../utils/eventMetrics';
@@ -764,6 +765,8 @@ export default function Workflow({ region, user: userProp }) {
   const [error, setError]                       = useState(null);
 
   const [selected, setSelected]   = useState(null); // { id, boardType }
+  const [creating, setCreating]   = useState(null); // 'prospect' | 'lead' | 'opportunity'
+  const [newMenuOpen, setNewMenuOpen] = useState(false);
   const [boardCols, setBoardCols] = useState({});   // { boardId: columns[] }
 
   const [searchQ, setSearchQ] = useState('');
@@ -824,14 +827,17 @@ export default function Workflow({ region, user: userProp }) {
   }, []);
 
   // ── Lazy board column fetch ────────────────────────────────────
+  // For the selected item's board, or the board a new item is being created on
+  const activeBoardType = creating ?? selected?.boardType ?? null;
   useEffect(() => {
-    if (!selected) return;
-    const boardId = SECTION_CFG[selected.boardType].boardId;
+    if (!activeBoardType) return;
+    const boardId = SECTION_CFG[activeBoardType].boardId;
     if (boardCols[boardId]) return;
     fetchBoardColumns(boardId).then(cols => {
       setBoardCols(prev => ({ ...prev, [boardId]: cols }));
     }).catch(() => {});
-  }, [selected]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeBoardType]);
 
   // ── Filter + sort ──────────────────────────────────────────────
   function filterAndSort(items, boardType) {
@@ -891,6 +897,26 @@ export default function Workflow({ region, user: userProp }) {
       : item)));
   }
 
+  function startCreate(boardType) {
+    setNewMenuOpen(false);
+    setSelected(null);
+    setCreating(boardType);
+  }
+
+  // A newly created item goes to the top of its list and opens in the sidebar
+  function handleCreated(boardType, created) {
+    const setter = boardType === 'prospect' ? setProspects
+      : boardType === 'lead' ? setLeads
+      : setOpps;
+    setter(prev => [created, ...prev]);
+    setCollapsed(prev => ({ ...prev, [boardType]: false }));
+    setCreating(null);
+    setSelected({ id: created.id, boardType });
+  }
+
+  const creatingBoardCols = creating ? boardCols[SECTION_CFG[creating].boardId] ?? null : null;
+  const panelOpen = Boolean(selectedItem || creating);
+
   function toggleCollapsed(key) {
     setCollapsed(prev => ({ ...prev, [key]: !prev[key] }));
   }
@@ -902,7 +928,7 @@ export default function Workflow({ region, user: userProp }) {
       <div className="flex overflow-hidden" style={{ height: 'calc(100vh - 60px)' }}>
 
         {/* ── List pane ──────────────────────────────────── */}
-        <div className={`flex flex-col flex-1 min-w-0 ${selectedItem ? 'hidden sm:flex' : 'flex'}`}>
+        <div className={`flex flex-col flex-1 min-w-0 ${panelOpen ? 'hidden sm:flex' : 'flex'}`}>
 
           {/* Page header */}
           <div className="px-6 pt-5 pb-4 flex-shrink-0 border-b border-line">
@@ -915,7 +941,38 @@ export default function Workflow({ region, user: userProp }) {
                   {me?.name ? `${me.name.split(' ')[0]}'s Pipeline` : 'My Pipeline'}
                 </h1>
               </div>
-              {me && <UserAvatar name={me.name} photo={me.photo_thumb} />}
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <button
+                    onClick={() => setNewMenuOpen(o => !o)}
+                    className="flex items-center gap-1.5 px-3.5 py-2 bg-navy text-white rounded-full text-[13px] font-semibold hover:bg-navy-700 transition-colors shadow-sm"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                      <line x1="7" y1="1" x2="7" y2="13" />
+                      <line x1="1" y1="7" x2="13" y2="7" />
+                    </svg>
+                    New
+                  </button>
+                  {newMenuOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setNewMenuOpen(false)} />
+                      <div className="absolute right-0 top-full mt-1.5 z-50 w-48 bg-card border border-line rounded-xl shadow-lg overflow-hidden py-1">
+                        {['prospect', 'lead', 'opportunity'].map(t => (
+                          <button
+                            key={t}
+                            onClick={() => startCreate(t)}
+                            className="w-full flex items-center gap-2.5 px-3.5 py-2 text-left text-[13px] font-medium text-ink hover:bg-sunken transition-colors"
+                          >
+                            <span className="w-2 h-2 rounded-full" style={{ background: SECTION_CFG[t].accentColor }} />
+                            New {SECTION_CFG[t].label.replace(/s$/, '').replace(/ie$/, 'y').toLowerCase()}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+                {me && <UserAvatar name={me.name} photo={me.photo_thumb} />}
+              </div>
             </div>
 
             {/* Count pills */}
@@ -1050,10 +1107,10 @@ export default function Workflow({ region, user: userProp }) {
         </div>
 
         {/* Mobile back button */}
-        {selectedItem && (
+        {panelOpen && (
           <div className="sm:hidden fixed top-[68px] left-3 z-10">
             <button
-              onClick={() => setSelected(null)}
+              onClick={() => { setSelected(null); setCreating(null); }}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-line rounded-full shadow text-[12px] font-semibold text-navy"
             >
               <svg className="w-3.5 h-3.5" viewBox="0 0 14 14" fill="none">
@@ -1066,11 +1123,33 @@ export default function Workflow({ region, user: userProp }) {
 
         {/* ── Detail panel ───────────────────────────────── */}
         <div className={`flex-col flex-shrink-0 border-l border-line bg-white overflow-hidden ${
-          selectedItem
+          panelOpen
             ? 'flex w-full sm:w-[400px] lg:w-[440px]'
             : 'hidden sm:flex sm:w-[380px] lg:w-[420px]'
         }`}>
-          {selectedItem ? (
+          {creating === 'opportunity' ? (
+            <OpportunityDetailPanel
+              key="new-opportunity"
+              item={{ id: null, name: '', column_values: [] }}
+              isNew
+              boardCols={creatingBoardCols}
+              wsUsers={wsUsers}
+              accountSlug={accountSlug}
+              onClose={() => setCreating(null)}
+              onCreate={created => handleCreated('opportunity', created)}
+            />
+          ) : creating ? (
+            <CreateItemPanel
+              key={`new-${creating}`}
+              boardType={creating}
+              boardCols={creatingBoardCols}
+              wsUsers={wsUsers}
+              me={me}
+              region={region}
+              onClose={() => setCreating(null)}
+              onCreated={created => handleCreated(creating, created)}
+            />
+          ) : selectedItem ? (
             selected.boardType === 'opportunity' ? (
               <OpportunityDetailPanel
                 key={`opportunity-${selectedItem.id}`}
