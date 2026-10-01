@@ -1,8 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import {
   updateItemColumnValue, updateItemColumns, buildColumnValue, createOpportunity,
-  fetchItemColumnValues, BOARDS,
+  fetchItemColumnValues, fetchEventsCached, setOpportunityEvent, relIds, REL, BOARDS,
 } from '../../api/monday';
+import { EventPicker } from '../events/EventPicker';
+
+// Puts the event link back onto column values returned by a mutation —
+// mutation responses carry no linked_item_ids, so without this the deal would
+// look unlinked from its event until the next full reload.
+function withEventLink(cvs, eventIds) {
+  return [...(cvs ?? []).filter(c => c.id !== REL.OPP_EVENT), { id: REL.OPP_EVENT, text: null, value: null, linked_item_ids: eventIds }];
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -218,6 +226,13 @@ export default function OpportunityDetailPanel({ item, isNew, boardCols, wsUsers
   const [saving, setSaving]     = useState(false);
   const [savedMsg, setSavedMsg] = useState('');
 
+  // UK event link (one event per deal)
+  const [events, setEvents]       = useState([]);
+  const [eventEdit, setEventEdit] = useState(undefined); // undefined = unchanged
+  useEffect(() => { fetchEventsCached().then(setEvents).catch(() => {}); }, []);
+  const currentEventId = relIds(item, REL.OPP_EVENT)[0] ?? null;
+  const eventChanged   = eventEdit !== undefined && eventEdit !== currentEventId;
+
   const colOf = id => boardCols?.find(c => c.id === id);
   const labelsOf = id => parseSelectableLabels(colOf(id));
 
@@ -248,7 +263,7 @@ export default function OpportunityDetailPanel({ item, isNew, boardCols, wsUsers
 
   async function handleSave() {
     const changed = Object.keys(edits);
-    if (!changed.length) return;
+    if (!changed.length && !eventChanged) return;
     if (changed.includes('name') && !String(edits.name).trim()) {
       setSavedMsg('Error: Name cannot be empty');
       return;
@@ -272,11 +287,14 @@ export default function OpportunityDetailPanel({ item, isNew, boardCols, wsUsers
       }
       if (changed.includes('name')) cv.name = edits.name.trim();
 
-      const updated = await updateItemColumns(BOARDS.OPPORTUNITIES, item.id, cv, {
-        createLabelsIfMissing: COL.MONDAY_REP in cv,
-      });
-      onUpdate(item.id, updated.column_values, updated.name);
+      const updated = Object.keys(cv).length
+        ? await updateItemColumns(BOARDS.OPPORTUNITIES, item.id, cv, { createLabelsIfMissing: COL.MONDAY_REP in cv })
+        : { column_values: item.column_values, name: undefined };
+      if (eventChanged) await setOpportunityEvent(item.id, eventEdit);
+      const eventIds = eventChanged ? (eventEdit ? [eventEdit] : []) : relIds(item, REL.OPP_EVENT);
+      onUpdate(item.id, withEventLink(updated.column_values, eventIds), updated.name);
       setEdits({});
+      setEventEdit(undefined);
       setSavedMsg('Saved ✓');
       setTimeout(() => setSavedMsg(''), 3000);
     } catch (e) {
@@ -302,7 +320,8 @@ export default function OpportunityDetailPanel({ item, isNew, boardCols, wsUsers
       const created = await createOpportunity(newName.trim(), cv, {
         createLabelsIfMissing: COL.MONDAY_REP in cv,
       });
-      onCreate(created);
+      if (eventEdit) await setOpportunityEvent(created.id, eventEdit);
+      onCreate({ ...created, column_values: withEventLink(created.column_values, eventEdit ? [eventEdit] : []) });
     } catch (e) {
       setSavedMsg(`Error: ${e.message.slice(0, 100)}`);
     } finally {
@@ -344,7 +363,7 @@ export default function OpportunityDetailPanel({ item, isNew, boardCols, wsUsers
   const stage      = val(COL.STAGE, currentText(COL.STAGE));
   const company    = currentText(COL.COMPANY);
   const accountLinked = currentText(COL.ACCOUNT);
-  const dirtyCount = Object.keys(edits).length;
+  const dirtyCount = Object.keys(edits).length + (eventChanged ? 1 : 0);
   const isPS = val(COL.TYPE_OF_DEAL, currentText(COL.TYPE_OF_DEAL)) === 'PS';
 
   return (
@@ -446,6 +465,17 @@ export default function OpportunityDetailPanel({ item, isNew, boardCols, wsUsers
             <StatusField label="Conversion Activity" value={val(COL.CONVERSION_ACTIVITY, currentText(COL.CONVERSION_ACTIVITY))} options={labelsOf(COL.CONVERSION_ACTIVITY)} dirty={dirty(COL.CONVERSION_ACTIVITY)} onChange={v => set(COL.CONVERSION_ACTIVITY, v)} />
             <StatusField label="ARR Length" value={val(COL.ARR_LENGTH, currentText(COL.ARR_LENGTH))} options={labelsOf(COL.ARR_LENGTH)} dirty={dirty(COL.ARR_LENGTH)} onChange={v => set(COL.ARR_LENGTH, v)} />
           </div>
+        </div>
+
+        {/* UK event */}
+        <div>
+          <SectionLabel>UK Event</SectionLabel>
+          <EventPicker
+            events={events}
+            value={eventChanged || isNew ? (eventEdit ?? null) : currentEventId}
+            onChange={setEventEdit}
+            dirty={eventChanged}
+          />
         </div>
 
         {/* Team */}
