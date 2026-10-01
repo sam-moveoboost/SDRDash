@@ -17,13 +17,15 @@ const monday = mondaySdk();
 // developer console and reinstall the app.
 const DIRECT_TOKEN = import.meta.env.VITE_MONDAY_API_TOKEN;
 
-async function mondayFetch(query) {
+const DEFAULT_API_VERSION = '2024-01';
+
+async function mondayFetch(query, apiVersion = DEFAULT_API_VERSION) {
   const res = await fetch('https://api.monday.com/v2', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: DIRECT_TOKEN,
-      'API-Version': '2024-01',
+      'API-Version': apiVersion,
     },
     body: JSON.stringify({ query }),
   });
@@ -44,16 +46,16 @@ async function mondayFetch(query) {
 // HTTP fetches is the main reason the Scoreboard was slow (~30 s instead of ~8 s).
 let _apiQueue = Promise.resolve();
 
-export function gql(query, { forceBridge = false } = {}) {
+export function gql(query, { forceBridge = false, apiVersion } = {}) {
   // Direct fetch (HTTP) → fire immediately, no queue needed.
   // forceBridge skips this even when DIRECT_TOKEN is set — required for anything
   // that must reflect the actual embedded viewer (e.g. "who am I"), since the
   // direct token always resolves to whichever person's personal token it is,
   // not whoever currently has the app open.
-  if (DIRECT_TOKEN && !forceBridge) return mondayFetch(query);
+  if (DIRECT_TOKEN && !forceBridge) return mondayFetch(query, apiVersion);
 
   // SDK postMessage bridge → must serialise.
-  const call = () => monday.api(query).then(res => {
+  const call = () => monday.api(query, apiVersion ? { apiVersion } : undefined).then(res => {
     if (res.errors?.length) {
       const raw = JSON.stringify(res.errors);
       console.error('[gql] errors:', raw);
@@ -1411,4 +1413,63 @@ export async function createItem(boardId, name, columnValues) {
     }
   `);
   return data.create_item;
+}
+
+// ── Item updates (comments) ───────────────────────────────────────
+// mentions_list — what makes an @mention send a real monday notification —
+// only exists from API version 2025-07, so update calls use a newer version
+// than the rest of the app.
+const UPDATES_API_VERSION = '2026-01';
+
+const UPDATE_FIELDS = `
+  id text_body created_at
+  creator { id name photo_thumb }
+  replies { id text_body created_at creator { id name photo_thumb } }
+`;
+
+export async function fetchUpdates(itemId) {
+  const data = await gql(`query { items(ids: [${itemId}]) { updates(limit: 30) { ${UPDATE_FIELDS} } } }`,
+    { apiVersion: UPDATES_API_VERSION });
+  return data.items?.[0]?.updates ?? [];
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// Builds monday's update HTML from plain text, turning each "@Name" the user
+// picked from the mention list into a proper user mention.
+export function buildUpdateBody(text, mentions, accountSlug) {
+  let html = escapeHtml(text);
+  // Longest names first so "@Sam Fessey" wins over "@Sam"
+  [...mentions].sort((a, b) => b.name.length - a.name.length).forEach(m => {
+    const token = escapeHtml(`@${m.name}`);
+    const link = `<a class="user_mention_editor router" href="https://${accountSlug}.monday.com/users/${m.id}" `
+      + `data-mention-type="User" data-mention-id="${m.id}" target="_blank" rel="noopener noreferrer">${token}</a>`;
+    html = html.split(token).join(link);
+  });
+  return html.split(/\n/).map(line => `<p>${line || '<br>'}</p>`).join('');
+}
+
+// Posts an update as the person using the app (via monday's own connection),
+// so it shows under their name and @mentions notify exactly as on the board.
+// If the app isn't allowed to write updates that way, falls back to the shared
+// API token and states the real author at the top of the update.
+export async function createUpdate(itemId, { text, mentions = [], accountSlug, authorName, parentId }) {
+  const uniq = [...new Map(mentions.map(m => [String(m.id), m])).values()];
+  const mentionsArg = uniq.length
+    ? `, mentions_list: [${uniq.map(m => `{ id: ${Number(m.id)}, type: User }`).join(', ')}]`
+    : '';
+  const target = parentId ? `parent_id: ${parentId}` : `item_id: ${itemId}`;
+  const mutation = body => `mutation { create_update(${target}, body: ${JSON.stringify(body)}${mentionsArg}) { ${UPDATE_FIELDS} } }`;
+  const body = buildUpdateBody(text, uniq, accountSlug);
+  try {
+    const data = await gql(mutation(body), { forceBridge: true, apiVersion: UPDATES_API_VERSION });
+    return { update: data.create_update, viaFallback: false };
+  } catch (e) {
+    if (!DIRECT_TOKEN) throw e;
+    const attributed = `<p><em>Posted by ${escapeHtml(authorName || 'a teammate')} from SDR OS</em></p>${body}`;
+    const data = await gql(mutation(attributed), { apiVersion: UPDATES_API_VERSION });
+    return { update: data.create_update, viaFallback: true };
+  }
 }

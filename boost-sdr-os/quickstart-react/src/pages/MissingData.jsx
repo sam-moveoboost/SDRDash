@@ -9,6 +9,7 @@ import {
   BOARDS,
 } from '../api/monday';
 import ProgressBar from '../components/shared/ProgressBar';
+import UpdatesSection from '../components/shared/UpdatesSection';
 import {
   MISSING_BOARDS,
   missingFields,
@@ -120,7 +121,7 @@ function FieldInput({ field, value, onChange, options, users }) {
 }
 
 // ── Sidebar ───────────────────────────────────────────────────────
-function FixPanel({ entry, boardCols, users, accountSlug, onClose, onSaved }) {
+function FixPanel({ entry, boardCols, users, me, accountSlug, onClose, onSaved }) {
   const cfg = BOARD_CFG[entry.board];
   const [values, setValues] = useState({});
   const [saving, setSaving] = useState(false);
@@ -226,6 +227,10 @@ function FixPanel({ entry, boardCols, users, accountSlug, onClose, onSaved }) {
           </div>
         ))}
         <p className="text-[11.5px] text-muted pt-1">You can save some fields now and come back for the rest. The record leaves this list once everything is filled in.</p>
+
+        <div className="pt-3 border-t border-line">
+          <UpdatesSection itemId={entry.item.id} users={users} me={me} accountSlug={accountSlug} />
+        </div>
       </div>
 
       <div className="px-5 py-4 border-t border-line flex-shrink-0">
@@ -415,6 +420,7 @@ export default function MissingData({ user: userProp }) {
               entry={selectedEntry}
               boardCols={boardCols}
               users={users}
+              me={me}
               accountSlug={accountSlug}
               onClose={() => setSelected(null)}
               onSaved={handleSaved}

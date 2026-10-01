@@ -19,6 +19,7 @@ import {
 import ProgressBar from '../components/shared/ProgressBar';
 import OpportunityDetailPanel from '../components/opportunities/OpportunityDetailPanel';
 import CreateItemPanel from '../components/workflow/CreateItemPanel';
+import UpdatesSection from '../components/shared/UpdatesSection';
 import { parseOpportunity, formatMoney, OPP_COLS } from '../utils/opportunityMetrics';
 import { EventPicker, HowMetChoice } from '../components/events/EventPicker';
 import { EVENT_SOURCE, defaultHowMet } from '../utils/eventMetrics';
@@ -343,7 +344,7 @@ function withRelations(cvs, relations) {
   return out;
 }
 
-function DetailPanel({ item, boardType, boardCols, wsUsers, events, accountSlug, onClose, onUpdate }) {
+function DetailPanel({ item, boardType, boardCols, wsUsers, events, me, accountSlug, onClose, onUpdate }) {
   const cfg = SECTION_CFG[boardType];
   const [edits, setEdits]       = useState({});
   const [saving, setSaving]     = useState(false);
@@ -704,6 +705,9 @@ function DetailPanel({ item, boardType, boardCols, wsUsers, events, accountSlug,
             </div>
           );
         })()}
+
+        {/* Updates — comments with @mentions, posted to the item on monday */}
+        <UpdatesSection itemId={item.id} users={wsUsers} me={me} accountSlug={accountSlug} />
 
       </div>
 
@@ -1165,6 +1169,7 @@ export default function Workflow({ region, user: userProp }) {
                 item={selectedItem}
                 boardCols={selectedBoardCols}
                 wsUsers={wsUsers}
+                me={me}
                 accountSlug={accountSlug}
                 onClose={() => setSelected(null)}
                 onUpdate={(itemId, updatedCvs, updatedName) => handleUpdate(itemId, 'opportunity', updatedCvs, updatedName)}
@@ -1177,6 +1182,7 @@ export default function Workflow({ region, user: userProp }) {
                 boardCols={selectedBoardCols}
                 wsUsers={wsUsers}
                 events={events}
+                me={me}
                 accountSlug={accountSlug}
                 onClose={() => setSelected(null)}
                 onUpdate={handleUpdate}
