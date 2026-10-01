@@ -9,7 +9,7 @@ import {
   BOARDS,
 } from '../api/monday';
 import ProgressBar from '../components/shared/ProgressBar';
-import UpdatesSection from '../components/shared/UpdatesSection';
+import UpdatesButton from '../components/shared/UpdatesButton';
 import {
   MISSING_BOARDS,
   missingFields,
@@ -192,9 +192,12 @@ function FixPanel({ entry, boardCols, users, me, accountSlug, onClose, onSaved }
             </a>
           )}
         </div>
-        <button onClick={onClose} className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-line text-muted hover:text-ink">
-          <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none"><path d="M12 4L4 12M4 4L12 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
-        </button>
+        <div className="flex items-start gap-1.5 flex-shrink-0">
+          <UpdatesButton itemId={entry.item.id} itemName={entry.item.name} users={users} me={me} accountSlug={accountSlug} />
+          <button onClick={onClose} className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-line text-muted hover:text-ink mt-0.5">
+            <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none"><path d="M12 4L4 12M4 4L12 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
@@ -227,10 +230,6 @@ function FixPanel({ entry, boardCols, users, me, accountSlug, onClose, onSaved }
           </div>
         ))}
         <p className="text-[11.5px] text-muted pt-1">You can save some fields now and come back for the rest. The record leaves this list once everything is filled in.</p>
-
-        <div className="pt-3 border-t border-line">
-          <UpdatesSection itemId={entry.item.id} users={users} me={me} accountSlug={accountSlug} />
-        </div>
       </div>
 
       <div className="px-5 py-4 border-t border-line flex-shrink-0">

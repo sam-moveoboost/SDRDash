@@ -9,7 +9,7 @@ import {
   EVENT_SOURCE, defaultHowMet, parseEventLead, wonValue, openValue,
 } from '../../utils/eventMetrics';
 import { HowMetChoice, EventTag, formatEventDate } from './EventPicker';
-import UpdatesSection from '../shared/UpdatesSection';
+import UpdatesButton from '../shared/UpdatesButton';
 
 const ATTEND_HOST_OPTIONS = ['Rec: Attend', 'Rec: Host', 'Decided: Attending', 'Decided: Hosting', 'Not Going'];
 const EVENT_TYPE_OPTIONS  = ['All Day Conference', 'Short Conference', 'In Person Networking', 'Online Networking', 'Other'];
@@ -678,7 +678,6 @@ const TABS = [
   { id: 'leads',   label: 'Leads' },
   { id: 'opps',    label: 'Opportunities' },
   { id: 'results', label: 'Results' },
-  { id: 'updates', label: 'Updates' },
 ];
 
 export default function EventModal({ event, row, events = [], users, me, fx, onSaved, onChanged, onClose, initialTab = 'details' }) {
@@ -704,7 +703,10 @@ export default function EventModal({ event, row, events = [], users, me, fx, onS
                 </div>
               )}
             </div>
-            <button onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-sunken flex items-center justify-center text-muted text-[20px] transition-colors flex-shrink-0">&times;</button>
+            <div className="flex items-start gap-1.5 flex-shrink-0">
+              {isEdit && <UpdatesButton itemId={event.id} itemName={event.name} users={users} me={me} accountSlug={me?.account?.slug} />}
+              <button onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-sunken flex items-center justify-center text-muted text-[20px] transition-colors flex-shrink-0 mt-0.5">&times;</button>
+            </div>
           </div>
           {isEdit && (
             <div className="flex gap-1 mt-3 -mb-px">
@@ -728,11 +730,6 @@ export default function EventModal({ event, row, events = [], users, me, fx, onS
         {tab === 'leads'   && <LeadsTab event={event} row={row} events={events} users={users} me={me} onChanged={onChanged} />}
         {tab === 'opps'    && <OppsTab event={event} row={row} onChanged={onChanged} />}
         {tab === 'results' && <ResultsTab row={row} fx={fx} />}
-        {tab === 'updates' && (
-          <div className="overflow-y-auto flex-1 px-6 py-5">
-            <UpdatesSection itemId={event.id} users={users} me={me} accountSlug={me?.account?.slug} />
-          </div>
-        )}
       </div>
     </div>
   );

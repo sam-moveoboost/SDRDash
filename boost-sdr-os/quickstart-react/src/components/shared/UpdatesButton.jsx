@@ -1,9 +1,21 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { fetchUpdates, createUpdate } from '../../api/monday';
 
-// The monday "Updates" thread for any item, with a comment box that supports
-// @mentions. Mentions are sent in mentions_list, so tagged people get the same
-// notification as if the update had been written on the board.
+// The monday "Updates" thread for any item, opened from a small button next to
+// the record name. The modal has a comment box with @mentions at the top and
+// the thread below. Tagged people get a monday notification linking to the
+// update.
+
+// Plain text of an update. monday sometimes leaves text_body empty (notably
+// straight after creating), so fall back to the HTML body with tags stripped.
+function textOf(u) {
+  if (u?.text_body) return u.text_body;
+  const html = (u?.body ?? '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>\s*<p[^>]*>/gi, '\n');
+  const el = document.createElement('div');
+  el.innerHTML = html;
+  return (el.textContent ?? '').trim();
+}
 
 function timeAgo(iso) {
   const s = Math.max(0, (Date.now() - Date.parse(iso)) / 1000);
@@ -79,19 +91,20 @@ function Composer({ users, placeholder, busy, onSubmit, autoFocus }) {
   }
 
   return (
-    <div className="relative">
+    <div>
+      <div className="relative">
       <textarea
         ref={ref}
         value={text}
         onChange={onChange}
         onKeyDown={onKeyDown}
-        rows={3}
+        rows={4}
         autoFocus={autoFocus}
         placeholder={placeholder}
         className="w-full border border-line rounded-xl px-3 py-2 text-[13px] bg-white resize-y focus:outline-none focus:ring-1 focus:ring-navy focus:border-navy"
       />
       {suggestions.length > 0 && (
-        <div className="absolute z-50 left-0 right-0 bottom-full mb-1 bg-card border border-line rounded-xl shadow-lg overflow-hidden">
+        <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-card border border-line rounded-xl shadow-lg overflow-hidden">
           {suggestions.map((u, i) => (
             <button
               key={u.id}
@@ -104,6 +117,7 @@ function Composer({ users, placeholder, busy, onSubmit, autoFocus }) {
           ))}
         </div>
       )}
+      </div>
       <div className="flex items-center justify-between mt-1.5">
         <span className="text-[11px] text-muted">Type @ to tag someone · Ctrl+Enter to post</span>
         <button
@@ -118,7 +132,7 @@ function Composer({ users, placeholder, busy, onSubmit, autoFocus }) {
   );
 }
 
-export default function UpdatesSection({ itemId, users = [], me, accountSlug, title = 'Updates' }) {
+function Thread({ itemId, itemName, users, me, accountSlug, onCount }) {
   const [updates, setUpdates] = useState(null);
   const [error, setError]     = useState('');
   const [busy, setBusy]       = useState(false);
@@ -126,22 +140,22 @@ export default function UpdatesSection({ itemId, users = [], me, accountSlug, ti
   const [replyTo, setReplyTo] = useState(null);
 
   useEffect(() => {
-    if (!itemId) return;
     setUpdates(null);
     fetchUpdates(itemId).then(setUpdates).catch(e => { setError(e.message); setUpdates([]); });
   }, [itemId]);
 
-  if (!itemId) return null;
+  useEffect(() => { if (updates) onCount?.(updates.length); }, [updates, onCount]);
 
   async function post(text, mentions, parentId) {
     setBusy(true);
     setError('');
     setNote('');
     try {
-      const { update, viaFallback } = await createUpdate(itemId, {
-        text, mentions, parentId,
+      const { update, viaFallback, notifyFailed = [] } = await createUpdate(itemId, {
+        text, mentions, parentId, itemName,
         accountSlug: accountSlug || me?.account?.slug || '',
         authorName: me?.name,
+        authorId: me?.id,
       });
       if (parentId) {
         setUpdates(prev => prev.map(u => (u.id === parentId ? { ...u, replies: [...(u.replies ?? []), update] } : u)));
@@ -149,8 +163,12 @@ export default function UpdatesSection({ itemId, users = [], me, accountSlug, ti
       } else {
         setUpdates(prev => [update, ...(prev ?? [])]);
       }
-      if (mentions.length) setNote(`Posted · ${mentions.map(m => m.name).join(', ')} notified`);
-      if (viaFallback) setNote(n => `${n ? `${n}. ` : ''}Posted with the shared account (marked as from you).`);
+      const notified = mentions.filter(m => !notifyFailed.includes(m.name) && String(m.id) !== String(me?.id));
+      const parts = ['Posted'];
+      if (notified.length) parts.push(`${notified.map(m => m.name).join(', ')} notified`);
+      if (notifyFailed.length) parts.push(`couldn't notify ${notifyFailed.join(', ')}`);
+      if (viaFallback) parts.push('sent with the shared account (marked as from you)');
+      setNote(parts.join(' · '));
       return true;
     } catch (e) {
       setError(e.message.slice(0, 200));
@@ -161,13 +179,12 @@ export default function UpdatesSection({ itemId, users = [], me, accountSlug, ti
   }
 
   return (
-    <div>
-      <p className="text-[10.5px] font-bold uppercase tracking-wider text-muted mb-2">{title}</p>
-      <Composer users={users} busy={busy} placeholder="Write an update…" onSubmit={(t, m) => post(t, m)} />
+    <>
+      <Composer users={users} busy={busy} autoFocus placeholder="Write an update…" onSubmit={(t, m) => post(t, m)} />
       {error && <p className="text-[12px] font-semibold text-red mt-1.5">Error: {error}</p>}
       {note && <p className="text-[12px] font-semibold text-emerald mt-1.5">{note}</p>}
 
-      <div className="mt-3 space-y-3">
+      <div className="mt-4 space-y-3">
         {updates === null && <div className="h-14 bg-canvas rounded-xl animate-pulse" />}
         {updates?.length === 0 && !error && <p className="text-[12.5px] text-muted">No updates yet.</p>}
         {updates?.map(u => (
@@ -177,7 +194,7 @@ export default function UpdatesSection({ itemId, users = [], me, accountSlug, ti
               <span className="text-[12.5px] font-semibold text-ink">{u.creator?.name ?? 'Unknown'}</span>
               <span className="text-[11px] text-muted">{timeAgo(u.created_at)}</span>
             </div>
-            <p className="text-[13px] text-ink whitespace-pre-wrap break-words">{u.text_body}</p>
+            <p className="text-[13px] text-ink whitespace-pre-wrap break-words">{textOf(u)}</p>
             {(u.replies ?? []).map(r => (
               <div key={r.id} className="mt-2 ml-4 pl-3 border-l-2 border-line">
                 <div className="flex items-center gap-2 mb-0.5">
@@ -185,7 +202,7 @@ export default function UpdatesSection({ itemId, users = [], me, accountSlug, ti
                   <span className="text-[12px] font-semibold text-ink">{r.creator?.name ?? 'Unknown'}</span>
                   <span className="text-[11px] text-muted">{timeAgo(r.created_at)}</span>
                 </div>
-                <p className="text-[12.5px] text-ink whitespace-pre-wrap break-words">{r.text_body}</p>
+                <p className="text-[12.5px] text-ink whitespace-pre-wrap break-words">{textOf(r)}</p>
               </div>
             ))}
             {replyTo === u.id ? (
@@ -199,6 +216,67 @@ export default function UpdatesSection({ itemId, users = [], me, accountSlug, ti
           </div>
         ))}
       </div>
-    </div>
+    </>
+  );
+}
+
+// Pill button for record headers. Shows the update count and opens the modal.
+export default function UpdatesButton({ itemId, itemName, users = [], me, accountSlug }) {
+  const [open, setOpen]   = useState(false);
+  const [count, setCount] = useState(null);
+
+  useEffect(() => {
+    if (!itemId) return;
+    setCount(null);
+    let live = true;
+    fetchUpdates(itemId).then(u => { if (live) setCount(u.length); }).catch(() => {});
+    return () => { live = false; };
+  }, [itemId]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = e => { if (e.key === 'Escape') setOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
+
+  if (!itemId) return null;
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        title="Updates"
+        className="flex-shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-full border border-line bg-white text-[12px] font-semibold text-navy hover:bg-sunken transition-colors mt-0.5"
+      >
+        <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round">
+          <path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" />
+        </svg>
+        {count ? `Updates (${count})` : 'Add update'}
+      </button>
+
+      {open && createPortal(
+        <div className="fixed inset-0 z-[100] bg-black/40 flex items-start justify-center p-4 pt-[8vh]" onMouseDown={() => setOpen(false)}>
+          <div
+            className="bg-card rounded-2xl shadow-2xl w-full max-w-lg max-h-[84vh] flex flex-col"
+            onMouseDown={e => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between px-5 pt-4 pb-3 border-b border-line flex-shrink-0">
+              <div className="min-w-0 pr-3">
+                <p className="text-[10.5px] font-bold uppercase tracking-wider text-muted">Updates</p>
+                <h3 className="font-heading text-[16px] font-bold tracking-tight break-words">{itemName}</h3>
+              </div>
+              <button onClick={() => setOpen(false)} className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-line text-muted hover:text-ink transition-colors">
+                <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none"><path d="M12 4L4 12M4 4L12 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+              </button>
+            </div>
+            <div className="overflow-y-auto px-5 py-4">
+              <Thread itemId={itemId} itemName={itemName} users={users} me={me} accountSlug={accountSlug} onCount={setCount} />
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+    </>
   );
 }
