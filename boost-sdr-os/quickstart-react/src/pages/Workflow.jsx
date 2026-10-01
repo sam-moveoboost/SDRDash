@@ -162,6 +162,7 @@ const SECTION_CFG = {
       { id: 'lead_status', label: 'Status', type: 'color', isPeople: false, statusLabels: null },
       { id: 'multiple_person_mm2bjm2z', label: 'SDR', type: 'multiple-person', isPeople: true, statusLabels: null },
       { id: 'date_mm45gm2e', label: 'MB Date', type: 'date', isPeople: false, statusLabels: null },
+      { id: 'date_mm7qvv38', label: 'Reconnect Date', type: 'date', isPeople: false, statusLabels: null },
       { id: 'color_mkwrdphn', label: 'Source', type: 'color', isPeople: false, statusLabels: null },
       { id: 'color_mkxeqbfx', label: 'Conversion Activity', type: 'color', isPeople: false, statusLabels: null },
       { id: 'color_mkz4y1yv', label: 'Region', type: 'color', isPeople: false, statusLabels: null },
@@ -803,12 +804,12 @@ export default function Workflow({ region, user: userProp }) {
       fetchEvents().then(setEvents).catch(() => {});
 
       // Fire all three sections independently so each renders as its data arrives
-      fetchProspects({ userId: uid, cursor: null })
+      fetchProspects({ userId: uid })
         .then(res => setProspects(res.items ?? []))
         .catch(e => setError(e.message))
         .finally(() => setLoadingProspects(false));
 
-      fetchAllLeads()
+      fetchAllLeads({ userId: uid })
         .then(all => setLeads(all.filter(item =>
           isAssignedToUser(item, uid) && !NO_FOLLOWUP_LEAD_STATUSES.has(colText(item, 'lead_status'))
         )))
