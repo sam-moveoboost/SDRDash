@@ -4,6 +4,7 @@ import {
   fetchItemColumnValues, fetchEventsCached, setOpportunityEvent, relIds, REL, BOARDS,
 } from '../../api/monday';
 import { EventPicker } from '../events/EventPicker';
+import UpdatesSection from '../shared/UpdatesSection';
 
 // Puts the event link back onto column values returned by a mutation —
 // mutation responses carry no linked_item_ids, so without this the deal would
@@ -220,7 +221,7 @@ function freshText(fresh, id) {
   return cv?.text || cv?.display_value || '';
 }
 
-export default function OpportunityDetailPanel({ item, isNew, boardCols, wsUsers, accountSlug, onClose, onUpdate, onCreate }) {
+export default function OpportunityDetailPanel({ item, isNew, boardCols, wsUsers, me, accountSlug, onClose, onUpdate, onCreate }) {
   const [edits, setEdits]       = useState({});
   const [newName, setNewName]   = useState('');
   const [saving, setSaving]     = useState(false);
@@ -520,6 +521,9 @@ export default function OpportunityDetailPanel({ item, isNew, boardCols, wsUsers
             </>
           )}
         </div>
+
+        {/* Updates — comments with @mentions (not shown until the deal exists) */}
+        {!isNew && <UpdatesSection itemId={item.id} users={wsUsers} me={me} accountSlug={accountSlug} />}
       </div>
 
       {/* Footer: save / create */}

@@ -9,6 +9,7 @@ import {
   EVENT_SOURCE, defaultHowMet, parseEventLead, wonValue, openValue,
 } from '../../utils/eventMetrics';
 import { HowMetChoice, EventTag, formatEventDate } from './EventPicker';
+import UpdatesSection from '../shared/UpdatesSection';
 
 const ATTEND_HOST_OPTIONS = ['Rec: Attend', 'Rec: Host', 'Decided: Attending', 'Decided: Hosting', 'Not Going'];
 const EVENT_TYPE_OPTIONS  = ['All Day Conference', 'Short Conference', 'In Person Networking', 'Online Networking', 'Other'];
@@ -677,6 +678,7 @@ const TABS = [
   { id: 'leads',   label: 'Leads' },
   { id: 'opps',    label: 'Opportunities' },
   { id: 'results', label: 'Results' },
+  { id: 'updates', label: 'Updates' },
 ];
 
 export default function EventModal({ event, row, events = [], users, me, fx, onSaved, onChanged, onClose, initialTab = 'details' }) {
@@ -726,6 +728,11 @@ export default function EventModal({ event, row, events = [], users, me, fx, onS
         {tab === 'leads'   && <LeadsTab event={event} row={row} events={events} users={users} me={me} onChanged={onChanged} />}
         {tab === 'opps'    && <OppsTab event={event} row={row} onChanged={onChanged} />}
         {tab === 'results' && <ResultsTab row={row} fx={fx} />}
+        {tab === 'updates' && (
+          <div className="overflow-y-auto flex-1 px-6 py-5">
+            <UpdatesSection itemId={event.id} users={users} me={me} accountSlug={me?.account?.slug} />
+          </div>
+        )}
       </div>
     </div>
   );

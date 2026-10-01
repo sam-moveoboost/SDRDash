@@ -651,6 +651,7 @@ export default function OpportunityScoreboard({ region, user }) {
               item={selectedRawItem}
               boardCols={boardCols}
               wsUsers={wsUsers}
+              me={user}
               accountSlug={accountSlug}
               onClose={() => setSelectedId(null)}
               onUpdate={handleUpdate}
@@ -669,6 +670,7 @@ export default function OpportunityScoreboard({ region, user }) {
               isNew
               boardCols={boardCols}
               wsUsers={wsUsers}
+              me={user}
               accountSlug={accountSlug}
               onClose={() => setShowCreate(false)}
               onCreate={handleCreate}
