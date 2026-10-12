@@ -73,10 +73,10 @@ export const COL = {
   BIZDEV: 'deal_owner',
   SDR: 'multiple_person_mm4xadea',
   IC_CSM: 'multiple_person_mm1cxqfr',
-  // ARR-side deal value — the pre-existing "Net Added ARR" field, always USD.
+  // ARR-side deal value — the pre-existing "Client payment (ARR on SO)" field, always USD.
   NET_ADDED_ARR: 'numeric_mm1j3hkq',
   ARR_LENGTH: 'color_mkz4dtzp',
-  // Manual, account-wide context (not a deal value) — titled "Total Account ARR".
+  // Manual, account-wide context (not a deal value) — titled "Deal ARR (SF)".
   TOTAL_ACCOUNT_ARR: 'numeric_mm4x1a5e',
   TRANSACTION_CURRENCY: 'color_mm4xexb2',
   // PS-side deal value in the deal's Transaction Currency — titled "PS Value (Transaction Currency)".
@@ -498,8 +498,8 @@ export default function OpportunityDetailPanel({ item, isNew, boardCols, wsUsers
           <SectionLabel>Financials{isPS ? ' — Professional Services' : ' — ARR + CS (USD)'}</SectionLabel>
           {!isPS && (
             <div className="grid grid-cols-2 gap-3">
-              <NumberField label="Net Added ARR" prefix="$" value={val(COL.NET_ADDED_ARR, currentText(COL.NET_ADDED_ARR))} dirty={dirty(COL.NET_ADDED_ARR)} onChange={v => set(COL.NET_ADDED_ARR, v)} />
-              <NumberField label="Total Account ARR (manual)" prefix="$" value={val(COL.TOTAL_ACCOUNT_ARR, currentText(COL.TOTAL_ACCOUNT_ARR))} dirty={dirty(COL.TOTAL_ACCOUNT_ARR)} onChange={v => set(COL.TOTAL_ACCOUNT_ARR, v)} />
+              <NumberField label="Client payment (ARR on SO)" prefix="$" value={val(COL.NET_ADDED_ARR, currentText(COL.NET_ADDED_ARR))} dirty={dirty(COL.NET_ADDED_ARR)} onChange={v => set(COL.NET_ADDED_ARR, v)} />
+              <NumberField label="Deal ARR (SF)" prefix="$" value={val(COL.TOTAL_ACCOUNT_ARR, currentText(COL.TOTAL_ACCOUNT_ARR))} dirty={dirty(COL.TOTAL_ACCOUNT_ARR)} onChange={v => set(COL.TOTAL_ACCOUNT_ARR, v)} />
               <NumberField label="CS Hours Included" value={val(COL.HOURS_ACQUIRED, currentText(COL.HOURS_ACQUIRED))} dirty={dirty(COL.HOURS_ACQUIRED)} onChange={v => set(COL.HOURS_ACQUIRED, v)} />
             </div>
           )}

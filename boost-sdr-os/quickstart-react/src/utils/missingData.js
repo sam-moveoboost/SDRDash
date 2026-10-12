@@ -40,7 +40,7 @@ const F = {
   forecast:    { id: 'color_mm5phjr9',  label: 'Forecast Category', type: 'status' },
   winProb:     { id: 'numeric_mm5pgbax', label: 'Win Probability %', type: 'numbers', hint: '0–100' },
   dealType:    { id: 'color_mkz2atw5',  label: 'Type of Deal',      type: 'status' },
-  arrValue:    { id: 'numeric_mm1j3hkq', label: 'Net Added ARR (USD)', type: 'numbers' },
+  arrValue:    { id: 'numeric_mm1j3hkq', label: 'Client payment (ARR on SO) (USD)', type: 'numbers' },
   psValue:     { id: 'numeric_mkz3h4rp', label: 'PS Value (deal currency)', type: 'numbers' },
   currency:    { id: 'color_mm4xexb2',  label: 'Transaction Currency', type: 'status' },
   nextStep:    { id: 'text_mkz2m8qz',   label: 'Next Step',         type: 'text' },

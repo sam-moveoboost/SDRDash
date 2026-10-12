@@ -1,7 +1,7 @@
 // ── Opportunities board (5089407336) — verified against the LIVE board schema ──
 // Re-checked directly via the monday.com API — do not assume field meaning from
 // column *names* alone; several were renamed/repurposed after this was first built:
-//   - numeric_mm4x1a5e is titled "Total Account ARR" (NOT a deal-level ARR field —
+//   - numeric_mm4x1a5e is titled "Deal ARR (SF)" (manual Salesforce figure, NOT the deal value used for reporting —
 //     it's a manually-entered, account-wide context number, kept off pipeline totals)
 //   - numeric_mkz3h4rp is titled "PS Value (Transaction Currency)" (was "Total Price
 //     After Discounts")
@@ -79,13 +79,13 @@ export function parseOpportunity(item) {
   const valueUSD = isPS ? psValueUSD : netAddedARR;
 
   // What reps still need to fill in — surfaced as a warning icon in the UI so
-  // gaps (like the missing Net Added ARR values found in production) get fixed
+  // gaps (like the missing Client payment (ARR on SO) values found in production) get fixed
   // at the source instead of being silently patched over here.
   const missingFields = [];
   if (isPS) {
     if (!psValueTxn) missingFields.push('PS Value');
   } else {
-    if (!netAddedARR) missingFields.push('Net Added ARR');
+    if (!netAddedARR) missingFields.push('Client payment (ARR on SO)');
   }
   if (!hoursAcquired) missingFields.push(isPS ? 'Hours Acquired' : 'CS Hours Included');
   if (!winProbability) missingFields.push('Win Probability');
@@ -109,7 +109,7 @@ export function parseOpportunity(item) {
     hoursAcquired,
     missingFields,
     missingEssentials: missingFields.length > 0,
-    // Blended reporting value in USD (the functional currency): Net Added ARR for
+    // Blended reporting value in USD (the functional currency): Client payment (ARR on SO) for
     // ARR+CS deals, the FX-converted PS Value (USD) for PS deals. PS deals show 0
     // here until the deal's FX rate has been set and the FX Calculator has run.
     valueUSD,
@@ -150,7 +150,7 @@ export function inYear(date, year) {
 
 // ── Aggregation helpers ──────────────────────────────────────────────
 
-// Raw deal amount in its own native currency — Net Added ARR (USD) for ARR+CS
+// Raw deal amount in its own native currency — Client payment (ARR on SO) (USD) for ARR+CS
 // deals, PS Value in Transaction Currency for PS deals. Used for composition
 // breakdowns where showing the real transaction currency matters more than
 // a blended USD total (use o.valueUSD for that instead).
@@ -260,7 +260,7 @@ export function planningBuckets(opps, year, quarter) {
 }
 
 // Split a set of opportunities' blended USD value into ARR vs PS totals — the two use
-// different source fields (Net Added ARR vs the FX-converted PS Value (USD)) and are
+// different source fields (Client payment (ARR on SO) vs the FX-converted PS Value (USD)) and are
 // kept as separate figures rather than combined into one blended number.
 export function sumUSDBySide(opps) {
   return {
