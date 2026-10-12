@@ -644,7 +644,7 @@ export default function OpportunityScoreboard({ region, user }) {
 
       {/* Slide-over edit panel — same editing behaviour the standalone Pipeline Board had */}
       {selectedRawItem && (
-        <div className="fixed inset-0 z-40 flex justify-end">
+        <div className="fixed inset-x-0 bottom-0 top-16 z-40 flex justify-end">
           <div className="absolute inset-0 bg-black/30" onClick={() => setSelectedId(null)} />
           <div className="relative w-full sm:w-[460px] h-full bg-white shadow-2xl overflow-hidden">
             <OpportunityDetailPanel
@@ -662,7 +662,7 @@ export default function OpportunityScoreboard({ region, user }) {
 
       {/* Add Opportunity — same fields as the edit panel, in create mode */}
       {showCreate && (
-        <div className="fixed inset-0 z-40 flex justify-end">
+        <div className="fixed inset-x-0 bottom-0 top-16 z-40 flex justify-end">
           <div className="absolute inset-0 bg-black/30" onClick={() => setShowCreate(false)} />
           <div className="relative w-full sm:w-[460px] h-full bg-white shadow-2xl overflow-hidden">
             <OpportunityDetailPanel
