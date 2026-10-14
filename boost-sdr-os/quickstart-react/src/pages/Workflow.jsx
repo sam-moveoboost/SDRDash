@@ -133,6 +133,7 @@ const SECTION_CFG = {
       const vals  = [email, call].filter(v => v !== null);
       return vals.length ? Math.min(...vals) : null;
     },
+    emailCol:      'email_mm14rb30',
     getEmail:      item => colText(item, 'email_mm14rb30'),
     getLinkedIn:   item => colText(item, 'text_mm09kzh1'),
     getEmailCount: item => colText(item, 'numeric_mkwrtyh6'),
@@ -153,6 +154,7 @@ const SECTION_CFG = {
     editableName: true,
     getName:      item => item.name,
     getCompany:   item => colText(item, 'lead_company'),
+    emailCol:     'lead_email',
     getEmail:     item => colText(item, 'lead_email'),
     getStatus:    item => colText(item, 'lead_status'),
     getRegion:    item => colText(item, 'color_mkz4y1yv'),
@@ -411,7 +413,7 @@ function DetailPanel({ item, boardType, boardCols, wsUsers, events, me, accountS
       for (const colId of changed) {
         if (colId === 'name') continue;
         const field = editFields.find(f => f.id === colId);
-        cv[colId] = buildColumnValue(field?.type ?? 'text', edits[colId]);
+        cv[colId] = buildColumnValue(field?.type ?? (colId === cfg.emailCol ? 'email' : 'text'), edits[colId]);
       }
       if (changed.includes('name')) cv.name = edits.name.trim();
 
@@ -524,23 +526,41 @@ function DetailPanel({ item, boardType, boardCols, wsUsers, events, me, accountS
           </div>
         )}
 
-        {/* Lead contact */}
-        {boardType === 'lead' && cfg.getEmail(item) && (
-          <div>
-            <p className="text-[10.5px] font-bold uppercase tracking-wider text-muted mb-2">Contact</p>
-            <a href={`mailto:${cfg.getEmail(item)}`} className="flex items-center gap-2 text-[13px] text-ink hover:text-navy transition-colors">
-              <svg className="w-3.5 h-3.5 text-muted flex-shrink-0" viewBox="0 0 16 16" fill="none">
-                <rect x="1.5" y="3.5" width="13" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
-                <path d="M1.5 5.5L8 9.5L14.5 5.5" stroke="currentColor" strokeWidth="1.2"/>
-              </svg>
-              {cfg.getEmail(item)}
-            </a>
-          </div>
-        )}
+        {/* Email — editable, with a mailto link, for prospects and leads */}
+        {cfg.emailCol && (() => {
+          const currentEmail = cfg.getEmail(item);
+          const emailVal     = edits[cfg.emailCol] ?? currentEmail;
+          const emailDirty   = edits[cfg.emailCol] !== undefined;
+          return (
+            <div>
+              <label className="text-[10.5px] font-bold uppercase tracking-wider text-muted block mb-1">Email</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="email"
+                  value={emailVal}
+                  placeholder="name@company.com"
+                  onChange={e => setEdits(prev => ({ ...prev, [cfg.emailCol]: e.target.value }))}
+                  className={`flex-1 min-w-0 ${inputCls(emailDirty)}`}
+                />
+                {emailVal.trim() && (
+                  <a
+                    href={`mailto:${emailVal.trim()}`}
+                    title={`Email ${emailVal.trim()}`}
+                    className="flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-lg border border-line text-muted hover:text-navy hover:border-navy transition-colors"
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none">
+                      <rect x="1.5" y="3.5" width="13" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
+                      <path d="M1.5 5.5L8 9.5L14.5 5.5" stroke="currentColor" strokeWidth="1.2"/>
+                    </svg>
+                  </a>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Prospect contact + activity info */}
         {boardType === 'prospect' && (() => {
-          const email    = cfg.getEmail(item);
           const linkedin = cfg.getLinkedIn(item);
           const emails   = cfg.getEmailCount(item);
           const calls    = cfg.getCallCount(item);
@@ -548,19 +568,10 @@ function DetailPanel({ item, boardType, boardCols, wsUsers, events, me, accountS
           const lastCall  = colText(item, 'date_mkwr8xcd');
           return (
             <>
-              {(email || linkedin) && (
+              {linkedin && (
                 <div>
                   <p className="text-[10.5px] font-bold uppercase tracking-wider text-muted mb-2">Contact</p>
                   <div className="space-y-2">
-                    {email && (
-                      <a href={`mailto:${email}`} className="flex items-center gap-2 text-[13px] text-ink hover:text-navy transition-colors">
-                        <svg className="w-3.5 h-3.5 text-muted flex-shrink-0" viewBox="0 0 16 16" fill="none">
-                          <rect x="1.5" y="3.5" width="13" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
-                          <path d="M1.5 5.5L8 9.5L14.5 5.5" stroke="currentColor" strokeWidth="1.2"/>
-                        </svg>
-                        {email}
-                      </a>
-                    )}
                     {linkedin && (
                       <a href={linkedin.startsWith('http') ? linkedin : `https://${linkedin}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-[13px] text-navy-700 hover:underline">
                         <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 16 16" fill="currentColor">
