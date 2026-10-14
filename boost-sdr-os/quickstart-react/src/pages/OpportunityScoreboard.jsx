@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
+import { sortAlpha } from '../utils/sortOptions';
 import {
   fetchOpportunitySnapshot, peekCachedOpportunities, patchCachedOpportunity,
   fetchBoardColumns, fetchWorkspaceUsers, BOARDS,
@@ -227,22 +228,22 @@ function FilterBar({ filters, setFilters, options }) {
 
       <select className={selectCls(filters.typeOfDeal !== 'All')} value={filters.typeOfDeal} onChange={e => set('typeOfDeal', e.target.value)}>
         <option value="All">Deal type: All</option>
-        {options.typeOfDeal.map(v => <option key={v} value={v}>{v}</option>)}
+        {sortAlpha(options.typeOfDeal).map(v => <option key={v} value={v}>{v}</option>)}
       </select>
 
       <select className={selectCls(filters.arrSourceType !== 'All')} value={filters.arrSourceType} onChange={e => set('arrSourceType', e.target.value)}>
         <option value="All">Source type: All</option>
-        {options.arrSourceType.map(v => <option key={v} value={v}>{v}</option>)}
+        {sortAlpha(options.arrSourceType).map(v => <option key={v} value={v}>{v}</option>)}
       </select>
 
       <select className={selectCls(filters.sdr !== 'All')} value={filters.sdr} onChange={e => set('sdr', e.target.value)}>
         <option value="All">SDR: All</option>
-        {options.sdr.map(v => <option key={v} value={v}>{v}</option>)}
+        {sortAlpha(options.sdr).map(v => <option key={v} value={v}>{v}</option>)}
       </select>
 
       <select className={selectCls(filters.bizDev !== 'All')} value={filters.bizDev} onChange={e => set('bizDev', e.target.value)}>
         <option value="All">BizDev: All</option>
-        {options.bizDev.map(v => <option key={v} value={v}>{v}</option>)}
+        {sortAlpha(options.bizDev).map(v => <option key={v} value={v}>{v}</option>)}
       </select>
 
       <div className="flex items-center gap-1.5">

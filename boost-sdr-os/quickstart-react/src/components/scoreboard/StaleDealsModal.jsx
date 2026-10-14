@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { fetchBoardColumns, fetchItemNames, updateOpportunityColumn, BOARDS } from '../../api/monday';
+import { sortAlpha } from '../../utils/sortOptions';
 
 // ── Helpers ───────────────────────────────────────────────────────
 
@@ -112,7 +113,7 @@ function FieldRow({ def, column, deal, edits, onChange, users, displayOverride }
           className={inputCls(dirty)}
         >
           <option value="">—</option>
-          {users.map(u => (
+          {sortAlpha(users, u => u.name).map(u => (
             <option key={u.id} value={String(u.id)}>{u.name}</option>
           ))}
         </select>
@@ -145,7 +146,7 @@ function FieldRow({ def, column, deal, edits, onChange, users, displayOverride }
           className={inputCls(isDirty)}
         >
           {!current && <option value="">—</option>}
-          {labels.map(label => (
+          {sortAlpha(labels).map(label => (
             <option key={label} value={label}>{label}</option>
           ))}
           {/* If current value isn't in the list (e.g. stale data), keep it selectable */}

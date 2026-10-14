@@ -3,6 +3,7 @@ import { formatMoney } from '../../utils/opportunityMetrics';
 import { wonValue, openValue } from '../../utils/eventMetrics';
 import { setLeadEvent, addOpportunityEvent } from '../../api/monday';
 import { EventTag, formatEventDate } from './EventPicker';
+import { sortAlpha } from '../../utils/sortOptions';
 
 const TYPE_COLORS = {
   'All Day Conference':   '#579bfc',
@@ -96,7 +97,7 @@ function LinkToEvent({ events, onLink }) {
         className="max-w-[200px] px-2 py-1 bg-canvas border border-line rounded-lg text-[12px] outline-none focus:border-navy cursor-pointer"
       >
         <option value="">Choose event…</option>
-        {events.map(e => <option key={e.id} value={e.id}>{e.name} · {formatEventDate(e.startDate)}</option>)}
+        {sortAlpha(events, e => e.name).map(e => <option key={e.id} value={e.id}>{e.name} · {formatEventDate(e.startDate)}</option>)}
       </select>
       <button
         disabled={!eventId || busy}

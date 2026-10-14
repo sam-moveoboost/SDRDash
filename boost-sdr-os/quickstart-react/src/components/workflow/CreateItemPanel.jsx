@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { createItem, buildColumnValue, setLeadEvent, setProspectEvent, REL, BOARDS } from '../../api/monday';
 import { EventPicker } from '../events/EventPicker';
+import { sortAlpha } from '../../utils/sortOptions';
 
 // Create form for a new prospect or lead, shown in the My Work sidebar.
 // (New opportunities use OpportunityDetailPanel's own create mode.)
@@ -128,7 +129,7 @@ export default function CreateItemPanel({ boardType, boardCols, wsUsers, me, reg
       return (
         <select value={opts.includes(v) ? v : ''} onChange={set(f.id)} className={inputCls(!!v)}>
           <option value="">—</option>
-          {opts.map(o => <option key={o} value={o}>{o}</option>)}
+          {sortAlpha(opts).map(o => <option key={o} value={o}>{o}</option>)}
         </select>
       );
     }
@@ -136,7 +137,7 @@ export default function CreateItemPanel({ boardType, boardCols, wsUsers, me, reg
       return (
         <select value={v} onChange={set(f.id)} className={inputCls(!!v)}>
           <option value="">—</option>
-          {wsUsers.map(u => <option key={u.id} value={String(u.id)}>{u.name}</option>)}
+          {sortAlpha(wsUsers, u => u.name).map(u => <option key={u.id} value={String(u.id)}>{u.name}</option>)}
         </select>
       );
     }

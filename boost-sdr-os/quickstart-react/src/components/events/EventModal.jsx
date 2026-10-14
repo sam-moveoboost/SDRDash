@@ -10,6 +10,7 @@ import {
 } from '../../utils/eventMetrics';
 import { HowMetChoice, EventTag, formatEventDate } from './EventPicker';
 import UpdatesButton from '../shared/UpdatesButton';
+import { sortAlpha } from '../../utils/sortOptions';
 
 const ATTEND_HOST_OPTIONS = ['Rec: Attend', 'Rec: Host', 'Decided: Attending', 'Decided: Hosting', 'Not Going'];
 const EVENT_TYPE_OPTIONS  = ['All Day Conference', 'Short Conference', 'In Person Networking', 'Online Networking', 'Other'];
@@ -41,7 +42,7 @@ function Select({ value, onChange, options, placeholder = '— select —' }) {
       className="w-full px-3 py-2 bg-canvas border border-line rounded-xl text-[13.5px] outline-none focus:border-navy transition-colors cursor-pointer"
     >
       <option value="">{placeholder}</option>
-      {options.map(o => <option key={o} value={o}>{o}</option>)}
+      {sortAlpha(options).map(o => <option key={o} value={o}>{o}</option>)}
     </select>
   );
 }
@@ -59,7 +60,7 @@ function ComboInput({ value, onChange, options, placeholder, listId }) {
         className="w-full px-3 py-2 bg-canvas border border-line rounded-xl text-[13.5px] outline-none focus:border-navy transition-colors"
       />
       <datalist id={listId}>
-        {options.map(o => <option key={o} value={o} />)}
+        {sortAlpha(options).map(o => <option key={o} value={o} />)}
       </datalist>
     </>
   );
@@ -513,7 +514,7 @@ function LeadsTab({ event, row, events, users, me, onChanged }) {
                 <Label>SDR</Label>
                 <select value={newLead.sdrId} onChange={set(setNewLead, 'sdrId')} className="w-full px-3 py-2 bg-canvas border border-line rounded-xl text-[13.5px] outline-none focus:border-navy cursor-pointer">
                   <option value="">—</option>
-                  {users.map(u => <option key={u.id} value={String(u.id)}>{u.name}</option>)}
+                  {sortAlpha(users, u => u.name).map(u => <option key={u.id} value={String(u.id)}>{u.name}</option>)}
                 </select>
               </div>
             </div>
