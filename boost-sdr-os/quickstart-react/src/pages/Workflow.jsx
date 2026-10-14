@@ -153,6 +153,7 @@ const SECTION_CFG = {
     editableName: true,
     getName:      item => item.name,
     getCompany:   item => colText(item, 'lead_company'),
+    getEmail:     item => colText(item, 'lead_email'),
     getStatus:    item => colText(item, 'lead_status'),
     getRegion:    item => colText(item, 'color_mkz4y1yv'),
     getLastTouch: item => daysSince(item.updated_at),
@@ -520,6 +521,20 @@ function DetailPanel({ item, boardType, boardCols, wsUsers, events, me, accountS
             {touch > 7 && (
               <p className="text-[12px] text-red/80 mt-0.5">No contact in over a week — consider reaching out.</p>
             )}
+          </div>
+        )}
+
+        {/* Lead contact */}
+        {boardType === 'lead' && cfg.getEmail(item) && (
+          <div>
+            <p className="text-[10.5px] font-bold uppercase tracking-wider text-muted mb-2">Contact</p>
+            <a href={`mailto:${cfg.getEmail(item)}`} className="flex items-center gap-2 text-[13px] text-ink hover:text-navy transition-colors">
+              <svg className="w-3.5 h-3.5 text-muted flex-shrink-0" viewBox="0 0 16 16" fill="none">
+                <rect x="1.5" y="3.5" width="13" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
+                <path d="M1.5 5.5L8 9.5L14.5 5.5" stroke="currentColor" strokeWidth="1.2"/>
+              </svg>
+              {cfg.getEmail(item)}
+            </a>
           </div>
         )}
 
