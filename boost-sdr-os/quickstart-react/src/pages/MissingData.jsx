@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { sortAlpha } from '../utils/sortOptions';
 import {
   fetchCurrentUser,
   fetchWorkspaceUsers,
@@ -94,7 +95,7 @@ function FieldInput({ field, value, onChange, options, users }) {
     return (
       <select value={value ?? ''} onChange={e => onChange(e.target.value)} className={inputCls(dirty)}>
         <option value="">Choose…</option>
-        {options.map(o => <option key={o.index} value={String(o.index)}>{o.label}</option>)}
+        {sortAlpha(options, o => o.label).map(o => <option key={o.index} value={String(o.index)}>{o.label}</option>)}
       </select>
     );
   }
@@ -102,7 +103,7 @@ function FieldInput({ field, value, onChange, options, users }) {
     return (
       <select value={value ?? ''} onChange={e => onChange(e.target.value)} className={inputCls(dirty)}>
         <option value="">Choose…</option>
-        {users.map(u => <option key={u.id} value={String(u.id)}>{u.name}</option>)}
+        {sortAlpha(users, u => u.name).map(u => <option key={u.id} value={String(u.id)}>{u.name}</option>)}
       </select>
     );
   }
@@ -211,7 +212,7 @@ function FixPanel({ entry, boardCols, users, me, accountSlug, onClose, onSaved }
             }`}
           >
             <option value="">—</option>
-            {optionsFor(statusCol.id).map(o => <option key={o.index} value={String(o.index)}>{o.label}</option>)}
+            {sortAlpha(optionsFor(statusCol.id), o => o.label).map(o => <option key={o.index} value={String(o.index)}>{o.label}</option>)}
           </select>
         </div>
         <p className="text-[10.5px] font-bold uppercase tracking-wider text-muted">
@@ -383,7 +384,7 @@ export default function MissingData({ user: userProp }) {
               >
                 {me && <option value={String(me.id)}>Me ({me.name?.split(' ')[0]})</option>}
                 <option value="all">Everyone ({all.length})</option>
-                {owners.filter(o => !me || o.id !== String(me.id)).map(o => (
+                {sortAlpha(owners.filter(o => !me || o.id !== String(me.id)), o => o.name).map(o => (
                   <option key={o.id} value={o.id}>{o.name} ({o.n})</option>
                 ))}
               </select>

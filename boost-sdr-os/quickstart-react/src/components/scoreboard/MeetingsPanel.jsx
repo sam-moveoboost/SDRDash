@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { BOARDS, updateItemColumnValue } from '../../api/monday';
+import { sortAlpha } from '../../utils/sortOptions';
 import {
   MEETING_COLS, LEAD_STATUS_OPTIONS, meetingCol, isQualifyingMeeting, repMeetings, isCounted, createdDate,
 } from '../../utils/meetingAttribution';
@@ -225,7 +226,7 @@ function MeetingRow({ meeting, tab, reps, accountSlug, onUpdate }) {
           >
             <option value="">{sdrIds.length > 1 ? sdrText : 'Unassigned'}</option>
             {sdrValue && !reps.some(r => r.mondayUserId === sdrValue) && <option value={sdrValue}>{sdrText}</option>}
-            {reps.map(r => <option key={r.id} value={r.mondayUserId}>{r.name} · {r.role}</option>)}
+            {sortAlpha(reps, r => r.name).map(r => <option key={r.id} value={r.mondayUserId}>{r.name} · {r.role}</option>)}
           </select>
         </label>
         <label className="block">
@@ -237,7 +238,7 @@ function MeetingRow({ meeting, tab, reps, accountSlug, onUpdate }) {
             className="mt-0.5 w-full bg-card border border-line rounded-lg px-2 py-1 text-[12.5px] outline-none focus:border-navy"
           >
             {!LEAD_STATUS_OPTIONS.includes(status) && <option value={status}>{status || '—'}</option>}
-            {LEAD_STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+            {sortAlpha(LEAD_STATUS_OPTIONS).map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </label>
       </div>

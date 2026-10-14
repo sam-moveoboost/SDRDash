@@ -8,6 +8,7 @@ import MissingData from './pages/MissingData';
 import OpportunityScoreboard from './pages/OpportunityScoreboard';
 import boostLockup from './assets/brand/boost-lockup-white.png';
 import './App.css';
+import { sortAlpha } from './utils/sortOptions';
 
 const monday = mondaySdk();
 
@@ -80,7 +81,7 @@ export default function App() {
               onChange={e => setRegion(e.target.value)}
               className="bg-transparent border-0 text-white text-sm font-medium cursor-pointer outline-none"
             >
-              {REGIONS.map(r => <option key={r} value={r} className="text-ink">{r}</option>)}
+              {sortAlpha(REGIONS).map(r => <option key={r} value={r} className="text-ink">{r}</option>)}
             </select>
           </div>
 

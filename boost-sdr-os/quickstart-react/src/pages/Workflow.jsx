@@ -23,6 +23,7 @@ import UpdatesButton from '../components/shared/UpdatesButton';
 import { parseOpportunity, formatMoney, OPP_COLS } from '../utils/opportunityMetrics';
 import { EventPicker, HowMetChoice } from '../components/events/EventPicker';
 import { EVENT_SOURCE, defaultHowMet } from '../utils/eventMetrics';
+import { sortAlpha } from '../utils/sortOptions';
 
 // ── Helpers ────────────────────────────────────────────────────────
 
@@ -58,9 +59,9 @@ function parsePersonIds(val) {
 }
 
 // Leads in these statuses don't need further follow-up, so My Work hides them
-// (note: "Qualifed Lead No Opp" is spelled that way on the board itself).
+// (the board label used to be misspelled "Qualifed Lead No Opp"; keep both spellings).
 const NO_FOLLOWUP_LEAD_STATUSES = new Set([
-  'Qualified Opportunity', 'Qualifed Lead No Opp', 'Lead Unqualified', 'Duplicate',
+  'Qualified Opportunity', 'Qualified Lead No Opp', 'Qualifed Lead No Opp', 'Lead Unqualified', 'Duplicate',
 ]);
 
 // Won/Lost opportunities are closed — they don't need further work, so My Work
@@ -598,7 +599,7 @@ function DetailPanel({ item, boardType, boardCols, wsUsers, events, me, accountS
                         className={inputCls(dirty)}
                       >
                         <option value="">—</option>
-                        {wsUsers.map(u => (
+                        {sortAlpha(wsUsers, u => u.name).map(u => (
                           <option key={u.id} value={String(u.id)}>{u.name}</option>
                         ))}
                       </select>
@@ -620,7 +621,7 @@ function DetailPanel({ item, boardType, boardCols, wsUsers, events, me, accountS
                         <option value="">—</option>
                         {/* Keep a current value visible even if its label is now deactivated */}
                         {currentTxt && !field.statusLabels.includes(currentTxt) && <option value={currentTxt}>{currentTxt}</option>}
-                        {field.statusLabels.map(s => <option key={s} value={s}>{s}</option>)}
+                        {sortAlpha(field.statusLabels).map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
                     </div>
                   );

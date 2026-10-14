@@ -5,6 +5,7 @@ import {
 } from '../../api/monday';
 import { EventPicker } from '../events/EventPicker';
 import UpdatesButton from '../shared/UpdatesButton';
+import { sortAlpha } from '../../utils/sortOptions';
 
 // Puts the event link back onto column values returned by a mutation —
 // mutation responses carry no linked_item_ids, so without this the deal would
@@ -126,7 +127,7 @@ function StatusField({ label, value, options, dirty, onChange }) {
     <FieldRow label={label}>
       <select value={value ?? ''} onChange={e => onChange(e.target.value)} className={inputCls(dirty)}>
         <option value="">—</option>
-        {options.map(o => <option key={o} value={o}>{o}</option>)}
+        {sortAlpha(options).map(o => <option key={o} value={o}>{o}</option>)}
       </select>
     </FieldRow>
   );
@@ -146,7 +147,7 @@ function ComboField({ label, value, options, dirty, onChange, placeholder }) {
         className={inputCls(dirty)}
       />
       <datalist id={listId}>
-        {options.map(o => <option key={o} value={o} />)}
+        {sortAlpha(options).map(o => <option key={o} value={o} />)}
       </datalist>
     </FieldRow>
   );
@@ -179,7 +180,7 @@ function PersonField({ label, value, wsUsers, dirty, onChange }) {
     <FieldRow label={label}>
       <select value={value ?? ''} onChange={e => onChange(e.target.value)} className={inputCls(dirty)}>
         <option value="">—</option>
-        {wsUsers.map(u => <option key={u.id} value={String(u.id)}>{u.name}</option>)}
+        {sortAlpha(wsUsers, u => u.name).map(u => <option key={u.id} value={String(u.id)}>{u.name}</option>)}
       </select>
     </FieldRow>
   );
