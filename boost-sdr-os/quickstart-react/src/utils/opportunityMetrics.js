@@ -30,6 +30,7 @@ export const OPP_COLS = {
   // Titled "Hours acquired" — on a PS deal this is hours purchased; on an ARR
   // deal it's the included Customer Success hours that ship with the ARR.
   HOURS_ACQUIRED:    'numeric_mm4xe0qv',
+  NEXT_STEP:         'text_mkz2m8qz',
 };
 
 const CURRENCY_ALIAS = { GPB: 'GBP', UAE: 'AED' };
@@ -127,6 +128,7 @@ export function parseOpportunity(item) {
     bizDev: colText(item, OPP_COLS.DEAL_OWNER) || 'Unassigned',
     sdr: colText(item, OPP_COLS.SDR) || 'Unassigned',
     arrSourceType: colText(item, OPP_COLS.ARR_SOURCE_TYPE) || 'Unspecified',
+    nextStep: colText(item, OPP_COLS.NEXT_STEP),
   };
 }
 
