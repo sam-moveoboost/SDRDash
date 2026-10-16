@@ -6,6 +6,7 @@ import Workflow from './pages/Workflow';
 import Events from './pages/Events';
 import MissingData from './pages/MissingData';
 import OpportunityScoreboard from './pages/OpportunityScoreboard';
+import Revenue from './pages/Revenue';
 import boostLockup from './assets/brand/boost-lockup-white.png';
 import './App.css';
 import { sortAlpha } from './utils/sortOptions';
@@ -54,6 +55,7 @@ export default function App() {
           {[
             { id: 'scoreboard',    label: 'Scoreboard' },
             { id: 'opportunities', label: 'Pipeline' },
+            { id: 'revenue',       label: 'Revenue' },
             { id: 'events',        label: 'Events' },
             { id: 'workflow',      label: 'My Work' },
             { id: 'missing',       label: 'My Missing Data' },
@@ -121,6 +123,7 @@ export default function App() {
         {tab === 'opportunities' && (
           <OpportunityScoreboard region={region} user={user} />
         )}
+        {tab === 'revenue'       && <Revenue region={region} />}
         {tab === 'events'        && <Events user={user} />}
         {tab === 'missing'       && <MissingData user={user} />}
       </main>
