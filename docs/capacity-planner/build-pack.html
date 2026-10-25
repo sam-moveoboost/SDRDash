@@ -1,4 +1,3 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"></head><body>
 <title>boost Capacity Planner Build Pack</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -275,7 +274,7 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <div class="shell">
 <aside class="toc" aria-label="Contents">
   <div class="brand"><b>boost</b><span>Delivery OS</span></div>
-  <p class="sub">Capacity Planner build pack<br>Draft v1.3 · 26 Oct 2026</p>
+  <p class="sub">Capacity Planner build pack<br>Draft v1.4 · 26 Oct 2026</p>
   <nav class="full" id="tocnav">
     <div class="part">A · Orientation</div>
     <a href="#how"><span class="n">01</span>How to use this pack</a>
@@ -423,7 +422,7 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <li>nudges for missing information at the moment it matters;</li>
 <li>a future-conflict spotter;</li>
 <li>a <code>/capacity</code> question box in Slack;</li>
-<li>meeting follow-ups from the monday AI Notetaker. Internal attendees get a summary, can create the actions in one click, and can review suggested deal or project updates and save them as themselves.</li>
+<li>meeting follow-ups from the monday AI Notetaker, built on the transcript integration Sally Gecko already uses. Internal attendees get a summary, can create the actions in one click, and can review suggested deal or project updates and save them as themselves.</li>
 </ul>
 <p>Each person gets at most 3 alerts and 1 digest a day, with quiet hours by region. Sections 19B and 19C have the detail.</p></div>
 
@@ -533,8 +532,8 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <tr><td class="id">D-27</td><td>Assistants are built in three parts: deterministic signal rules decide what and who; Claude writes the words; a Slack bot delivers. The model never decides facts.</td><td>Let Claude scan the data and decide</td><td>No invented figures, testable rules and predictable volume. Claude is used where it adds most: clear, kind, specific wording, plus options.</td><td>BE</td></tr>
 <tr><td class="id">D-28</td><td>One Slack app, "boost Delivery Assistant", run by the monday code back-end, sends every message as a bot.</td><td>Claude routines posting through a personal Slack connection</td><td>Messages would appear to come from one person. A bot can DM anyone, offer buttons and respect preferences.</td><td>BE</td></tr>
 <tr><td class="id">D-29</td><td>Changes proposed from meetings are only applied after a person reviews them in the app, and they are saved as that person. Action items may be created straight from Slack, with an attribution note.</td><td>Auto-apply, or apply from a Slack button as the bot</td><td>Keeps deal and project facts human-confirmed and correctly attributed (D-15, BR-025).</td><td>PO</td></tr>
-<tr><td class="id">D-30</td><td>All assistants use Claude Opus 5.5 (low effort for messages, medium for meetings and Q&amp;A), with structured outputs, prompt caching and refusal fallback.</td><td>Mix cheaper models now</td><td>Best quality by default, about $200 a month at forecast volume. Moving to Sonnet 5.5 or Haiku 5.5 is your option (Q-14).</td><td>BE</td></tr>
-<tr><td class="id">D-31</td><td>Meeting follow-up reads the monday AI Notetaker through the API, and matches meetings using the existing Meetings board and its links.</td><td>A third-party note taker, or a separate meetings store</td><td>Notetaker is already in your monday. The Meetings board already links 8,527 meetings to deals and projects.</td><td>BE</td></tr>
+<tr><td class="id">D-30</td><td><strong>Confirmed 26 Oct:</strong> messages, briefs and nudges use Claude Sonnet 5.5. Meeting extraction and Ask the planner use Claude Opus 5.5. All use structured outputs, prompt caching and refusal fallback.</td><td>Opus 5.5 for everything</td><td>Messages are short and rule-driven, so Sonnet is enough. Extraction and Q&amp;A need the strongest model. About $165 a month at forecast volume.</td><td>PO</td></tr>
+<tr><td class="id">D-31</td><td>Meeting follow-up reads full transcripts from the monday AI Notetaker API, reusing the Sally Gecko integration, and matches meetings using the existing Meetings board and its links.</td><td>A third-party note taker, or a new integration</td><td>Sally Gecko already reads transcripts through the API with Claude. The Meetings board already links 8,527 meetings to deals and projects.</td><td>BE</td></tr>
 <tr><td class="id">D-22</td><td>CS hours come from Projects rows of type CS or CS By IC. The account-level CSM portfolio model is deferred to Phase 4.</td><td>Model CS from the CSM Portfolio board now</td><td>Your instruction. The portfolio board is still being reworked.</td><td>PO</td></tr>
 </tbody></table></div>
 </div></section>
@@ -592,6 +591,7 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <tr><td class="id">DL-033</td><td>Briefing 26 Oct: the current app is sometimes slow to load. You want summaries calculated and stored in advance, automatic refreshes (confirmed 26 Oct: 03:00 and 12:00 UK; data held on EU servers), a manual refresh button, and your own saves reflected immediately.</td><td>Sam, 26 Oct</td><td>Read model, section 19A (D-23 to D-26)</td></tr>
 <tr><td class="id">DL-034</td><td>Briefing 26 Oct: you want supporting Claude processes that suggest, inform, run on schedules, spot future conflicts, chase the most important missing information when needed, and notify people in Slack with links that go straight to the right place. You also want AI Notetaker summaries pushed to attendees in Slack, with options to create actions or update deals and projects.</td><td>Sam, 26 Oct</td><td>Sections 19B and 19C</td></tr>
 <tr><td class="id">DL-035</td><td>The Meetings board (5089995828) holds 8,527 meetings with attendee emails and links to Opportunities, Projects and Sprint. It also has a "Run Agent" trigger and a "Meeting Summary Doc Creator" user, so a summary process already exists.</td><td>Board schema</td><td>Build meeting follow-up on top of it (D-31). Agree ownership with whoever runs the current process (Q-15).</td></tr>
+<tr><td class="id">DL-037</td><td>Briefing 26 Oct: boost's Sally Gecko project already reads full Notetaker transcripts from the monday API and processes them with Claude.</td><td>Sam, 26 Oct</td><td>Reuse its integration (D-31). Coordinate so a sales call gets one message (Q-16).</td></tr>
 <tr><td class="id">DL-036</td><td>Slack has <code>#boost-sales</code> and client project channels (for example <code>#generali-uk-risks-ms</code>), but no delivery or capacity channels.</td><td>Slack channel search</td><td>Create three channels (Q-12). DMs are the default delivery.</td></tr>
 <tr><td class="id">DL-028</td><td>The "IC Project Flow · Skill Build Tracker" board tracks Claude skills used in delivery, not people's skills. IC Performance is empty.</td><td>Board schema</td><td>Nothing to reuse for the skills matrix.</td></tr>
 <tr><td class="id">DL-029</td><td>No automation creates a project when a deal is Won. The existing "Opp Won" automation only stamps the Actual Close Date and moves the item to the Closed Won group. Project creation is manual today.</td><td>Opportunities automations</td><td>WF-02 hand-off is new process, not a replacement.</td></tr>
@@ -2565,7 +2565,7 @@ flowchart LR
 </pre>
 <ol>
 <li><strong>Signal rules (code, not AI).</strong> After every snapshot build and every saved change, the back-end evaluates the rules for each assistant over the snapshot. Rules decide what is true and who it is for: for example, Priya is at 128% in the week of 30 Nov, or deal X moved to Contract sent without delivery fields. Facts never come from the model, so no number in a message is invented.</li>
-<li><strong>Claude writes the message.</strong> Claude Opus 5.5 at low effort turns each signal plus its context into a short, friendly message. It explains the why, names the one action to take, and where useful adds two or three options (for example the top move suggestion from 9.10). It uses structured output with a fixed schema, so every message has the same parts. The model may only reference people, items and figures that are in its input.</li>
+<li><strong>Claude writes the message.</strong> Claude Sonnet 5.5 turns each signal plus its context into a short, friendly message. It explains the why, names the one action to take, and where useful adds two or three options (for example the top move suggestion from 9.10). It uses structured output with a fixed schema, so every message has the same parts. The model may only reference people, items and figures that are in its input.</li>
 <li><strong>The Slack bot delivers it,</strong> as "boost Delivery Assistant". It sends a DM to the person concerned, or posts to a team channel, with deep links and buttons. Clicks come back to the monday code back-end, which checks the request is genuinely from Slack (signing secret) before acting.</li>
 </ol>
 
@@ -2660,7 +2660,7 @@ flowchart LR
 </ul>
 
 <h3>19B.6 Cost and model</h3>
-<p>All assistants use <strong>Claude Opus 5.5</strong> (<code>claude-opus-5-5</code>), the current default model. It runs at <em>low</em> effort for messages and briefs, and <em>medium</em> for meeting extraction and Q&amp;A. Structured outputs keep every message in a fixed shape. Prompt caching holds the shared system prompt and today's snapshot summary, so repeated calls are cheaper. Server-side refusal fallback is switched on (<code>fallbacks: "default"</code>).</p>
+<p><strong>Confirmed 26 Oct:</strong> messages, briefs and nudges use <strong>Claude Sonnet 5.5</strong> (<code>claude-sonnet-5-5</code>, low effort). Meeting extraction and Ask the planner stay on <strong>Claude Opus 5.5</strong> (<code>claude-opus-5-5</code>, medium effort), because accuracy matters most there. Structured outputs keep every message in a fixed shape. Prompt caching holds the shared system prompt and today's snapshot summary, so repeated calls are cheaper. Server-side refusal fallback is switched on (<code>fallbacks: "default"</code>).</p>
 <div class="tbl wide compact"><table>
 <thead><tr><th>Typical working day, all waves live</th><th class="num">Calls</th><th class="num">Input tokens</th><th class="num">Output tokens</th></tr></thead>
 <tbody>
@@ -2671,18 +2671,18 @@ flowchart LR
 <tr><td>Weekly and monthly (AI-05, 06, 17, 18), averaged per day</td><td class="num">~5</td><td class="num">~40k</td><td class="num">~8k</td></tr>
 <tr><td><strong>Total</strong></td><td class="num"><strong>~170</strong></td><td class="num"><strong>~1.5M</strong></td><td class="num"><strong>~150k</strong></td></tr>
 </tbody></table></div>
-<p class="small">At published Claude Opus 5.5 rates ($4 per million input tokens and $20 per million output, cached input cheaper), that is roughly <strong>$9 a working day, about $200 a month</strong>, before caching savings and including thinking tokens at low effort. Two options are available if cost matters more than polish:</p>
+<p class="small">At published rates (Sonnet 5.5 $2 / $10 and Opus 5.5 $4 / $20 per million input and output tokens), that is roughly <strong>$7.50 a working day, about $165 a month</strong>, before caching savings:</p>
 <ul class="small">
-<li>Moving the short messages to Claude Haiku 5.5 would cut that part by about 95%.</li>
-<li>Moving to Claude Sonnet 5.5 would roughly halve it.</li>
+<li>Messages on Sonnet: about $1.80 a day.</li>
+<li>Meetings and Q&amp;A on Opus: about $5.60 a day.</li>
 </ul>
-<p class="small">That is your call (Q-14). Usage is logged per assistant, so the bill can be checked against value.</p>
+<p class="small">Usage is logged per assistant, so the bill can be checked against value. If you want to save more later, moving the shortest nudges to Claude Haiku 5.5 is a settings change.</p>
 </div></section>
 
 <!-- ─────────────────────────── 19C MEETINGS ─────────────────────────── -->
 <section class="chap" id="meetings"><div class="wrap">
 <header><div class="eyebrow">Part D · Design</div><h2><span class="num">19C</span>Meeting follow-up from the AI Notetaker</h2></header>
-<p class="intro">Yes, this can be brought in. monday's own AI Notetaker exposes finished meetings (summary, topics, action items, participants and the transcript) through the API from version 2026-04 (S-20). Your Meetings board already holds 8,527 meetings, linked to Opportunities and Projects, with an existing summary-doc process. The follow-up builds on that rather than starting again.</p>
+<p class="intro">Yes, this can be brought in. monday's own AI Notetaker exposes finished meetings (summary, topics, action items, participants and the <strong>full transcript</strong>) through the API from version 2026-04 (S-20). boost already does this with Claude in the <strong>Sally Gecko</strong> project, so the access is proven on your account. Your Meetings board already holds 8,527 meetings linked to Opportunities and Projects. The follow-up reuses Sally Gecko's transcript integration and the Meetings board links, rather than starting again.</p>
 
 <h3>19C.1 The flow</h3>
 <pre class="mermaid">
@@ -2697,7 +2697,7 @@ sequenceDiagram
   participant MB as monday boards
   BE->>NT: notetaker.meetings (new since last check)
   BE->>BE: Match to deal or project (attendee emails → Contacts → Account; Meetings board link; calendar event)
-  BE->>CL: Summary + action items + transcript excerpt + current deal or project fields
+  BE->>CL: Full transcript + Notetaker summary and actions + current deal or project fields
   CL-->>BE: Structured follow-up: summary, decisions, risks, actions (owner, due), proposed field changes with quotes
   BE->>SL: Group DM to internal attendees
   P->>SL: Create actions
@@ -2752,12 +2752,18 @@ sequenceDiagram
 <h3>19C.4 Privacy, consent and trust</h3>
 <ul>
 <li><strong>Only internal attendees</strong> receive the follow-up, by DM. Clients never receive anything from the assistant.</li>
-<li><strong>No transcript is stored</strong> by the back-end. A short excerpt is sent to Claude for extraction, and only the structured result is kept, for 30 days, in app storage.</li>
+<li><strong>No transcript is stored</strong> by the back-end. The full transcript is sent to Claude for extraction, as Sally Gecko does today, and only the structured result is kept, for 30 days, in app storage.</li>
 <li><strong>Excluded meetings:</strong> titles or calendars matching a Settings list (for example "1:1", "HR", "Interview", "Personal") are never processed.</li>
 <li><strong>Who can be read.</strong> The back-end reads meetings visible to the authorising account through the API's access filter. Meetings must be shared with the account, or the authorising user must be invited (Q-15).</li>
 <li><strong>Claude API data handling:</strong> customer call content goes to Anthropic's API. Leadership confirms this fits client contracts and the DPA before go-live (Q-13), and the processing record is updated.</li>
 </ul>
-<div class="callout warn"><span class="t">One source conflict to resolve in the spike</span><p>monday's API reference documents <code>notetaker.meetings</code> (API 2026-04 and later). One page of the same documentation says there is no public GraphQL API and points to the MCP. P-40 starts with a one-call spike to confirm access with the app's OAuth token (A-15). If that fails, the fallback is the existing Meetings board pipeline, which already creates summary docs: we read its Doc column instead.</p></div>
+<div class="callout"><span class="t">Settled: transcripts are readable, and Sally Gecko already does it</span><p>Confirmed by Sam, 26 Oct: boost's Sally Gecko project already reads full Notetaker transcripts from the monday API and processes them with Claude. P-40 reuses that integration (the same query, auth pattern and meeting selection) instead of building a new one. That settles the conflicting documentation page (A-15).</p></div>
+<h3>19C.5 Working alongside Sally Gecko</h3>
+<ul>
+<li><strong>One message per meeting, not two.</strong> For sales calls that Sally Gecko already processes (discovery, MEDDPICC coaching, Discovery Status, criteria subitems), the follow-up either merges into Sally's message or covers only what Sally does not: delivery fields, actions and project updates. Which of the two is agreed with Sally's owner (Q-16).</li>
+<li><strong>Fields stay single-owned.</strong> Sally keeps the MEDDPICC subitems and Discovery Status. The capacity follow-up proposes only the 19C.3 fields, so the two never write the same column.</li>
+<li><strong>Shared code.</strong> The transcript fetch and the meeting-to-deal matching become one shared module that both use, so improvements help both.</li>
+</ul>
 </div></section>
 
 <!-- ─────────────────────────── 20 SEEDING ─────────────────────────── -->
@@ -3579,7 +3585,7 @@ Read: pack 19B.2, 19B.3, 19B.6; the claude-api skill for current SDK usage.
 Do:
 1. server/signals/: one pure module per assistant over the snapshot, returning signals {assistant, recipient,
    facts, links, buttons, severity, dedupeKey}. Fixture F13 tests each rule.
-2. server/compose.js: @anthropic-ai/sdk with model claude-opus-5-5, effort low, structured output schema
+2. server/compose.js: @anthropic-ai/sdk with model claude-sonnet-5-5 (D-30), effort low, structured output schema
    {headline, items:[{text, primaryButton, link}], footer}, a cached system prompt with the boost tone rules
    (UK English, lowercase boost, no emoji, no em dashes), refusal fallback "default". Validator rejects any id,
    name or number not present in the facts, and falls back to a deterministic template (FR-194).
@@ -3600,13 +3606,14 @@ Acceptance: TC-196 (10 scripted questions with expected answers).</pre>
 <details class="prompt"><summary><span class="pid">P-40</span><span class="pt">Meeting follow-up from the AI Notetaker<small>AI-15 · DS-017 · FR-200 to 205 · 19C · A-15</small></span><span class="tog">Show</span></summary><div class="pb">
 <pre id="p40">Goal: within 10 minutes of a client meeting, internal attendees get the follow-up with working buttons.
 Do:
-0. Spike: one call to notetaker.meetings (API 2026-04+) with the app's OAuth token. Report what is returned and for
-   which meetings (access filter). If it is not available, use the Meetings board Doc column as the source and tell me.
+0. Reuse Sally Gecko's transcript integration (ask me for its repo or code location). Lift its notetaker
+   query, auth and meeting selection into a shared module both projects can use, and confirm full transcripts
+   come back with the app's OAuth token. Agree with me how the follow-up and Sally's message combine for sales calls (Q-16).
 1. Create the Follow-up Actions board (DS-017), preview and approve.
 2. A second scheduled job, every 10 min (-z eu): fetch new meetings, skip excluded titles (Settings
    meetings.exclude_keywords), match per FR-201 (Meetings board link, then emails → Contacts → Account), store a
    processed marker.
-3. Extraction with Claude Opus 5.5 (medium effort), structured output schema per 19C.3, quotes required, only
+3. Extraction with Claude Opus 5.5 (medium effort) over the full transcript, structured output schema per 19C.3, quotes required, only
    allowed fields. Build eval set F15: 30 labelled past meetings (ask me to nominate them) and report accuracy
    (NFR-022).
 4. Slack group DM to internal attendees with Create actions, Review updates (deep link app[tab]=review),
@@ -3793,7 +3800,7 @@ open issues, next. At the end of the phase, give me the go/no-go checklist from 
 <tr><td class="id">A-11</td><td>Every delivery person has an active monday user</td><td>The roster seed shows any gaps</td></tr>
 <tr><td class="id">A-13</td><td>A shard stays under 6 MB per key at 3× today's volume (largest estimate: plan ~0.9 MB today)</td><td>The P-14 build reports shard sizes. Sharding by region is the fallback.</td></tr>
 <tr><td class="id">A-14</td><td>Frontend <code>monday.storage</code> global reads can see values the back-end writes with <code>shared: true</code> (S-17)</td><td>P-14A spike: write from the back-end, then read in the app</td></tr>
-<tr><td class="id">A-15</td><td>The Notetaker meetings API (2026-04+) is readable with the app's OAuth token for meetings shared with the account (one doc page contradicts this, S-20)</td><td>P-40 spike. Fallback: the Meetings board Doc column.</td></tr>
+<tr><td class="id">A-15</td><td><strong>Confirmed 26 Oct:</strong> full Notetaker transcripts are readable through the monday API. Sally Gecko does this today with Claude.</td><td>P-40 reuses Sally Gecko's integration</td></tr>
 <tr><td class="id">A-16</td><td>The Slack workspace allows a custom app with the scopes in DS-018</td><td>Slack admin confirms (Q-11)</td></tr>
 <tr><td class="id">A-12</td><td>Every app role can read Holiday Requests, Opportunities, Boost Projects, Sprint, the Roster, Settings and Public Holidays</td><td>P-01 spike as a test IC. NFR-018.</td></tr>
 </tbody></table></div>
@@ -3829,8 +3836,9 @@ open issues, next. At the end of the phase, give me the go/no-go checklist from 
 <tr><td class="id">Q-08</td><td>Is the reverse mapping for "Create project" (DS-006) right for each engagement model, including deals sold on monday paper?</td><td>A delivery manager</td><td>Sprint 5</td><td>Use the table as written, and review the first 5 hand-offs by hand</td></tr>
 <tr><td class="id">Q-11</td><td>Who is the Slack workspace admin who can create and install the "boost Delivery Assistant" app?</td><td>Sam</td><td>Sprint 3</td><td>No default. This blocks the assistants only.</td></tr>
 <tr><td class="id">Q-12</td><td>Channel names: <code>#delivery-capacity</code>, <code>#delivery-alerts</code>, <code>#capacity-leadership</code> (private)?</td><td>Sam</td><td>Sprint 3</td><td>Use these names</td></tr>
-<tr><td class="id">Q-13</td><td>May client meeting content be sent to the Claude API under your client contracts and DPA?</td><td>Leadership</td><td>Before P-40 go-live</td><td>No. Meeting follow-up stays off until confirmed. The other assistants don't send call content.</td></tr>
-<tr><td class="id">Q-14</td><td>Keep Claude Opus 5.5 for all assistants (~$200 a month), or move short messages to Sonnet 5.5 or Haiku 5.5 to save cost?</td><td>Sam</td><td>Sprint 3</td><td>Opus 5.5</td></tr>
+<tr><td class="id">Q-13</td><td>Sally Gecko already sends call transcripts to Claude. Do the same contractual and DPA terms cover this second use? Update the processing record to include it.</td><td>Leadership</td><td>Before P-40 go-live</td><td>Treat as covered on the same terms as Sally Gecko, and record it.</td></tr>
+<tr><td class="id">Q-14</td><td><strong>Answered 26 Oct:</strong> Sonnet 5.5 for messages. Opus 5.5 stays for meeting extraction and Q&amp;A (D-30).</td><td>Sam</td><td>Done</td><td>As answered</td></tr>
+<tr><td class="id">Q-16</td><td>For sales calls Sally Gecko already processes, should the capacity follow-up merge into Sally's Slack message, or send its own message covering only delivery fields, actions and projects? Who owns Sally Gecko?</td><td>Sam</td><td>Sprint 5</td><td>A separate message, covering only what Sally does not, with no shared fields</td></tr>
 <tr><td class="id">Q-15</td><td>Will Notetaker meetings be shared with the account (or the app's authorising user invited), and who owns today's Meetings-board summary process ("Run Agent", Summary Doc Creator)?</td><td>Sam with Nadav</td><td>Sprint 5</td><td>Share with the account. Keep the existing process and read its output.</td></tr>
 <tr><td class="id">Q-09</td><td><strong>Answered 26 Oct:</strong> the account is on EU servers, so the back-end deploys to the EU region (the scheduler is supported there). Still to confirm: an account admin will authorise the app's OAuth once.</td><td>Sam with the monday account admin</td><td>Sprint 2</td><td>Deploy to EU</td></tr>
 <tr><td class="id">Q-10</td><td><strong>Answered 26 Oct:</strong> automatic builds at 03:00 and 12:00 UK time. Everyone may press Refresh, with a 10-minute cool-down (default, can be changed on Settings).</td><td>Sam</td><td>Done</td><td>As answered</td></tr>
@@ -3915,9 +3923,9 @@ open issues, next. At the end of the phase, give me the go/no-go checklist from 
 <tr><td class="id">S-17</td><td>Storage SDK: per account and app, 6 MB per key, versioned writes, <code>shared: true</code> readable by the frontend, TTL up to 30 days, 12 requests a second. SecureStorage for sensitive values.</td><td><a href="https://developer.monday.com/apps/docs/monday-code-javascript-sdk" target="_blank" rel="noopener">monday code SDK: Storage and Secure storage</a> · <a href="https://developer.monday.com/apps/docs/mondaystorage" target="_blank" rel="noopener">monday.storage</a></td></tr>
 <tr><td class="id">S-18</td><td>OAuth access tokens do not expire until uninstall. A session token is signed with the client secret and verified on the back-end. Seamless auth only works inside the iframe.</td><td><a href="https://developer.monday.com/apps/docs/oauth" target="_blank" rel="noopener">OAuth</a> · <a href="https://developer.monday.com/apps/docs/choosing-auth" target="_blank" rel="noopener">Choosing an authentication method</a></td></tr>
 <tr><td class="id">S-19</td><td>monday code quotas (1 vCPU, 512 MiB, 300 s request timeout, up to 10 instances per region), secrets, environment variables, logs and alert policies</td><td><a href="https://developer.monday.com/apps/docs/quotas-and-limits" target="_blank" rel="noopener">Quotas and limits</a> · <a href="https://developer.monday.com/apps/docs/manage-monday-code-in-the-developer-center" target="_blank" rel="noopener">Manage monday code</a></td></tr>
-<tr><td class="id">S-20</td><td>monday AI Notetaker: <code>notetaker.meetings</code> query (API 2026-04+) with summary, topics, action items, participants and transcript, and access filters. One documentation page states there is no public GraphQL API, so this is to be verified (A-15).</td><td><a href="https://developer.monday.com/api-reference/reference/notetaker" target="_blank" rel="noopener">Notetaker API</a> · <a href="https://support.monday.com/hc/en-us/articles/28017248522130" target="_blank" rel="noopener">AI Notetaker (help)</a></td></tr>
+<tr><td class="id">S-20</td><td>monday AI Notetaker: <code>notetaker.meetings</code> query (API 2026-04+) with summary, topics, action items, participants and transcript, and access filters. One documentation page states there is no public GraphQL API, but boost's Sally Gecko project reads full transcripts through the API today (confirmed 26 Oct, A-15).</td><td><a href="https://developer.monday.com/api-reference/reference/notetaker" target="_blank" rel="noopener">Notetaker API</a> · <a href="https://support.monday.com/hc/en-us/articles/28017248522130" target="_blank" rel="noopener">AI Notetaker (help)</a></td></tr>
 <tr><td class="id">S-21</td><td>Apps read and set <code>app[...]</code> URL query values with <code>monday.get("location")</code>, <code>monday.listen("location")</code> and <code>monday.set("location")</code></td><td><a href="https://developer.monday.com/apps/docs/mondayget" target="_blank" rel="noopener">monday.get</a> · <a href="https://developer.monday.com/apps/docs/mondayset" target="_blank" rel="noopener">monday.set</a></td></tr>
-<tr><td class="id">S-22</td><td>Claude models and pricing (Opus 5.5 $4 / $20 per million tokens; Sonnet 5.5 $2 / $10; Haiku 5.5 $0.10 / $0.50), structured outputs, prompt caching, refusal fallbacks</td><td><a href="https://docs.anthropic.com/en/docs/about-claude/models" target="_blank" rel="noopener">Anthropic models</a> · <a href="https://www.anthropic.com/pricing" target="_blank" rel="noopener">Pricing</a></td></tr>
+<tr><td class="id">S-22</td><td>Claude models and pricing (Sonnet 5.5 $2 / $10 per million tokens for messages; Opus 5.5 $4 / $20 for extraction and Q&amp;A; Haiku 5.5 $0.10 / $0.50), structured outputs, prompt caching, refusal fallbacks</td><td><a href="https://docs.anthropic.com/en/docs/about-claude/models" target="_blank" rel="noopener">Anthropic models</a> · <a href="https://www.anthropic.com/pricing" target="_blank" rel="noopener">Pricing</a></td></tr>
 <tr><td class="id">Internal</td><td>Workspace scan, board schemas, data profiles and automation lists (25 Oct 2026). SDR OS source code. Career Path doc. Project Assignment Flow doc. Sam's briefing.</td><td>Boost Hub 5504457 · Boost HR 5575639 · Resources 5783548 · repo sam-moveoboost/SDRDash</td></tr>
 </tbody></table></div>
 
@@ -3947,7 +3955,7 @@ open issues, next. At the end of the phase, give me the go/no-go checklist from 
 <tr><td>Sales leader</td><td>[TBC]</td><td></td><td></td></tr>
 <tr><td>HR (Holiday Requests owner)</td><td>tal negri</td><td></td><td></td></tr>
 </tbody></table></div>
-<p class="footnote">Prepared by the boost design committee with Claude. Draft v1.3, 26 Oct 2026: adds Claude assistants and Slack notifications (19B) and meeting follow-up from the AI Notetaker (19C). v1.2 set refresh at 03:00 and 12:00 UK, EU hosting, and a stage-by-stage list of human input (section 21). v1.1 added the pre-built data and refresh design (19A). v1.0 was revised after an independent adversarial review (40 findings addressed). Nothing in monday or the codebase has been changed by this pack.</p>
+<p class="footnote">Prepared by the boost design committee with Claude. Draft v1.4, 26 Oct 2026: Sonnet 5.5 for messages, full transcripts via the Sally Gecko integration. v1.3 added Claude assistants and Slack notifications (19B) and meeting follow-up from the AI Notetaker (19C). v1.2 set refresh at 03:00 and 12:00 UK, EU hosting, and a stage-by-stage list of human input (section 21). v1.1 added the pre-built data and refresh design (19A). v1.0 was revised after an independent adversarial review (40 findings addressed). Nothing in monday or the codebase has been changed by this pack.</p>
 </div></section>
 </main>
 </div>
@@ -4059,4 +4067,3 @@ open issues, next. At the end of the phase, give me the go/no-go checklist from 
   }
 })();
 </script>
-</body></html>
