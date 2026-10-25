@@ -275,7 +275,7 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <div class="shell">
 <aside class="toc" aria-label="Contents">
   <div class="brand"><b>boost</b><span>Delivery OS</span></div>
-  <p class="sub">Capacity Planner build pack<br>Draft v1.2 · 26 Oct 2026</p>
+  <p class="sub">Capacity Planner build pack<br>Draft v1.3 · 26 Oct 2026</p>
   <nav class="full" id="tocnav">
     <div class="part">A · Orientation</div>
     <a href="#how"><span class="n">01</span>How to use this pack</a>
@@ -301,6 +301,8 @@ td.num,th.num{text-align:right;white-space:nowrap}
     <a href="#automations"><span class="n">18</span>Automations catalogue</a>
     <a href="#tech"><span class="n">19</span>Front-end and back-end design</a>
     <a href="#readmodel"><span class="n">19A</span>Data storage and refresh</a>
+    <a href="#assistants"><span class="n">19B</span>Claude assistants and Slack</a>
+    <a href="#meetings"><span class="n">19C</span>Meeting follow-up</a>
     <a href="#seeding"><span class="n">20</span>Data foundation and seeding</a>
     <div class="part">E · Deliver</div>
     <a href="#plan"><span class="n">21</span>Delivery plan</a>
@@ -413,6 +415,18 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <div class="callout"><span class="t">Everything is pre-calculated before you open the app</span>
 <p>A small back-end job inside monday reads every board and does all the maths. It stores the finished numbers at 03:00 and again at 12:00 UK time, with both times set on the Settings board. Opening any Delivery screen then takes under 1.5 seconds, instead of querying boards while you wait. A <strong>Refresh</strong> button rebuilds the numbers in about a minute whenever you want, for example at lunchtime. Anything you save in the app shows straight away for you, and for everyone else within seconds. The same approach can speed up today's Scoreboard, Pipeline, Revenue and Events tabs. Section 19A has the detail.</p></div>
 
+<h3>An assistant that tells people what to do next</h3>
+<div class="callout info"><span class="t">18 Claude assistants, delivered in Slack, every message one click from the fix</span>
+<p>Rules over the pre-calculated data decide what matters and who it is for. Claude writes a short, plain message with the why and the one action to take. The "boost Delivery Assistant" Slack bot delivers it with a link straight to the right screen or field. The assistants include:</p>
+<ul>
+<li>morning briefs for ICs and team leads;</li>
+<li>nudges for missing information at the moment it matters;</li>
+<li>a future-conflict spotter;</li>
+<li>a <code>/capacity</code> question box in Slack;</li>
+<li>meeting follow-ups from the monday AI Notetaker. Internal attendees get a summary, can create the actions in one click, and can review suggested deal or project updates and save them as themselves.</li>
+</ul>
+<p>Each person gets at most 3 alerts and 1 digest a day, with quiet hours by region. Sections 19B and 19C have the detail.</p></div>
+
 <h3>The rule that matters most</h3>
 <div class="callout navy"><span class="t">Probability-weighted demand</span>
 <p>Every deal that is not yet won counts towards future demand at its <strong>services hours × win probability</strong>, spread evenly over its delivery working days. Your example: a 60-hour job starting Tuesday 1 December, 6 weeks long, at 20% to win, contributes 60 × 0.2 = 12 hours. That is 0.4 hours a working day over 30 weekdays: 1.6 h in the week of 30 Nov, 2.0 h in each of the next five weeks and 0.4 h on Monday 11 January. If the deal has no probability, a stage default applies, and the gap is flagged to the rep and their team lead. You can switch between four lenses: Committed, Weighted (the default), Best case and Full pipeline. Section 09 has a working calculator.</p></div>
@@ -428,6 +442,7 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <tr><td><strong>New columns:</strong> 15 on Opportunities</td><td>Opportunities</td><td>Engagement model, delivery window, date anchor and duration, workstreams, on-site needs, complexity, minimum level and a link to the delivery project.</td></tr>
 <tr><td><strong>New columns:</strong> 11 on Boost Projects</td><td>Boost Projects</td><td>Engagement model, workstreams, on-site needs, complexity, minimum level, managed services hours and term, kick-off date, an effort-to-complete override and a capacity exclusion flag.</td></tr>
 <tr><td><strong>New back-end:</strong> monday code service</td><td>Inside the same monday app</td><td>Builds the pre-calculated snapshot on a schedule and on demand, and stores it in the app's own monday storage. No outside vendor is involved.</td></tr>
+<tr><td><strong>New:</strong> Slack app "boost Delivery Assistant" and a <strong>Follow-up Actions</strong> board</td><td>Slack · Boost Hub › Capacity</td><td>Delivers the assistants' messages and buttons. Holds the actions created from meetings.</td></tr>
 <tr><td><strong>Read only</strong></td><td>Sprint, Holiday Requests, CSM Portfolio</td><td>Actual hours, approved leave and account context. The app does not change their structure.</td></tr>
 </tbody></table></div>
 
@@ -515,6 +530,11 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <tr><td class="id">D-24</td><td>The snapshot lives in shared monday app storage, as versioned shards plus a pointer that is flipped last. The browser keeps a copy in IndexedDB.</td><td>A board, an external database, or browser-only cache</td><td>6 MB per key, versioned writes and no new vendor (S-17). The flip-last pointer means nobody sees a half-built snapshot.</td><td>BE</td></tr>
 <tr><td class="id">D-25</td><td>After an app save, the back-end re-reads that one item from monday and patches the snapshot. It never trusts values sent by the browser.</td><td>The browser writes the delta into storage itself</td><td>Keeps integrity, because any app user can write shared storage. The cost is one extra read per save.</td><td>BE</td></tr>
 <tr><td class="id">D-26</td><td>Read-mostly Sales tabs (Scoreboard, Pipeline, Revenue, Events) move onto the same snapshot, one at a time, after a numbers-match check. My Work and every detail panel stay live.</td><td>Leave Sales as it is</td><td>You reported the app is already slow sometimes. Editing screens stay live so nobody edits stale data.</td><td>PO</td></tr>
+<tr><td class="id">D-27</td><td>Assistants are built in three parts: deterministic signal rules decide what and who; Claude writes the words; a Slack bot delivers. The model never decides facts.</td><td>Let Claude scan the data and decide</td><td>No invented figures, testable rules and predictable volume. Claude is used where it adds most: clear, kind, specific wording, plus options.</td><td>BE</td></tr>
+<tr><td class="id">D-28</td><td>One Slack app, "boost Delivery Assistant", run by the monday code back-end, sends every message as a bot.</td><td>Claude routines posting through a personal Slack connection</td><td>Messages would appear to come from one person. A bot can DM anyone, offer buttons and respect preferences.</td><td>BE</td></tr>
+<tr><td class="id">D-29</td><td>Changes proposed from meetings are only applied after a person reviews them in the app, and they are saved as that person. Action items may be created straight from Slack, with an attribution note.</td><td>Auto-apply, or apply from a Slack button as the bot</td><td>Keeps deal and project facts human-confirmed and correctly attributed (D-15, BR-025).</td><td>PO</td></tr>
+<tr><td class="id">D-30</td><td>All assistants use Claude Opus 5.5 (low effort for messages, medium for meetings and Q&amp;A), with structured outputs, prompt caching and refusal fallback.</td><td>Mix cheaper models now</td><td>Best quality by default, about $200 a month at forecast volume. Moving to Sonnet 5.5 or Haiku 5.5 is your option (Q-14).</td><td>BE</td></tr>
+<tr><td class="id">D-31</td><td>Meeting follow-up reads the monday AI Notetaker through the API, and matches meetings using the existing Meetings board and its links.</td><td>A third-party note taker, or a separate meetings store</td><td>Notetaker is already in your monday. The Meetings board already links 8,527 meetings to deals and projects.</td><td>BE</td></tr>
 <tr><td class="id">D-22</td><td>CS hours come from Projects rows of type CS or CS By IC. The account-level CSM portfolio model is deferred to Phase 4.</td><td>Model CS from the CSM Portfolio board now</td><td>Your instruction. The portfolio board is still being reworked.</td><td>PO</td></tr>
 </tbody></table></div>
 </div></section>
@@ -570,6 +590,9 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <tr><td class="id">DL-026</td><td>Boost Positions (HR) lists open roles with Department, Country and Target Start Date.</td><td>Board schema</td><td>Seed for "planned hire" rows in Phase 3 scenarios.</td></tr>
 <tr><td class="id">DL-027</td><td>monday's native Workload view takes time off only from team-level Work Schedules, which the API can't read. Capacity can vary only through schedule hours.</td><td>Sources S-07, S-08</td><td>Confirms D-01. Native Workload can't meet the requirement.</td></tr>
 <tr><td class="id">DL-033</td><td>Briefing 26 Oct: the current app is sometimes slow to load. You want summaries calculated and stored in advance, automatic refreshes (confirmed 26 Oct: 03:00 and 12:00 UK; data held on EU servers), a manual refresh button, and your own saves reflected immediately.</td><td>Sam, 26 Oct</td><td>Read model, section 19A (D-23 to D-26)</td></tr>
+<tr><td class="id">DL-034</td><td>Briefing 26 Oct: you want supporting Claude processes that suggest, inform, run on schedules, spot future conflicts, chase the most important missing information when needed, and notify people in Slack with links that go straight to the right place. You also want AI Notetaker summaries pushed to attendees in Slack, with options to create actions or update deals and projects.</td><td>Sam, 26 Oct</td><td>Sections 19B and 19C</td></tr>
+<tr><td class="id">DL-035</td><td>The Meetings board (5089995828) holds 8,527 meetings with attendee emails and links to Opportunities, Projects and Sprint. It also has a "Run Agent" trigger and a "Meeting Summary Doc Creator" user, so a summary process already exists.</td><td>Board schema</td><td>Build meeting follow-up on top of it (D-31). Agree ownership with whoever runs the current process (Q-15).</td></tr>
+<tr><td class="id">DL-036</td><td>Slack has <code>#boost-sales</code> and client project channels (for example <code>#generali-uk-risks-ms</code>), but no delivery or capacity channels.</td><td>Slack channel search</td><td>Create three channels (Q-12). DMs are the default delivery.</td></tr>
 <tr><td class="id">DL-028</td><td>The "IC Project Flow · Skill Build Tracker" board tracks Claude skills used in delivery, not people's skills. IC Performance is empty.</td><td>Board schema</td><td>Nothing to reuse for the skills matrix.</td></tr>
 <tr><td class="id">DL-029</td><td>No automation creates a project when a deal is Won. The existing "Opp Won" automation only stamps the Actual Close Date and moves the item to the Closed Won group. Project creation is manual today.</td><td>Opportunities automations</td><td>WF-02 hand-off is new process, not a replacement.</td></tr>
 <tr><td class="id">DL-030</td><td>Opportunities runs 74 automations (13 Workflow builder, 61 classic, many of them per-user email integrations). Boost Projects runs 44.</td><td>list_automations</td><td>New automations need a <code>[CAP]</code> prefix and a collision check (P-09).</td></tr>
@@ -791,7 +814,7 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <!-- ─────────────────────────── 08 BRs ─────────────────────────── -->
 <section class="chap" id="brs"><div class="wrap">
 <header><div class="eyebrow">Part B · Understand</div><h2><span class="num">08</span>Business requirements</h2></header>
-<p class="intro">These are platform-neutral needs. They say nothing about boards, columns or screens; that comes in Parts C and D. Priority uses MoSCoW: 20 of 31 are Must (65%). That is just above the usual 60% ceiling, and it is deliberate: the Musts are the minimum for any trustworthy number, plus the allocation layer you asked for. BR-026 to BR-028 come from the committee rather than a finding, and are marked as such.</p>
+<p class="intro">These are platform-neutral needs. They say nothing about boards, columns or screens; that comes in Parts C and D. Priority uses MoSCoW: 21 of 34 are Must (62%). That is just above the usual 60% ceiling, and it is deliberate: the Musts are the minimum for any trustworthy number, plus the allocation layer you asked for. BR-026 to BR-028 come from the committee rather than a finding, and are marked as such.</p>
 <div class="tbl xwide"><table>
 <thead><tr><th class="id">ID</th><th>Requirement</th><th>Priority</th><th>Source</th><th>Objective</th></tr></thead>
 <tbody>
@@ -825,6 +848,9 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <tr><td class="id">BR-028</td><td>The business needs to learn how accurate its forecasts and probabilities were, so that the model improves over time.</td><td><span class="chip could">Could</span></td><td>Committee</td><td>OBJ-01, OBJ-05</td></tr>
 <tr><td class="id">BR-029</td><td>The business needs one source of truth for leave.</td><td><span class="chip must">Must</span></td><td>DL-014, DL-015</td><td>OBJ-01</td></tr>
 <tr><td class="id">BR-030</td><td>Existing sales views must keep working unchanged while the delivery capability is added.</td><td><span class="chip must">Must</span></td><td>DL-024</td><td>All</td></tr>
+<tr><td class="id">BR-032</td><td>Each person needs to be told, at the right moment and in their own channel, what needs their attention and what to do about it, with a direct route to where they can act.</td><td><span class="chip must">Must</span></td><td>DL-034</td><td>OBJ-05, OBJ-06, OBJ-03</td></tr>
+<tr><td class="id">BR-033</td><td>Team leads and leaders need early warning of future capacity conflicts and skill gaps, with suggested options, before the conflicts happen.</td><td><span class="chip should">Should</span></td><td>DL-034, DL-021</td><td>OBJ-03, OBJ-04</td></tr>
+<tr><td class="id">BR-034</td><td>After a client meeting, attendees need its summary, actions and implied record changes in front of them, so follow-up and data updates happen the same day without retyping.</td><td><span class="chip should">Should</span></td><td>DL-034, DL-035</td><td>OBJ-05, OBJ-06</td></tr>
 <tr><td class="id">BR-031</td><td>Every user needs screens to open almost instantly, with data refreshed on a predictable schedule and on demand, and with their own changes reflected at once, so that the tool is used rather than avoided.</td><td><span class="chip must">Must</span></td><td>DL-033</td><td>OBJ-01, OBJ-03</td></tr>
 </tbody></table></div>
 </div></section>
@@ -1341,7 +1367,34 @@ rounding: the engine never rounds; values are rounded only for display</code></p
 <tr><td class="id">FR-188</td><td>While a user has the app open, the system shall check the pointer every 2 minutes and offer an "update" chip when a newer snapshot exists.</td><td>BR‑031</td><td><span class="chip could">Could</span> P1</td><td>Given another user's save is applied, Then within 2 minutes the chip shows "1 update", and clicking it applies the update without a reload.</td></tr>
 <tr><td class="id">FR-189</td><td>Where Phase 0B is enabled, the Scoreboard, Pipeline, Revenue and Events tabs shall render from the snapshot, with identical numbers to their live versions.</td><td>BR‑031, BR‑030</td><td><span class="chip should">Should</span> P1</td><td>Given the same moment, When a tab is computed live and from the snapshot, Then all displayed figures match.</td></tr>
 </tbody></table></div>
-<p class="footnote">Totals: 106 functional requirements and 24 data quality rules. 59 are Must (56%), 33 Should and 14 Could. Every FR traces to a BR (section 26).</p>
+<h3>M19 · Assistants and notifications</h3>
+<div class="tbl xwide"><table>
+<thead><tr><th class="id">ID</th><th>Requirement</th><th>BR</th><th>Pri · Ph</th><th>Acceptance criteria</th></tr></thead>
+<tbody>
+<tr><td class="id">FR-190</td><td>The system shall evaluate each assistant's signal rules (19B.2) after every snapshot build and every applied change, and queue a message for each new or worsened signal.</td><td>BR‑032, BR‑033</td><td><span class="chip must">Must</span> P1</td><td>Given fixture F13 (one seeded case per wave A assistant), Then exactly one queued message per case, addressed to the right person.</td></tr>
+<tr><td class="id">FR-191</td><td>The system shall deliver messages as the Slack bot to each person's DM (Slack id mapped from email on the roster) or to the configured channel.</td><td>BR‑032</td><td><span class="chip must">Must</span> P1</td><td>Given a roster person with email x@moveoboost.com, Then their Slack id is stored after the first lookup and the DM arrives from "boost Delivery Assistant".</td></tr>
+<tr><td class="id">FR-192</td><td>Every message shall include at least one deep link that opens the exact app screen, item or field (19B.4), plus a "why you're getting this" line and a settings link.</td><td>BR‑032</td><td><span class="chip must">Must</span> P1</td><td>Given an AI-07 message, When its link is clicked, Then the app opens the deal panel at the Delivery section with the named field highlighted.</td></tr>
+<tr><td class="id">FR-193</td><td>The system shall apply the delivery rules: daily cap (3 alerts + 1 digest), dedupe, quiet hours by region (incl. IL Fri to Sat), snooze, "Not mine" and the escalation ladder.</td><td>BR‑032</td><td><span class="chip must">Must</span> P1</td><td>Given 6 signals for one person in a day, Then 3 are sent and 3 roll into the next digest. Given 23:00 local, Then nothing non-critical is sent until 08:00.</td></tr>
+<tr><td class="id">FR-194</td><td>Claude-written text shall only state figures, people and items present in its input. A validator rejects any message naming an id, person or number not in the input, and falls back to a template.</td><td>BR‑032</td><td><span class="chip must">Must</span> P1</td><td>Given a model output mentioning a person not in the input, Then the message is replaced by the template version and the event is logged.</td></tr>
+<tr><td class="id">FR-195</td><td>Slack buttons shall run their action through the back-end after verifying the Slack signature. Actions that change board facts open the app instead of writing directly.</td><td>BR‑032, BR‑025</td><td><span class="chip must">Must</span> P1</td><td>Given "Apply as tentative" in an AI-02 message, Then a tentative allocation is created with an attribution update. Given "Fix now", Then the app opens at the field.</td></tr>
+<tr><td class="id">FR-196</td><td>Each person shall be able to set DM on or off, digest time and muted assistants from the app's settings page.</td><td>BR‑032</td><td><span class="chip should">Should</span> P1</td><td>Given AI-01 is muted, Then no morning brief is sent and other assistants continue.</td></tr>
+<tr><td class="id">FR-197</td><td>The <code>/capacity</code> command and @mentions shall answer questions from the snapshot with links, and say plainly when the data cannot answer.</td><td>BR‑032</td><td><span class="chip should">Should</span> P2</td><td>Given "who's free for CRM L4 in the UK in December?", Then the answer lists people matching Who's free for that window, with links, and the data time.</td></tr>
+<tr><td class="id">FR-198</td><td>The system shall log every message (assistant, recipient, signal, clicks, snoozes) and show an admin view of volume, click-through and the most snoozed assistants.</td><td>BR‑032</td><td><span class="chip should">Should</span> P1</td><td>Given a week of messages, Then the admin view shows per-assistant counts and click-through.</td></tr>
+</tbody></table></div>
+
+<h3>M20 · Meeting follow-up</h3>
+<div class="tbl xwide"><table>
+<thead><tr><th class="id">ID</th><th>Requirement</th><th>BR</th><th>Pri · Ph</th><th>Acceptance criteria</th></tr></thead>
+<tbody>
+<tr><td class="id">FR-200</td><td>Every 10 minutes the system shall fetch newly finished Notetaker meetings, skipping excluded titles and calendars.</td><td>BR‑034</td><td><span class="chip should">Should</span> P2</td><td>Given a meeting that ended 6 minutes ago, Then it is processed in the next run, once only. A "1:1" meeting is skipped.</td></tr>
+<tr><td class="id">FR-201</td><td>The system shall match each meeting to a deal or project, using the Meetings board link first, then attendee emails → Contacts → Account → open deal or live project. The match carries a confidence level.</td><td>BR‑034</td><td><span class="chip should">Should</span> P2</td><td>Given fixture F14 (20 historical meetings with known links), Then ≥ 90% are matched correctly. Low confidence shows "Which deal?" choices.</td></tr>
+<tr><td class="id">FR-202</td><td>The system shall extract a summary, decisions, risks, action items (owner, due) and proposed field changes, each change with a supporting quote and confidence, within the allowed field list (19C.3).</td><td>BR‑034</td><td><span class="chip should">Should</span> P2</td><td>Given fixture meeting M1, Then the extracted close-date change matches the expected value and quote. No change outside 19C.3 is ever proposed.</td></tr>
+<tr><td class="id">FR-203</td><td>The system shall send the follow-up to internal attendees only, within 10 minutes of the meeting becoming available.</td><td>BR‑034</td><td><span class="chip should">Should</span> P2</td><td>Given 2 internal and 3 external attendees, Then exactly the 2 internal people receive it.</td></tr>
+<tr><td class="id">FR-204</td><td>"Create actions" shall create Follow-up Actions items with owner, due date, linked deal or project and meeting link, plus an attribution update.</td><td>BR‑034</td><td><span class="chip should">Should</span> P2</td><td>Given 3 actions, Then 3 items exist and each owner is notified by monday.</td></tr>
+<tr><td class="id">FR-205</td><td>"Review updates" shall open a Meeting review screen showing each proposed change (old → new, quote, confidence). The user saves the selected changes as themselves.</td><td>BR‑034, BR‑025</td><td><span class="chip should">Should</span> P2</td><td>Given 4 proposals and 3 ticked, Then 3 fields change, the activity log names the user, and the follow-up record marks 3 applied and 1 declined.</td></tr>
+<tr><td class="id">FR-206</td><td>The system shall send a pre-meeting brief 30 minutes before client meetings linked to a deal or project.</td><td>BR‑034</td><td><span class="chip could">Could</span> P3</td><td>Given a linked meeting at 14:00, Then attendees get the brief at 13:30 with the status, open actions and last decisions.</td></tr>
+</tbody></table></div>
+<p class="footnote">Totals: 122 functional requirements and 24 data quality rules. 65 are Must (53%), 42 Should and 15 Could. Every FR traces to a BR (section 26).</p>
 </div></section>
 
 <!-- ─────────────────────────── 11 NFRs ─────────────────────────── -->
@@ -1369,6 +1422,9 @@ rounding: the engine never rounds; values are rounded only for display</code></p
 <tr><td class="id">NFR-018</td><td>Consistency</td><td>For the same filters, lens and horizon, every app role sees the same totals. Every role can read Holiday Requests, Opportunities, Boost Projects, Sprint, the Roster, Settings and Public Holidays (A-12).</td><td>TC-131: compare Overview totals as an IC, a rep and an admin</td></tr>
 <tr><td class="id">NFR-019</td><td>Non-regression</td><td>Sales tab cold-load times stay within 20% of the pre-release baseline after the auth change.</td><td>TC-207</td></tr>
 <tr><td class="id">NFR-020</td><td>Freshness</td><td>Data is never older than the last scheduled build plus any failure. App saves appear in the shared snapshot within 30 s. The age of the data is always shown.</td><td>TC-180 to 184</td></tr>
+<tr><td class="id">NFR-021</td><td>Notification quality</td><td>At most 3 alerts and 1 digest per person per working day. Every message is actionable within one click. Click-through on wave A assistants is ≥ 40% after 4 weeks (reviewed monthly, assistants under 15% are reworked or muted by default).</td><td>Admin view (FR-198)</td></tr>
+<tr><td class="id">NFR-022</td><td>AI accuracy</td><td>Zero invented figures or people (validator, FR-194). Meeting extraction eval on 30 labelled meetings: ≥ 90% of proposed changes judged correct by the owner, ≥ 95% correct match to the deal or project.</td><td>TC-197 eval set, re-run on any prompt or model change</td></tr>
+<tr><td class="id">NFR-023</td><td>Data protection</td><td>No transcript stored by boost systems. Follow-up results kept 30 days. Only internal attendees receive meeting content. The Anthropic API key is held in monday code secrets.</td><td>TC-198 and code review</td></tr>
 <tr><td class="id">NFR-017</td><td>Time zones</td><td>Dates are treated as calendar dates (no time-of-day), so users in IL, UK, US and UAE see the same week for the same date.</td><td>Unit test with TZ=Asia/Jerusalem and TZ=America/New_York</td></tr>
 </tbody></table></div>
 </div></section>
@@ -1828,6 +1884,8 @@ flowchart LR
 <tr><td>Team lead</td><td>People (max 1)</td><td>Their team lead. Used for notifications.</td><td>Yes</td><td>Admin</td></tr>
 <tr><td>New work</td><td>Status</td><td>Available · Limited · Not available</td><td>Yes (default Available)</td><td>Team lead</td></tr>
 <tr><td>Notes</td><td>Long text</td><td>Context, for example "Mondays reserved for internal AI work"</td><td>No</td><td>Team lead</td></tr>
+<tr><td>Slack user id</td><td>Text</td><td>Looked up once by email (19B.5)</td><td>Auto</td><td>App</td></tr>
+<tr><td>Notifications</td><td>Dropdown (multi)</td><td>DM off · Digest 08:00 · Digest 12:00 · Mute AI-01 … Mute AI-18</td><td>No</td><td>The person (app settings page)</td></tr>
 </tbody></table></div>
 <p class="small"><strong>Automations:</strong> AUT-09 and AUT-10 (leaver notice, then Left), AUT-16 (Level since date). The app writes the reason update for level changes. <strong>Permissions:</strong> column restrictions per section 13.</p>
 
@@ -1991,6 +2049,13 @@ flowchart LR
 <!-- DS-008 -->
 <h3>DS-008 · Resource Requests <span class="chip should">P2</span></h3>
 <p><strong>Entity:</strong> one request for delivery capacity. <strong>Volume:</strong> ~20 a month. Columns: Name (deal name), Opportunity (connect, 1), Requester (People), Region (Status), Workstreams (Dropdown), Minimum level (Status), On-site (Status), Window (Timeline), Hours (Numbers), Request status (New · In review · Proposed · Accepted · Declined · Withdrawn), Proposed person (connect → Roster, 1), Responding lead (People), Response due (Date, request date + 2 working days), Notes (Long text). Created and actioned in the app. Notifications go out by AUT-11 and AUT-12.</p>
+
+<!-- DS-017 -->
+<h3>DS-017 · Follow-up Actions <span class="chip should">P2</span></h3>
+<p><strong>Entity:</strong> one action agreed in a meeting. <strong>Volume:</strong> ~150 a month. Columns: Name (the action), Owner (People), Due date (Date), Status (To do · Doing · Done · Not needed), Opportunity (connect, 1, one-way), Project (connect, 1, one-way), Meeting (Link to the Notetaker summary), Source (Meeting · Manual), Created by (Creation log). Groups: <em>Open</em> and <em>Done</em>. Owners see their actions in monday's own My Work. AI-01 includes overdue actions.</p>
+
+<h3>DS-018 · Slack app "boost Delivery Assistant" <span class="chip must">P1</span></h3>
+<p>Created by a Slack workspace admin from a manifest Claude writes. Bot scopes: <code>chat:write</code>, <code>im:write</code>, <code>users:read</code>, <code>users:read.email</code>, <code>commands</code>, <code>channels:read</code>. Interactivity URL and the <code>/capacity</code> command point at the monday code back-end (<code>/slack/actions</code>, <code>/slack/commands</code>). The bot token and signing secret live in monday code secrets.</p>
 
 <!-- DS-009 -->
 <h3>DS-009 · Capacity Snapshots <span class="chip">P4</span></h3>
@@ -2473,6 +2538,228 @@ flowchart LR
 <p>Screens where people work item by item stay live: My Work, every detail panel when opened, and every save. That way you never edit stale data. Each Sales tab moves over only after a side-by-side check shows identical numbers (TC-186).</p>
 </div></section>
 
+<!-- ─────────────────────────── 19B ASSISTANTS ─────────────────────────── -->
+<section class="chap" id="assistants"><div class="wrap">
+<header><div class="eyebrow">Part D · Design</div><h2><span class="num">19B</span>Claude assistants and Slack notifications</h2></header>
+<p class="intro">Your brief, 26 Oct: a set of supporting Claude processes that point out solutions, give insight, run on schedules, spot future conflicts, chase the most important missing information at the moment it matters, and notify people in Slack. Every message has a link straight to the right place. The aim is that nobody has to work out what to do next.</p>
+
+<div class="grid g4">
+  <div class="stat"><div class="v">18</div><div class="l">Assistants, in three waves alongside the build phases</div></div>
+  <div class="stat"><div class="v">~170</div><div class="l">Claude calls on a typical working day once all 18 are live</div></div>
+  <div class="stat"><div class="v">≤ 3 + 1</div><div class="l">Messages per person per day: up to 3 alerts plus 1 digest. Everything else is batched.</div></div>
+  <div class="stat"><div class="v">1 click</div><div class="l">From every message to the exact screen, item or field</div></div>
+</div>
+
+<h3>19B.1 How the assistants work</h3>
+<p>Each assistant has three parts, and Claude is only one of them. That keeps it reliable, cheap and testable.</p>
+<pre class="mermaid">
+flowchart LR
+  SNAP[("Snapshot · 19A<br/>plan, data quality, changes")] --> SIG["1 · Signal rules<br/>deterministic code: what is true,<br/>who it is for, how urgent"]
+  MEET[("AI Notetaker<br/>meetings API")] --> SIG
+  SIG --> OUT[("Outbox<br/>dedupe · quiet hours · daily cap · digest")]
+  OUT --> CL["2 · Claude writes it<br/>plain words, the why,<br/>the one next action, options"]
+  CL --> SL["3 · Slack bot delivers<br/>DM or channel, deep links, buttons"]
+  SL -- "button click" --> ACT["Back-end /slack/actions<br/>verify, then act or open the app"]
+  ACT --> APP(["SDR OS app, at the exact screen"])
+  ACT --> BRD[("monday boards")]
+</pre>
+<ol>
+<li><strong>Signal rules (code, not AI).</strong> After every snapshot build and every saved change, the back-end evaluates the rules for each assistant over the snapshot. Rules decide what is true and who it is for: for example, Priya is at 128% in the week of 30 Nov, or deal X moved to Contract sent without delivery fields. Facts never come from the model, so no number in a message is invented.</li>
+<li><strong>Claude writes the message.</strong> Claude Opus 5.5 at low effort turns each signal plus its context into a short, friendly message. It explains the why, names the one action to take, and where useful adds two or three options (for example the top move suggestion from 9.10). It uses structured output with a fixed schema, so every message has the same parts. The model may only reference people, items and figures that are in its input.</li>
+<li><strong>The Slack bot delivers it,</strong> as "boost Delivery Assistant". It sends a DM to the person concerned, or posts to a team channel, with deep links and buttons. Clicks come back to the monday code back-end, which checks the request is genuinely from Slack (signing secret) before acting.</li>
+</ol>
+
+<h3>19B.2 The assistants</h3>
+<div class="tbl xwide compact"><table>
+<thead><tr><th class="id">ID</th><th>Assistant</th><th>When</th><th>Who</th><th>What it says</th><th>Link or buttons</th><th>Wave</th></tr></thead>
+<tbody>
+<tr><td colspan="7"><strong>Scheduled briefs</strong> (local time, working days only, quiet on IL Fridays and Saturdays)</td></tr>
+<tr><td class="id">AI-01</td><td>IC morning brief</td><td>08:30 local, daily</td><td>Each IC (DM)</td><td>This week's jobs and hours, anything starting or ending, leave, the top 3 fixes from My Missing Data, any overload</td><td>My Schedule · each item · [Fix now]</td><td>A</td></tr>
+<tr><td class="id">AI-02</td><td>Team lead Monday plan</td><td>Mon 08:00</td><td>Each team lead (DM)</td><td>Who is over or under in the next 4 weeks, unassigned work, open requests, the top 3 suggested moves</td><td>Team (filtered) · Planner · [Apply suggestion as tentative]</td><td>A</td></tr>
+<tr><td class="id">AI-03</td><td>Rep delivery check</td><td>Tue 08:00</td><td>Each rep (DM)</td><td>Deals at Proposal or later missing delivery fields. Deals whose window has no suitable free person, with the earliest workable start date.</td><td>Deal panel → Delivery · [Request a resource]</td><td>A</td></tr>
+<tr><td class="id">AI-04</td><td>Sales leader scorecard</td><td>Tue 08:00</td><td>Sales leader (DM)</td><td>Data quality by rep, the change since last week, weighted services pipeline by month, the three deals most at risk of being unstaffable</td><td>Scorecard · Demand</td><td>A</td></tr>
+<tr><td class="id">AI-05</td><td>Weekly capacity headline</td><td>Mon 09:00</td><td>#delivery-capacity</td><td>Team-wide: peak FTE gap and its week, regions under pressure, the busiest category, the "Estimated" share</td><td>Overview</td><td>A</td></tr>
+<tr><td class="id">AI-06</td><td>Leadership monthly insight</td><td>1st Mon 07:30</td><td>#capacity-leadership (private)</td><td>A narrative on the 12- and 26-week gaps by region and category, hire or train options with lead times (FR-058), what changed from last month, and three decisions to take</td><td>Overview with lens and horizon preset</td><td>C</td></tr>
+<tr><td colspan="7"><strong>Just-in-time nudges</strong> (fire when the moment arrives, not on a timer)</td></tr>
+<tr><td class="id">AI-07</td><td>Missing info at the moment it matters</td><td>A stage change, a project starting within 10 days, or a deal closing within 14 days with gaps</td><td>The owner (DM)</td><td>Only the 1 to 3 fields that block the plan now, and why they matter today</td><td>Field-level deep link · [Snooze 1 day] · [Not mine]</td><td>A</td></tr>
+<tr><td class="id">AI-08</td><td>Won, now hand it over</td><td>A deal is Won with no Delivery project</td><td>Team lead + deal owner (group DM)</td><td>What was sold, who was proposed, and the hand-off checklist</td><td>[Create project] · [Link existing]</td><td>B</td></tr>
+<tr><td class="id">AI-09</td><td>Request waiting</td><td>A resource request is still New after <code>request.response_wd</code></td><td>Responding lead, then the admin</td><td>The request, ranked candidates, and the age of the request</td><td>Planner → Requests · [Propose top candidate]</td><td>B</td></tr>
+<tr><td class="id">AI-10</td><td>Leave impact</td><td>Leave approved or pending</td><td>The person's team lead (DM)</td><td>The projects and Face roles affected, on-site days that clash, and suggested cover (from ranking and the Handover board)</td><td>Team at those weeks · [Start handover]</td><td>B</td></tr>
+<tr><td class="id">AI-11</td><td>Timeline and hours watch</td><td>A project timeline ends within 10 days with hours left, an overrun, or no hours logged in 21 days</td><td>Project owner (DM)</td><td>What looks wrong, with the numbers, and the likely fix</td><td>Project item · [Extend timeline] · [Mark concluded]</td><td>A</td></tr>
+<tr><td colspan="7"><strong>Foresight</strong> (looks ahead and warns early)</td></tr>
+<tr><td class="id">AI-12</td><td>Future conflict spotter</td><td>After each build and change</td><td>Team lead (DM). Critical items also go to #delivery-alerts.</td><td>New problems in the next 8 weeks:
+  <ul>
+  <li>someone goes over 110%;</li>
+  <li>two likely deals need the same scarce skill in the same weeks;</li>
+  <li>a close date moved and now lands in a crunch;</li>
+  <li>on-site work in a region with nobody free.</li>
+  </ul>
+  Each one comes with options.</td><td>Team cell · [Suggest moves]</td><td>A (basic) · C (full)</td></tr>
+<tr><td class="id">AI-13</td><td>Skill gap early warning</td><td>Weekly</td><td>Team leads + leadership</td><td>Categories short in 3 or more of the next 8 weeks (max-flow), and the people one step away from qualifying</td><td>Overview → Training signals</td><td>C</td></tr>
+<tr><td colspan="7"><strong>Ask anything, plus meetings</strong></td></tr>
+<tr><td class="id">AI-14</td><td>Ask the planner (<code>/capacity</code> and @mentions)</td><td>On demand in Slack</td><td>Anyone</td><td>Answers questions such as "who's free for CRM L4 in the UK in December?", "why is Tom red next week?" or "what happens if Acme slips a month?" from the snapshot, with links</td><td>Links into the app</td><td>B</td></tr>
+<tr><td class="id">AI-15</td><td>Meeting follow-up</td><td>A Notetaker meeting has finished (19C)</td><td>Internal attendees (group DM)</td><td>A summary, decisions, action items with owners, and proposed board updates</td><td>[Create actions] · [Review updates] · [Wrong deal or project]</td><td>B</td></tr>
+<tr><td class="id">AI-16</td><td>Pre-meeting brief</td><td>30 min before a client meeting linked to a deal or project</td><td>Internal attendees (DM)</td><td>Status, hours left, open actions, risks, the last meeting's decisions, any missing data to raise</td><td>Item · last summary</td><td>C</td></tr>
+<tr><td colspan="7"><strong>Housekeeping and learning</strong></td></tr>
+<tr><td class="id">AI-17</td><td>Data tidy-up suggestions</td><td>Weekly, Thursday</td><td>Owners, batched</td><td>Likely tidy-ups with the evidence. For example: "12 projects look finished (no hours for 60 days, hours used up). Mark them Concluded?"</td><td>[Confirm all] · [Review each]</td><td>C</td></tr>
+<tr><td class="id">AI-18</td><td>Forecast and probability coach</td><td>Monthly</td><td>Each rep + sales leader</td><td>How accurate their probabilities were, with a gentle, specific coaching note (Phase 4 data)</td><td>Learning view</td><td>C</td></tr>
+</tbody></table></div>
+<p class="footnote">Waves:</p>
+<ul class="footnote">
+<li><strong>A</strong> ships with Phase 1 go-live.</li>
+<li><strong>B</strong> ships with Phase 2.</li>
+<li><strong>C</strong> ships with Phases 3 to 4.</li>
+</ul>
+<p class="footnote">There is also a system alert for failed builds (no Claude needed, FR-186).</p>
+
+<h3>19B.3 What a message looks like</h3>
+<div class="two">
+<div class="frame" role="img" aria-label="Example Slack DM from the assistant">
+  <div class="bar"><b>boost Delivery Assistant</b><span style="margin-left:auto;opacity:.8">DM · 08:00</span></div>
+  <div class="body">
+    <p style="margin:0 0 6px"><span class="example-tag">Example</span></p>
+    <p style="margin:0 0 8px"><strong>Morning Ori: 2 things for your Monday plan</strong></p>
+    <p class="small" style="margin:0 0 6px"><strong>1. Tom is at 128% in the week of 30 Nov.</strong> Contoso offline build (9 h) could move to Sam P., who has 14 h free, Work Management 2 and L3. That's low disruption.<br><span class="wf-pill">Apply as tentative</span> <span class="wf-pill">See Tom's week ↗</span></p>
+    <p class="small" style="margin:0 0 6px"><strong>2. Acme CRM is waiting for a resource (2 days).</strong> Best fit is Priya K.: 58 h free, CRM 3, UK on-site OK.<br><span class="wf-pill">Propose Priya</span> <span class="wf-pill">Open request ↗</span></p>
+    <p class="small muted" style="margin:0">Why you're getting this: you lead Team UK · <u>Notification settings</u></p>
+  </div>
+</div>
+<div>
+<h4 style="margin-top:0">Message rules</h4>
+<ul class="small">
+<li><strong>One message, at most three asks,</strong> each with a single primary button.</li>
+<li><strong>Every figure comes from the snapshot,</strong> with the data time shown in the footer.</li>
+<li><strong>"Why you're getting this"</strong> and a settings link appear on every message.</li>
+<li><strong>A daily cap</strong> of 3 alerts per person plus 1 digest. The rest roll into the next digest.</li>
+<li><strong>Dedupe:</strong> the same signal never repeats unless it gets worse. Snooze and "Not mine" teach the rules.</li>
+<li><strong>Quiet hours</strong> by region: 19:00 to 08:00 local, and weekends (IL Fri and Sat). Only Critical breaks through, and only to team leads.</li>
+<li><strong>Escalation ladder:</strong> a blocking item ignored for 3 working days goes to the team lead, once.</li>
+<li><strong>Language:</strong> plain UK English, lowercase "boost", no emoji, no em dashes.</li>
+</ul></div>
+</div>
+
+<h3>19B.4 Deep links: one click to the right place</h3>
+<p>The app can read parameters from its own URL. monday passes <code>app[...]</code> query values to the board view, which the SDK reads with <code>monday.get("location")</code> and can set with <code>monday.set("location")</code> (S-21). Each link names the screen and its state:</p>
+<div class="tbl xwide compact"><table>
+<thead><tr><th>Goes to</th><th>Link pattern</th></tr></thead>
+<tbody>
+<tr><td>A person's week on Team</td><td><code>https://deployboostai.monday.com/boards/{appBoard}/views/{viewId}?app[mode]=delivery&amp;app[tab]=team&amp;app[person]={rosterId}&amp;app[week]=2026-11-30</code></td></tr>
+<tr><td>A deal's Delivery section, a field highlighted</td><td><code>…?app[mode]=sales&amp;app[deal]={itemId}&amp;app[panel]=delivery&amp;app[field]=delivery_window</code></td></tr>
+<tr><td>A request in the Planner</td><td><code>…?app[tab]=planner&amp;app[request]={itemId}</code></td></tr>
+<tr><td>Meeting review (19C)</td><td><code>…?app[tab]=review&amp;app[meeting]={meetingId}</code></td></tr>
+<tr><td>Overview, preset</td><td><code>…?app[tab]=overview&amp;app[lens]=bestcase&amp;app[horizon]=26</code></td></tr>
+<tr><td>A board item directly</td><td><code>https://deployboostai.monday.com/boards/{boardId}/pulses/{itemId}</code></td></tr>
+</tbody></table></div>
+<p class="small">If the user is not signed in to monday, monday's own login runs first and the link then continues. Links never carry data, only ids.</p>
+
+<h3>19B.5 Slack channels and preferences</h3>
+<ul>
+<li><strong>Direct messages by default.</strong> Each person's Slack id is looked up once by their email and stored on their roster record. A new roster field, <em>Notifications</em>, holds Slack DM on or off, the digest time, and muted assistants.</li>
+<li><strong>New channels</strong> (names to confirm, Q-12): <code>#delivery-capacity</code> (weekly headline, everyone), <code>#delivery-alerts</code> (critical conflicts, team leads), <code>#capacity-leadership</code> (private, monthly insight). <code>#boost-sales</code> already exists and gets only the weekly scorecard summary, not individual nudges.</li>
+<li><strong>Client project channels</strong> already exist (for example <code>#generali-uk-risks-ms</code>). Optionally, a project's channel can be stored on the project and meeting follow-ups posted there in a thread, only when every member is internal.</li>
+</ul>
+
+<h3>19B.6 Cost and model</h3>
+<p>All assistants use <strong>Claude Opus 5.5</strong> (<code>claude-opus-5-5</code>), the current default model. It runs at <em>low</em> effort for messages and briefs, and <em>medium</em> for meeting extraction and Q&amp;A. Structured outputs keep every message in a fixed shape. Prompt caching holds the shared system prompt and today's snapshot summary, so repeated calls are cheaper. Server-side refusal fallback is switched on (<code>fallbacks: "default"</code>).</p>
+<div class="tbl wide compact"><table>
+<thead><tr><th>Typical working day, all waves live</th><th class="num">Calls</th><th class="num">Input tokens</th><th class="num">Output tokens</th></tr></thead>
+<tbody>
+<tr><td>Briefs (AI-01 to 04)</td><td class="num">~65</td><td class="num">~390k</td><td class="num">~40k</td></tr>
+<tr><td>Nudges and foresight (AI-07 to 13)</td><td class="num">~45</td><td class="num">~140k</td><td class="num">~15k</td></tr>
+<tr><td>Meeting follow-ups (AI-15, 16)</td><td class="num">~25</td><td class="num">~450k</td><td class="num">~50k</td></tr>
+<tr><td>Ask the planner (AI-14)</td><td class="num">~30</td><td class="num">~500k</td><td class="num">~40k</td></tr>
+<tr><td>Weekly and monthly (AI-05, 06, 17, 18), averaged per day</td><td class="num">~5</td><td class="num">~40k</td><td class="num">~8k</td></tr>
+<tr><td><strong>Total</strong></td><td class="num"><strong>~170</strong></td><td class="num"><strong>~1.5M</strong></td><td class="num"><strong>~150k</strong></td></tr>
+</tbody></table></div>
+<p class="small">At published Claude Opus 5.5 rates ($4 per million input tokens and $20 per million output, cached input cheaper), that is roughly <strong>$9 a working day, about $200 a month</strong>, before caching savings and including thinking tokens at low effort. Two options are available if cost matters more than polish:</p>
+<ul class="small">
+<li>Moving the short messages to Claude Haiku 5.5 would cut that part by about 95%.</li>
+<li>Moving to Claude Sonnet 5.5 would roughly halve it.</li>
+</ul>
+<p class="small">That is your call (Q-14). Usage is logged per assistant, so the bill can be checked against value.</p>
+</div></section>
+
+<!-- ─────────────────────────── 19C MEETINGS ─────────────────────────── -->
+<section class="chap" id="meetings"><div class="wrap">
+<header><div class="eyebrow">Part D · Design</div><h2><span class="num">19C</span>Meeting follow-up from the AI Notetaker</h2></header>
+<p class="intro">Yes, this can be brought in. monday's own AI Notetaker exposes finished meetings (summary, topics, action items, participants and the transcript) through the API from version 2026-04 (S-20). Your Meetings board already holds 8,527 meetings, linked to Opportunities and Projects, with an existing summary-doc process. The follow-up builds on that rather than starting again.</p>
+
+<h3>19C.1 The flow</h3>
+<pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant NT as AI Notetaker
+  participant BE as Back-end (every 10 min)
+  participant CL as Claude
+  participant SL as Slack
+  actor P as Internal attendees
+  participant APP as SDR OS app
+  participant MB as monday boards
+  BE->>NT: notetaker.meetings (new since last check)
+  BE->>BE: Match to deal or project (attendee emails → Contacts → Account; Meetings board link; calendar event)
+  BE->>CL: Summary + action items + transcript excerpt + current deal or project fields
+  CL-->>BE: Structured follow-up: summary, decisions, risks, actions (owner, due), proposed field changes with quotes
+  BE->>SL: Group DM to internal attendees
+  P->>SL: Create actions
+  SL->>BE: /slack/actions
+  BE->>MB: Create Follow-up Actions items (attributed note)
+  P->>SL: Review updates
+  SL->>APP: Deep link to Meeting review
+  P->>APP: Tick changes, Save (as themselves)
+  APP->>MB: change_multiple_column_values (as the user)
+</pre>
+
+<h3>19C.2 What people receive</h3>
+<div class="two">
+<div class="frame" role="img" aria-label="Example meeting follow-up message">
+  <div class="bar"><b>boost Delivery Assistant</b><span style="margin-left:auto;opacity:.8">Group DM · 2 min after the call</span></div>
+  <div class="body">
+    <p style="margin:0 0 6px"><span class="example-tag">Example</span></p>
+    <p style="margin:0 0 6px"><strong>Acme Ltd · CRM rollout · discovery call (45 min)</strong><br><span class="small muted">Matched to deal "Acme CRM" (Proposal). Wrong match? Use the button below.</span></p>
+    <p class="small" style="margin:0 0 6px"><strong>Summary.</strong> Acme wants sales and onboarding pipelines live before their March kick-off. Two data sources need migrating. Their IT lead will join the next session.</p>
+    <p class="small" style="margin:0 0 6px"><strong>Actions (3).</strong> Priya: send migration template, Fri. Rep: confirm budget holder, Tue. Acme: share HubSpot export, next week.</p>
+    <p class="small" style="margin:0 0 8px"><strong>Suggested updates (4).</strong>
+    <ul class="small" style="margin:0 0 8px">
+    <li>Expected close: 30 Nov → 15 Dec ("sign-off after their board meeting on the 12th")</li>
+    <li>Workstreams + Migration</li>
+    <li>Services hours 60 → 80</li>
+    <li>On-site: Partly, UK (training)</li>
+    </ul></p>
+    <div class="wf-row" style="margin:0"><span class="wf-pill on">Create actions</span><span class="wf-pill">Review updates ↗</span><span class="wf-pill">Wrong deal or project</span><span class="wf-pill">Dismiss</span></div>
+  </div>
+</div>
+<div>
+<h4 style="margin-top:0">The buttons</h4>
+<ul class="small">
+<li><strong>Create actions.</strong> Adds the action items to a <em>Follow-up Actions</em> board (DS-017), each with its owner, due date, the linked deal or project and a link to the meeting. Each item gets an update saying "Created from the meeting on 26 Oct by [person who clicked]". Owners get monday's normal assignment notification.</li>
+<li><strong>Review updates.</strong> Opens the app's <em>Meeting review</em> screen. Each suggested change shows old value → new value, the quote it came from and a confidence level. The person ticks the ones they agree with and saves, so the change is written <em>as them</em> (D-15). Nothing on a deal or project changes without a person confirming it.</li>
+<li><strong>Wrong deal or project.</strong> Offers the next-best matches, or a search. The choice is remembered for that account's future meetings.</li>
+<li><strong>Dismiss.</strong> Records that no follow-up is needed.</li>
+<li><strong>Also, optionally:</strong> the summary is posted as an Update on the deal or project, so the history stays on the record.</li>
+</ul>
+</div>
+</div>
+
+<h3>19C.3 What Claude may propose</h3>
+<div class="tbl xwide compact"><table>
+<thead><tr><th>Board</th><th>Fields it may suggest changing</th><th>Never touches</th></tr></thead>
+<tbody>
+<tr><td>Opportunities</td><td>Expected Close Date, Next strategic step, Next Step Date, Win Probability % (a suggestion with the reason only), the Delivery section fields (engagement model, services hours, window, workstreams, on-site, complexity), Reason for lost (when a loss is stated)</td><td>Stage to Won or Lost, values and currency, contracts, owner</td></tr>
+<tr><td>Boost Projects</td><td>Project Timeline, Status (Postponed, Starting Soon or Active only), ETC hours, Kick-off date, On-site, Workstreams, Risk (a link to the Risk Register)</td><td>Hours Acquired or billed, billing fields, rates, owner</td></tr>
+</tbody></table></div>
+<p class="small">Every suggestion carries a short quote from the meeting and a confidence level. Low-confidence suggestions are shown collapsed, and changes with no quote behind them are dropped.</p>
+
+<h3>19C.4 Privacy, consent and trust</h3>
+<ul>
+<li><strong>Only internal attendees</strong> receive the follow-up, by DM. Clients never receive anything from the assistant.</li>
+<li><strong>No transcript is stored</strong> by the back-end. A short excerpt is sent to Claude for extraction, and only the structured result is kept, for 30 days, in app storage.</li>
+<li><strong>Excluded meetings:</strong> titles or calendars matching a Settings list (for example "1:1", "HR", "Interview", "Personal") are never processed.</li>
+<li><strong>Who can be read.</strong> The back-end reads meetings visible to the authorising account through the API's access filter. Meetings must be shared with the account, or the authorising user must be invited (Q-15).</li>
+<li><strong>Claude API data handling:</strong> customer call content goes to Anthropic's API. Leadership confirms this fits client contracts and the DPA before go-live (Q-13), and the processing record is updated.</li>
+</ul>
+<div class="callout warn"><span class="t">One source conflict to resolve in the spike</span><p>monday's API reference documents <code>notetaker.meetings</code> (API 2026-04 and later). One page of the same documentation says there is no public GraphQL API and points to the MCP. P-40 starts with a one-call spike to confirm access with the app's OAuth token (A-15). If that fails, the fallback is the existing Meetings board pipeline, which already creates summary docs: we read its Doc column instead.</p></div>
+</div></section>
+
 <!-- ─────────────────────────── 20 SEEDING ─────────────────────────── -->
 <section class="chap" id="seeding"><div class="wrap">
 <header><div class="eyebrow">Part D · Design</div><h2><span class="num">20</span>Data foundation and seeding</h2></header>
@@ -2568,8 +2855,9 @@ flowchart LR
 <li>AUT-01 to 04, 08, 09, 10 and 19 (2)</li>
 <li>Write-through saves (5)</li>
 <li>Phase 0B: Sales tabs on the snapshot (8, optional)</li>
+<li>Slack app, outbox, deep links, wave A assistants (13)</li>
 <li>Phase 1 UAT (3)</li>
-</ul></td><td>P-16 to P-22B</td><td class="num">55</td></tr>
+</ul></td><td>P-16 to P-22B, P-36 to P-38</td><td class="num">68</td></tr>
 <tr><td><strong>Sprint 4</strong><br><span class="chip should">P2</span></td><td>Allocations</td><td class="small">
 <ul>
 <li>Allocations board (2)</li>
@@ -2584,8 +2872,9 @@ flowchart LR
 <li>Won → project action (8)</li>
 <li>People editing and level log (5)</li>
 <li>AUT-05 and 11 to 16 (3)</li>
+<li>Wave B assistants, Ask the planner, meeting follow-up (21)</li>
 <li>Phase 2 UAT (3)</li>
-</ul></td><td>P-26 to P-28</td><td class="num">27</td></tr>
+</ul></td><td>P-26 to P-28, P-39, P-40</td><td class="num">48</td></tr>
 <tr><td><strong>Sprint 6</strong><br><span class="chip could">P3</span></td><td>Smarter assignment</td><td class="small">
 <ul>
 <li>Ranking with reasons (8)</li>
@@ -2598,8 +2887,9 @@ flowchart LR
 <li>Max-flow shortfall (8)</li>
 <li>Training signals (5)</li>
 <li>Planned hires and scenarios (8)</li>
+<li>Wave C assistants (13)</li>
 <li>Phase 3 UAT (3)</li>
-</ul></td><td>P-31, P-32</td><td class="num">24</td></tr>
+</ul></td><td>P-31, P-32, P-41</td><td class="num">37</td></tr>
 <tr><td><strong>Sprint 8</strong><br><span class="chip">P4</span></td><td>Learning loop</td><td class="small">
 <ul>
 <li>Snapshot boards and job (8)</li>
@@ -2673,6 +2963,19 @@ flowchart LR
 <li>Set <code>feature.delivery_mode</code> to 2 when ready.</li>
 <li>Send the launch message.</li>
 </ol></td><td>Sam · CEO · a team lead · a rep · an IC</td><td class="num">~1 h each</td></tr>
+<tr><td><strong>Sprint 3 · P-36 to P-38 assistants (wave A)</strong></td><td>Writes the Slack manifest, outbox, deep links, signal rules, the Claude writer and every message template</td><td>
+<ol class="small">
+<li>A Slack workspace admin creates and installs the app from the manifest (about 15 minutes).</li>
+<li>Add the bot token, signing secret and Anthropic API key to monday code secrets.</li>
+<li>Create the 3 channels (Q-12).</li>
+<li>Approve one sample message per assistant before it goes live.</li>
+</ol></td><td>Slack admin · Sam</td><td class="num">45 min</td></tr>
+<tr><td><strong>Sprint 5 · P-39, P-40 meetings and Q&amp;A</strong></td><td>Builds wave B, Ask the planner, the meeting follow-up, the review screen and the eval</td><td>
+<ol class="small">
+<li>Confirm customer call content may be sent to the Claude API under your client contracts and DPA (Q-13).</li>
+<li>Confirm Notetaker sharing, so meetings are visible to the app (Q-15), and agree with the owner of the current Meetings-board summary process.</li>
+<li>Nominate 30 past meetings and say what should have changed, for the accuracy eval (about 1 hour, a team lead and a rep).</li>
+</ol></td><td>Sam · leadership · a team lead · a rep</td><td class="num">~2 h</td></tr>
 <tr><td><strong>Phase 0B · P-22B Sales tabs</strong></td><td>Moves each tab and runs the numbers-match test</td><td>Look at each tab after it moves. Approve switching its flag on.</td><td>Sam</td><td class="num">10 min per tab</td></tr>
 <tr><td><strong>Phases 2 to 4</strong></td><td>Builds everything in P-23 to P-35</td><td>
 <ol class="small">
@@ -2703,7 +3006,7 @@ flowchart LR
 <tr><td>Admin</td><td>Settings and holidays ~1 h</td><td>Yearly holiday load. Joiners and leavers.</td></tr>
 </tbody></table></div>
 
-<p class="small"><strong>Velocity note:</strong> Sprints 2 and 3 now carry the back-end and snapshot work (19A) and are heavier than the rest. If velocity runs below 35 points, Phase 1 takes one extra sprint (3b) rather than dropping the snapshot. That is the change that makes the app feel fast.</p>
+<p class="small"><strong>Velocity note:</strong> Sprints 2, 3 and 5 now carry the snapshot (19A) and assistant (19B, 19C) work and are heavier than the rest. If velocity runs below 35 points, each phase takes one extra sprint (3b, 5b) rather than dropping these. They are the changes that make the tool fast and self-explanatory.</p>
 
 <h3>Definition of Ready</h3>
 <ul>
@@ -3242,6 +3545,83 @@ Then run a discovery (no build) on modelling CS hours per account from the CSM P
 options paper using Billy's BA approach (findings, options, recommendation) for my decision.</pre>
 <button class="copy" data-copy="p35">Copy prompt</button></div></details>
 
+<h3>Assistants and meetings (run alongside the phases)</h3>
+
+<details class="prompt"><summary><span class="pid">P-36</span><span class="pt">Slack app, outbox and delivery rules<small>DS-018 · FR-191, 193, 195, 196, 198 · Sprint 3</small></span><span class="tog">Show</span></summary><div class="pb">
+<pre id="p36">Goal: the back-end can send a well-behaved Slack message to any roster person, with working buttons.
+Read: pack 19B (all), D-27, D-28.
+Do:
+1. Write the Slack app manifest (docs/capacity-planner/slack-manifest.yaml): bot name "boost Delivery Assistant",
+   scopes chat:write, im:write, users:read, users:read.email, commands, channels:read; interactivity URL
+   {liveUrl}/slack/actions; slash command /capacity → {liveUrl}/slack/commands. Give me click-by-click steps for a
+   Slack admin to create and install it, and to add the bot token and signing secret to monday code secrets.
+2. server/slack/: signature verification, users.lookupByEmail with the result cached on the roster Slack user id,
+   chat.postMessage with Block Kit, and the action router.
+3. server/outbox: message queue in app storage with dedupe key, priority, recipient, assistant id; daily cap,
+   quiet hours by region (IL Fri–Sat weekend), digest roll-up, snooze, "Not mine", escalation ladder (FR-193).
+4. Notification settings page in the app (FR-196) writing to the roster Notifications column.
+5. Admin view: messages per assistant, click-through, snoozes (FR-198).
+Acceptance: TC-190, TC-193. A test DM reaches me with a working button.</pre>
+<button class="copy" data-copy="p36">Copy prompt</button></div></details>
+
+<details class="prompt"><summary><span class="pid">P-37</span><span class="pt">Deep links into the app<small>FR-192 · 19B.4 · S-21</small></span><span class="tog">Show</span></summary><div class="pb">
+<pre id="p37">Goal: every app[...] link in 19B.4 opens the exact screen and state.
+Do: in App.jsx read monday.get("location") on load and listen for changes; route app[mode], app[tab], app[person],
+app[week], app[deal], app[panel], app[field], app[request], app[meeting], app[lens], app[horizon]; highlight the
+named field; write the current state back with monday.set("location") so a copied link reproduces the view.
+Add server/links.js that builds these URLs (the board and view id of the app come from Settings).
+Acceptance: TC-192 for every link pattern.</pre>
+<button class="copy" data-copy="p37">Copy prompt</button></div></details>
+
+<details class="prompt"><summary><span class="pid">P-38</span><span class="pt">Signal rules and Claude message writer: wave A<small>AI-01 to 05, 07, 11, 12 basic · FR-190, 194 · D-30</small></span><span class="tog">Show</span></summary><div class="pb">
+<pre id="p38">Goal: wave A assistants live behind a flag (feature.assistants = 0 off · 1 admins only · 2 everyone).
+Read: pack 19B.2, 19B.3, 19B.6; the claude-api skill for current SDK usage.
+Do:
+1. server/signals/: one pure module per assistant over the snapshot, returning signals {assistant, recipient,
+   facts, links, buttons, severity, dedupeKey}. Fixture F13 tests each rule.
+2. server/compose.js: @anthropic-ai/sdk with model claude-opus-5-5, effort low, structured output schema
+   {headline, items:[{text, primaryButton, link}], footer}, a cached system prompt with the boost tone rules
+   (UK English, lowercase boost, no emoji, no em dashes), refusal fallback "default". Validator rejects any id,
+   name or number not present in the facts, and falls back to a deterministic template (FR-194).
+3. Anthropic API key from monday code secrets (ask me to add it).
+4. Wire the schedules: IC brief 08:30 local, team lead Monday 08:00, rep Tuesday 08:00, headline Monday 09:00
+   (from the hourly tick); event signals after each build and delta.
+Acceptance: TC-191, TC-194, TC-195. Send me a sample of each assistant's message to approve before switching to 2.</pre>
+<button class="copy" data-copy="p38">Copy prompt</button></div></details>
+
+<details class="prompt"><summary><span class="pid">P-39</span><span class="pt">Wave B assistants and Ask the planner<small>AI-08, 09, 10, 14 · FR-197</small></span><span class="tog">Show</span></summary><div class="pb">
+<pre id="p39">Add signal rules and buttons for AI-08 (Won hand-off), AI-09 (request waiting), AI-10 (leave impact, with cover
+suggestions from rank.js and the Handover board). Build /capacity and @mention answers: Claude Opus 5.5 at
+medium effort with read-only tools over the snapshot (whos_free, person_week, item_detail, gap_summary,
+what_if_shift) using the tool runner; answers always cite the data time and include links; refuse to guess.
+Acceptance: TC-196 (10 scripted questions with expected answers).</pre>
+<button class="copy" data-copy="p39">Copy prompt</button></div></details>
+
+<details class="prompt"><summary><span class="pid">P-40</span><span class="pt">Meeting follow-up from the AI Notetaker<small>AI-15 · DS-017 · FR-200 to 205 · 19C · A-15</small></span><span class="tog">Show</span></summary><div class="pb">
+<pre id="p40">Goal: within 10 minutes of a client meeting, internal attendees get the follow-up with working buttons.
+Do:
+0. Spike: one call to notetaker.meetings (API 2026-04+) with the app's OAuth token. Report what is returned and for
+   which meetings (access filter). If it is not available, use the Meetings board Doc column as the source and tell me.
+1. Create the Follow-up Actions board (DS-017), preview and approve.
+2. A second scheduled job, every 10 min (-z eu): fetch new meetings, skip excluded titles (Settings
+   meetings.exclude_keywords), match per FR-201 (Meetings board link, then emails → Contacts → Account), store a
+   processed marker.
+3. Extraction with Claude Opus 5.5 (medium effort), structured output schema per 19C.3, quotes required, only
+   allowed fields. Build eval set F15: 30 labelled past meetings (ask me to nominate them) and report accuracy
+   (NFR-022).
+4. Slack group DM to internal attendees with Create actions, Review updates (deep link app[tab]=review),
+   Wrong deal or project, Dismiss. The optional summary update on the deal or project sits behind a setting.
+5. Meeting review screen in the app: old → new, quote, confidence, tick and save as the user (19.4 writers).
+Acceptance: TC-197, TC-198, TC-199.</pre>
+<button class="copy" data-copy="p40">Copy prompt</button></div></details>
+
+<details class="prompt"><summary><span class="pid">P-41</span><span class="pt">Wave C: foresight and leadership insight<small>AI-06, 12 full, 13, 16, 17, 18 · FR-206</small></span><span class="tog">Show</span></summary><div class="pb">
+<pre id="p41">Add the full conflict spotter (scarce-skill clashes, close-date slips into crunch weeks, on-site region gaps),
+skill gap early warning (max-flow), leadership monthly insight (narrative plus three decisions), pre-meeting
+briefs (calendar-linked items), data tidy-up suggestions with Confirm all and Review each, and the probability
+coach (Phase 4 data). Each has F13 fixtures and a sample message for my approval before go-live.</pre>
+<button class="copy" data-copy="p41">Copy prompt</button></div></details>
+
 <h3>Run a whole phase</h3>
 <details class="prompt"><summary><span class="pid">P-RUN</span><span class="pt">Hand Claude a full phase<small>Use when you are happy for Claude to work through a phase, pausing only at approvals</small></span><span class="tog">Show</span></summary><div class="pb">
 <pre id="prun">Run Phase [0|1|2|3|4] of the boost Capacity Planner build.
@@ -3323,6 +3703,16 @@ open issues, next. At the end of the phase, give me the go/no-go checklist from 
 <tr><td class="id">TC-184</td><td>FR-184, FR-186</td><td>Press Refresh twice within the cool-down. Then force a build failure.</td><td>The second press is refused with the next-available time. On failure the last good snapshot stays live, marked stale, and an alert item is created.</td></tr>
 <tr><td class="id">TC-185</td><td>FR-187</td><td>Automated scan of every shard against the field allow-list</td><td>No field outside the allow-list. No HR board id queried by the builder.</td></tr>
 <tr><td class="id">TC-186</td><td>FR-189</td><td>For each Sales tab, compute every displayed figure live and from the snapshot at the same moment</td><td>All figures equal</td></tr>
+<tr><td class="id">TC-190</td><td>FR-190, 191</td><td>Run the signal rules on F13 (one seeded case per wave A assistant)</td><td>One message per case, to the right Slack DM or channel</td></tr>
+<tr><td class="id">TC-191</td><td>FR-194</td><td>Feed the writer facts, then a doctored output naming an extra person and a wrong number</td><td>The validator rejects it and the template version is sent. The event is logged.</td></tr>
+<tr><td class="id">TC-192</td><td>FR-192</td><td>Click every deep-link pattern in 19B.4 from Slack, signed in and signed out</td><td>Each opens the exact screen and state (after login when signed out)</td></tr>
+<tr><td class="id">TC-193</td><td>FR-193</td><td>Seed 6 signals for one person, one at 23:00, one on an IL Friday, one snoozed</td><td>3 sent, the rest in the digest, quiet hours respected, snooze honoured</td></tr>
+<tr><td class="id">TC-194</td><td>FR-195</td><td>Press each button type from a test DM</td><td>The signature is verified. Allowed actions apply with attribution. Fact changes open the app instead.</td></tr>
+<tr><td class="id">TC-195</td><td>NFR-021</td><td>Review four weeks of wave A in the admin view</td><td>Cap respected. Click-through reported per assistant.</td></tr>
+<tr><td class="id">TC-196</td><td>FR-197</td><td>10 scripted <code>/capacity</code> questions with expected answers</td><td>All answered correctly with links. An unanswerable one says so.</td></tr>
+<tr><td class="id">TC-197</td><td>FR-201, 202, NFR-022</td><td>Eval F15: 30 labelled past meetings</td><td>≥ 95% correct match. ≥ 90% of proposed changes correct. No out-of-scope field proposed.</td></tr>
+<tr><td class="id">TC-198</td><td>FR-200, 203, NFR-023</td><td>A meeting with 2 internal and 3 external attendees, and a "1:1" meeting</td><td>Only the 2 internal attendees receive it. The 1:1 is skipped. No transcript is stored.</td></tr>
+<tr><td class="id">TC-199</td><td>FR-204, 205</td><td>Create actions, then review 4 proposals and tick 3</td><td>3 action items with owners. 3 fields changed as the user. 1 declined is recorded.</td></tr>
 <tr><td class="id">TC-200 to 206</td><td>NFR-014</td><td>Smoke each Sales tab: Scoreboard, Pipeline (open panel, edit a field), Revenue, Events, My Work, My Missing Data, Region filter</td><td>Same behaviour as before the release</td></tr>
 <tr><td class="id">TC-207</td><td>NFR-019</td><td>Time each Sales tab cold load before and after the auth change, median of 5</td><td>Each tab within 20% of its baseline</td></tr>
 <tr><td class="id">TC-208</td><td>NFR-013</td><td>Contract test: a frozen, anonymised snapshot of the source boards is run through the parsers and engine in CI</td><td>Totals equal the hand-calculated person-weeks from UAT-02</td></tr>
@@ -3379,6 +3769,10 @@ open issues, next. At the end of the phase, give me the go/no-go checklist from 
 <tr><td class="id">R-17</td><td>monday code or the OAuth install is not approved, or the account's region does not support the scheduler (it is not available in the IL hosting region, S-16)</td><td>M</td><td>H</td><td>Check Q-09 in Sprint 1. Fallbacks in 19A.4: GitHub Actions scheduled builds (no manual refresh), or the browser-only cache.</td><td>Sam</td></tr>
 <tr><td class="id">R-18</td><td>People act on morning numbers after a board-side edit made since then</td><td>M</td><td>M</td><td>The freshness label is always visible. Refresh is one click. App saves are instant. Phase 2 webhooks make board-side edits near real time.</td><td>Claude</td></tr>
 <tr><td class="id">R-19</td><td>The builder's OAuth token sees more than some viewers, and the snapshot is readable by all app users</td><td>M</td><td>H</td><td>Data-minimisation allow-list enforced by TC-185. The HR board is never queried. The admin who authorises the app is recorded.</td><td>Admin</td></tr>
+<tr><td class="id">R-20</td><td>Notification fatigue: people mute the bot and miss what matters</td><td>M</td><td>H</td><td>Daily cap, digests, dedupe, quiet hours, one ask per item, click-through review monthly (NFR-021), low performers reworked or muted by default</td><td>Sam</td></tr>
+<tr><td class="id">R-21</td><td>Wrong meeting match, or a wrong suggested update applied</td><td>M</td><td>M</td><td>Confidence shown, "Wrong deal or project" button, quotes required, nothing applied without human review as the user (D-29), eval gate (TC-197)</td><td>Claude</td></tr>
+<tr><td class="id">R-22</td><td>Client call content sent to an AI provider without contractual cover</td><td>M</td><td>H</td><td>Q-13 sign-off before P-40 go-live, internal-only delivery, no transcript storage, exclusion list, processing record updated</td><td>Sam</td></tr>
+<tr><td class="id">R-23</td><td>Model-written text states something untrue</td><td>L</td><td>H</td><td>Facts come only from rules (D-27). Validator with template fallback (FR-194). Samples approved before go-live.</td><td>Claude</td></tr>
 <tr><td class="id">R-14</td><td>Time-based automations run in their creator's time zone (S-05), so notices land at odd hours for other regions</td><td>M</td><td>L</td><td>Create scheduled automations from a UK user. Document it in the automation description.</td><td>Admin</td></tr>
 </tbody></table></div>
 
@@ -3399,6 +3793,8 @@ open issues, next. At the end of the phase, give me the go/no-go checklist from 
 <tr><td class="id">A-11</td><td>Every delivery person has an active monday user</td><td>The roster seed shows any gaps</td></tr>
 <tr><td class="id">A-13</td><td>A shard stays under 6 MB per key at 3× today's volume (largest estimate: plan ~0.9 MB today)</td><td>The P-14 build reports shard sizes. Sharding by region is the fallback.</td></tr>
 <tr><td class="id">A-14</td><td>Frontend <code>monday.storage</code> global reads can see values the back-end writes with <code>shared: true</code> (S-17)</td><td>P-14A spike: write from the back-end, then read in the app</td></tr>
+<tr><td class="id">A-15</td><td>The Notetaker meetings API (2026-04+) is readable with the app's OAuth token for meetings shared with the account (one doc page contradicts this, S-20)</td><td>P-40 spike. Fallback: the Meetings board Doc column.</td></tr>
+<tr><td class="id">A-16</td><td>The Slack workspace allows a custom app with the scopes in DS-018</td><td>Slack admin confirms (Q-11)</td></tr>
 <tr><td class="id">A-12</td><td>Every app role can read Holiday Requests, Opportunities, Boost Projects, Sprint, the Roster, Settings and Public Holidays</td><td>P-01 spike as a test IC. NFR-018.</td></tr>
 </tbody></table></div>
 
@@ -3431,6 +3827,11 @@ open issues, next. At the end of the phase, give me the go/no-go checklist from 
 <tr><td class="id">Q-06</td><td>Is Make.com approved for the AUT-08 team-lead leave notice and the AUT-17 yearly holiday load?</td><td>Sam</td><td>Sprint 3</td><td>Manual CSV holiday import. No team-lead leave notice.</td></tr>
 <tr><td class="id">Q-07</td><td>Are managed services hours a steady monthly load (use it or lose it), or can unused hours roll over?</td><td>Sam with MS leads</td><td>Sprint 2</td><td>Steady monthly load, capped by remaining hours</td></tr>
 <tr><td class="id">Q-08</td><td>Is the reverse mapping for "Create project" (DS-006) right for each engagement model, including deals sold on monday paper?</td><td>A delivery manager</td><td>Sprint 5</td><td>Use the table as written, and review the first 5 hand-offs by hand</td></tr>
+<tr><td class="id">Q-11</td><td>Who is the Slack workspace admin who can create and install the "boost Delivery Assistant" app?</td><td>Sam</td><td>Sprint 3</td><td>No default. This blocks the assistants only.</td></tr>
+<tr><td class="id">Q-12</td><td>Channel names: <code>#delivery-capacity</code>, <code>#delivery-alerts</code>, <code>#capacity-leadership</code> (private)?</td><td>Sam</td><td>Sprint 3</td><td>Use these names</td></tr>
+<tr><td class="id">Q-13</td><td>May client meeting content be sent to the Claude API under your client contracts and DPA?</td><td>Leadership</td><td>Before P-40 go-live</td><td>No. Meeting follow-up stays off until confirmed. The other assistants don't send call content.</td></tr>
+<tr><td class="id">Q-14</td><td>Keep Claude Opus 5.5 for all assistants (~$200 a month), or move short messages to Sonnet 5.5 or Haiku 5.5 to save cost?</td><td>Sam</td><td>Sprint 3</td><td>Opus 5.5</td></tr>
+<tr><td class="id">Q-15</td><td>Will Notetaker meetings be shared with the account (or the app's authorising user invited), and who owns today's Meetings-board summary process ("Run Agent", Summary Doc Creator)?</td><td>Sam with Nadav</td><td>Sprint 5</td><td>Share with the account. Keep the existing process and read its output.</td></tr>
 <tr><td class="id">Q-09</td><td><strong>Answered 26 Oct:</strong> the account is on EU servers, so the back-end deploys to the EU region (the scheduler is supported there). Still to confirm: an account admin will authorise the app's OAuth once.</td><td>Sam with the monday account admin</td><td>Sprint 2</td><td>Deploy to EU</td></tr>
 <tr><td class="id">Q-10</td><td><strong>Answered 26 Oct:</strong> automatic builds at 03:00 and 12:00 UK time. Everyone may press Refresh, with a 10-minute cool-down (default, can be changed on Settings).</td><td>Sam</td><td>Done</td><td>As answered</td></tr>
 </tbody></table></div>
@@ -3439,7 +3840,7 @@ open issues, next. At the end of the phase, give me the go/no-go checklist from 
 <!-- ─────────────────────────── 26 RTM ─────────────────────────── -->
 <section class="chap" id="rtm"><div class="wrap">
 <header><div class="eyebrow">Part E · Deliver</div><h2><span class="num">26</span>Traceability matrix</h2></header>
-<p class="intro">Every business requirement traced forward to the functional requirements that meet it, the design that builds it, the prompt that delivers it and the test that proves it. Design ids: DS-001 to DS-009 and DS-014 are boards (section 15). DS-010 is the Sprint read. DS-011 is the engine, DS-012 the data layer and DS-013 the Delivery UI (section 19). DS-015 is the monday code back-end and DS-016 the stored snapshot (section 19A).</p>
+<p class="intro">Every business requirement traced forward to the functional requirements that meet it, the design that builds it, the prompt that delivers it and the test that proves it. Design ids: DS-001 to DS-009 and DS-014 are boards (section 15). DS-010 is the Sprint read. DS-011 is the engine, DS-012 the data layer and DS-013 the Delivery UI (section 19). DS-015 is the monday code back-end and DS-016 the stored snapshot (section 19A). DS-017 is the Follow-up Actions board and DS-018 the Slack app (sections 15, 19B, 19C).</p>
 <div class="tbl xwide compact"><table>
 <thead><tr><th class="id">BR</th><th>OBJ</th><th>FR</th><th>DS</th><th>Prompt</th><th>Test</th></tr></thead>
 <tbody>
@@ -3472,14 +3873,17 @@ open issues, next. At the end of the phase, give me the go/no-go checklist from 
 <tr><td class="id">BR-027</td><td>02</td><td>086, 106, 140, 141</td><td>008</td><td>P-26</td><td>TC-120, 121</td></tr>
 <tr><td class="id">BR-028</td><td>01, 05</td><td>160 to 162</td><td>009, 014</td><td>P-33, 34</td><td>TC-160 to 162</td></tr>
 <tr><td class="id">BR-029</td><td>01</td><td>022, 024, 094</td><td>007</td><td>P-07</td><td>TC-003, TC-025, UAT-09</td></tr>
+<tr><td class="id">BR-032</td><td>03, 05, 06</td><td>190 to 198</td><td>015, 018</td><td>P-36, 37, 38, 39</td><td>TC-190 to 196</td></tr>
+<tr><td class="id">BR-033</td><td>03, 04</td><td>190, 112, 055</td><td>015, 018</td><td>P-38, 41</td><td>TC-190</td></tr>
+<tr><td class="id">BR-034</td><td>05, 06</td><td>200 to 206</td><td>015, 017, 018</td><td>P-40, 41</td><td>TC-197 to 199</td></tr>
 <tr><td class="id">BR-031</td><td>01, 03</td><td>180 to 189</td><td>015, 016</td><td>P-14A, 14, 14C, 14D, 22B</td><td>TC-180 to 186</td></tr>
 <tr><td class="id">BR-030</td><td>All</td><td>170, 171</td><td>013</td><td>P-01, P-15</td><td>TC-200 to 207</td></tr>
 </tbody></table></div>
 <h3>BA gap pass: results</h3>
 <div class="grid g4">
-<div class="stat"><div class="v">28 / 31</div><div class="l">BRs trace to a finding (BR-026 to 028 are committee additions) and 31/31 to an objective</div></div>
+<div class="stat"><div class="v">31 / 34</div><div class="l">BRs trace to a finding (BR-026 to 028 are committee additions) and 34/34 to an objective</div></div>
 <div class="stat"><div class="v">7 / 7</div><div class="l">Objectives have at least one BR</div></div>
-<div class="stat"><div class="v">31 / 31</div><div class="l">BRs have at least one FR and one test</div></div>
+<div class="stat"><div class="v">34 / 34</div><div class="l">BRs have at least one FR and one test</div></div>
 <div class="stat"><div class="v">0</div><div class="l">FRs without a parent BR</div></div>
 </div>
 <p class="small"><strong>Findings that deliberately produced no requirement:</strong> DL-025 (handover cover, Phase 4 enhancement only) and DL-028 (no reusable skills data). <strong>Every FR has at least one test case</strong>, after TC-004, 005, 025, 032, 041, 042, 121, 131 and 160 to 162 were added in review. <strong>Coverage walk:</strong> every process (WF-01 to WF-11) has a start trigger, an end state, its roles and its exceptions. Admin ownership is named (Settings, Holidays, Roster). Data at go-live is covered by the seeding plan. Permissions are covered in section 13. <strong>Readiness:</strong> ready for your review. One blocking question (Q-02).</p>
@@ -3511,6 +3915,9 @@ open issues, next. At the end of the phase, give me the go/no-go checklist from 
 <tr><td class="id">S-17</td><td>Storage SDK: per account and app, 6 MB per key, versioned writes, <code>shared: true</code> readable by the frontend, TTL up to 30 days, 12 requests a second. SecureStorage for sensitive values.</td><td><a href="https://developer.monday.com/apps/docs/monday-code-javascript-sdk" target="_blank" rel="noopener">monday code SDK: Storage and Secure storage</a> · <a href="https://developer.monday.com/apps/docs/mondaystorage" target="_blank" rel="noopener">monday.storage</a></td></tr>
 <tr><td class="id">S-18</td><td>OAuth access tokens do not expire until uninstall. A session token is signed with the client secret and verified on the back-end. Seamless auth only works inside the iframe.</td><td><a href="https://developer.monday.com/apps/docs/oauth" target="_blank" rel="noopener">OAuth</a> · <a href="https://developer.monday.com/apps/docs/choosing-auth" target="_blank" rel="noopener">Choosing an authentication method</a></td></tr>
 <tr><td class="id">S-19</td><td>monday code quotas (1 vCPU, 512 MiB, 300 s request timeout, up to 10 instances per region), secrets, environment variables, logs and alert policies</td><td><a href="https://developer.monday.com/apps/docs/quotas-and-limits" target="_blank" rel="noopener">Quotas and limits</a> · <a href="https://developer.monday.com/apps/docs/manage-monday-code-in-the-developer-center" target="_blank" rel="noopener">Manage monday code</a></td></tr>
+<tr><td class="id">S-20</td><td>monday AI Notetaker: <code>notetaker.meetings</code> query (API 2026-04+) with summary, topics, action items, participants and transcript, and access filters. One documentation page states there is no public GraphQL API, so this is to be verified (A-15).</td><td><a href="https://developer.monday.com/api-reference/reference/notetaker" target="_blank" rel="noopener">Notetaker API</a> · <a href="https://support.monday.com/hc/en-us/articles/28017248522130" target="_blank" rel="noopener">AI Notetaker (help)</a></td></tr>
+<tr><td class="id">S-21</td><td>Apps read and set <code>app[...]</code> URL query values with <code>monday.get("location")</code>, <code>monday.listen("location")</code> and <code>monday.set("location")</code></td><td><a href="https://developer.monday.com/apps/docs/mondayget" target="_blank" rel="noopener">monday.get</a> · <a href="https://developer.monday.com/apps/docs/mondayset" target="_blank" rel="noopener">monday.set</a></td></tr>
+<tr><td class="id">S-22</td><td>Claude models and pricing (Opus 5.5 $4 / $20 per million tokens; Sonnet 5.5 $2 / $10; Haiku 5.5 $0.10 / $0.50), structured outputs, prompt caching, refusal fallbacks</td><td><a href="https://docs.anthropic.com/en/docs/about-claude/models" target="_blank" rel="noopener">Anthropic models</a> · <a href="https://www.anthropic.com/pricing" target="_blank" rel="noopener">Pricing</a></td></tr>
 <tr><td class="id">Internal</td><td>Workspace scan, board schemas, data profiles and automation lists (25 Oct 2026). SDR OS source code. Career Path doc. Project Assignment Flow doc. Sam's briefing.</td><td>Boost Hub 5504457 · Boost HR 5575639 · Resources 5783548 · repo sam-moveoboost/SDRDash</td></tr>
 </tbody></table></div>
 
@@ -3540,7 +3947,7 @@ open issues, next. At the end of the phase, give me the go/no-go checklist from 
 <tr><td>Sales leader</td><td>[TBC]</td><td></td><td></td></tr>
 <tr><td>HR (Holiday Requests owner)</td><td>tal negri</td><td></td><td></td></tr>
 </tbody></table></div>
-<p class="footnote">Prepared by the boost design committee with Claude. Draft v1.2, 26 Oct 2026: refresh at 03:00 and 12:00 UK, EU hosting, and a stage-by-stage list of human input (section 21). v1.1 added the pre-built data and refresh design (19A). v1.0 was revised after an independent adversarial review (40 findings addressed). Nothing in monday or the codebase has been changed by this pack.</p>
+<p class="footnote">Prepared by the boost design committee with Claude. Draft v1.3, 26 Oct 2026: adds Claude assistants and Slack notifications (19B) and meeting follow-up from the AI Notetaker (19C). v1.2 set refresh at 03:00 and 12:00 UK, EU hosting, and a stage-by-stage list of human input (section 21). v1.1 added the pre-built data and refresh design (19A). v1.0 was revised after an independent adversarial review (40 findings addressed). Nothing in monday or the codebase has been changed by this pack.</p>
 </div></section>
 </main>
 </div>
