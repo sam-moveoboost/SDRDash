@@ -275,7 +275,7 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <div class="shell">
 <aside class="toc" aria-label="Contents">
   <div class="brand"><b>boost</b><span>Delivery OS</span></div>
-  <p class="sub">Capacity Planner build pack<br>Draft v1.0 · 25 Oct 2026</p>
+  <p class="sub">Capacity Planner build pack<br>Draft v1.1 · 26 Oct 2026</p>
   <nav class="full" id="tocnav">
     <div class="part">A · Orientation</div>
     <a href="#how"><span class="n">01</span>How to use this pack</a>
@@ -300,6 +300,7 @@ td.num,th.num{text-align:right;white-space:nowrap}
     <a href="#workflows"><span class="n">17</span>Workflows</a>
     <a href="#automations"><span class="n">18</span>Automations catalogue</a>
     <a href="#tech"><span class="n">19</span>Front-end and back-end design</a>
+    <a href="#readmodel"><span class="n">19A</span>Data storage and refresh</a>
     <a href="#seeding"><span class="n">20</span>Data foundation and seeding</a>
     <div class="part">E · Deliver</div>
     <a href="#plan"><span class="n">21</span>Delivery plan</a>
@@ -408,6 +409,10 @@ td.num,th.num{text-align:right;white-space:nowrap}
 </ul>
 <p>The data stays on monday boards. The app is the friendly front end, so nobody has to jump between boards.</p>
 
+<h3>Fast by design</h3>
+<div class="callout"><span class="t">Everything is pre-calculated before you open the app</span>
+<p>A small back-end job inside monday reads every board and does all the maths. It stores the finished numbers at 03:00 and again at 08:00 UK time, with both times set on the Settings board. Opening any Delivery screen then takes under 1.5 seconds, instead of querying boards while you wait. A <strong>Refresh</strong> button rebuilds the numbers in about a minute whenever you want, for example at lunchtime. Anything you save in the app shows straight away for you, and for everyone else within seconds. The same approach can speed up today's Scoreboard, Pipeline, Revenue and Events tabs. Section 19A has the detail.</p></div>
+
 <h3>The rule that matters most</h3>
 <div class="callout navy"><span class="t">Probability-weighted demand</span>
 <p>Every deal that is not yet won counts towards future demand at its <strong>services hours × win probability</strong>, spread evenly over its delivery working days. Your example: a 60-hour job starting Tuesday 1 December, 6 weeks long, at 20% to win, contributes 60 × 0.2 = 12 hours. That is 0.4 hours a working day over 30 weekdays: 1.6 h in the week of 30 Nov, 2.0 h in each of the next five weeks and 0.4 h on Monday 11 January. If the deal has no probability, a stage default applies, and the gap is flagged to the rep and their team lead. You can switch between four lenses: Committed, Weighted (the default), Best case and Full pipeline. Section 09 has a working calculator.</p></div>
@@ -422,6 +427,7 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <tr><td><strong>New board:</strong> Capacity Settings</td><td>Capacity › Back-end</td><td>Stage probabilities, default hours, horizon, colour thresholds. Admins can tune these without a code release.</td></tr>
 <tr><td><strong>New columns:</strong> 15 on Opportunities</td><td>Opportunities</td><td>Engagement model, delivery window, date anchor and duration, workstreams, on-site needs, complexity, minimum level and a link to the delivery project.</td></tr>
 <tr><td><strong>New columns:</strong> 11 on Boost Projects</td><td>Boost Projects</td><td>Engagement model, workstreams, on-site needs, complexity, minimum level, managed services hours and term, kick-off date, an effort-to-complete override and a capacity exclusion flag.</td></tr>
+<tr><td><strong>New back-end:</strong> monday code service</td><td>Inside the same monday app</td><td>Builds the pre-calculated snapshot on a schedule and on demand, and stores it in the app's own monday storage. No outside vendor is involved.</td></tr>
 <tr><td><strong>Read only</strong></td><td>Sprint, Holiday Requests, CSM Portfolio</td><td>Actual hours, approved leave and account context. The app does not change their structure.</td></tr>
 </tbody></table></div>
 
@@ -429,7 +435,7 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <p>The build is cut into five phases so value lands early and nothing big-bang breaks the sales app (section 07, with a sprint plan in 21):</p>
 <div class="phases">
   <div class="phase"><div class="pn">Phase 0</div><h4>Foundations</h4><ul><li>Security fix to the API token</li><li>New boards and columns</li><li>Roster seeded</li><li>Data back-fill fortnight</li></ul><div class="wk">Sprint 1</div></div>
-  <div class="phase"><div class="pn">Phase 1</div><h4>See it</h4><ul><li>Engine</li><li>Team heatmap, Overview, Demand</li><li>My Schedule</li><li>Opportunity Delivery panel</li><li>Missing data rules</li></ul><div class="wk">Sprints 2 to 3</div></div>
+  <div class="phase"><div class="pn">Phase 1</div><h4>See it</h4><ul><li>Engine</li><li>Pre-built snapshot with scheduled and manual refresh</li><li>Team heatmap, Overview, Demand</li><li>My Schedule</li><li>Opportunity Delivery panel</li><li>Missing data rules</li></ul><div class="wk">Sprints 2 to 3</div></div>
   <div class="phase"><div class="pn">Phase 2</div><h4>Plan it</h4><ul><li>Allocations planner</li><li>Roster and skills editing</li><li>Won to project hand-off</li><li>Resource requests</li></ul><div class="wk">Sprints 4 to 5</div></div>
   <div class="phase"><div class="pn">Phase 3</div><h4>Optimise it</h4><ul><li>Best-fit ranking</li><li>Move suggestions</li><li>Skill-gap shortfall</li><li>Planned hires and what-if scenarios</li></ul><div class="wk">Sprints 6 to 7</div></div>
   <div class="phase"><div class="pn">Phase 4</div><h4>Learn from it</h4><ul><li>Weekly snapshots</li><li>Forecast accuracy</li><li>Win probability calibration</li><li>CS portfolio hours model</li></ul><div class="wk">Sprint 8 and later</div></div>
@@ -438,7 +444,7 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <h3>What we need from you</h3>
 <ol>
   <li>Approve the decisions in section 03. Each one names the alternative we rejected.</li>
-  <li>Answer the eight open questions in section 25. Only Q-02 (who the team leads and admin are) blocks Phase 0.</li>
+  <li>Answer the ten open questions in section 25. Only Q-02 (who the team leads and admin are) blocks Phase 0.</li>
   <li>Nominate one team lead per region to own the roster and skills back-fill, and one sales leader to own pipeline data quality.</li>
   <li>Approve the Phase 0 security change. Today the production build compiles a personal API token into the app's JavaScript (section 19). Until that is fixed, writes cannot be trusted to show the right author or respect board permissions, and the token is exposed to every app user.</li>
 </ol>
@@ -485,7 +491,7 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <thead><tr><th class="id">ID</th><th>Decision</th><th>Rejected alternative</th><th>Why</th><th>Owner</th></tr></thead>
 <tbody>
 <tr><td class="id">D-01</td><td>Build the planner inside the SDR OS app as a Delivery mode.</td><td>Native Workload view or dashboard</td><td>Workload can't weight pipeline by probability, give each person their own capacity number or read holiday data through the API. Its time off comes only from team-level work schedules (S-07, S-08).</td><td>PO</td></tr>
-<tr><td class="id">D-02</td><td>Calculate weekly demand in the app at read time. Store only source facts on boards.</td><td>A weekly Demand Lines board</td><td>That board would hold about 13k rows with constant rewrites and would drift out of date. Keeps one entity per board.</td><td>BE</td></tr>
+<tr><td class="id">D-02</td><td>Boards hold only source facts. Weekly demand and every summary are calculated by the engine and stored as a snapshot in app storage (19A), not on boards.</td><td>A weekly Demand Lines board</td><td>That board would hold about 13k rows with constant rewrites and would drift out of date. Keeps one entity per board.</td><td>BE</td></tr>
 <tr><td class="id">D-03</td><td>Create a new <strong>Capacity Roster</strong> board in Boost Hub.</td><td>Add columns to the HR board</td><td>HR is private and holds salary history. The app would need read access to it, and so would everyone who can see the mirrors.</td><td>BE</td></tr>
 <tr><td class="id">D-04</td><td>Skills as 0 to 3 status columns on the roster. Changes logged as item updates.</td><td>A separate skills assessment board</td><td>One read, inline editing, fast ranking. Revisit if HR needs formal assessments.</td><td>FE</td></tr>
 <tr><td class="id">D-05</td><td><strong>Allocations</strong> board in Phase 2, edited only through the app.</td><td>Subitems on Projects or Opportunities, or no allocation layer</td><td>Subitems on both boards are already in use. Owner-only assignment can't express face plus offline support or BA phases.</td><td>PO</td></tr>
@@ -505,7 +511,10 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <tr><td class="id">D-19</td><td>Pin all new queries to API version <code>2026-07</code>. Migrate deprecated user fields.</td><td>Stay on <code>2024-01</code></td><td>2024-01 is past deprecation, and <code>enabled</code>, <code>is_guest</code> and <code>photo_thumb</code> are removed in 2026-10 (S-03, S-13).</td><td>BE</td></tr>
 <tr><td class="id">D-20</td><td>The engine is pure JavaScript modules covered by Vitest tests. A build fails if the engine tests fail.</td><td>Logic inside React components</td><td>The maths is the product. It must be provable and safe to refactor.</td><td>FE</td></tr>
 <tr><td class="id">D-21</td><td>Actual hours come from Sprint for the last 4 weeks by default (Settings), filtered on the server by Work Day. They load only when a view needs them.</td><td>Read the whole board, or read it on every load</td><td>Sprint holds 27.8k items, and the last 28 days alone are about 4.7k rows (about 10 pages). Loading them lazily keeps the core load to 5 to 7 calls.</td><td>BE</td></tr>
-<tr><td class="id">D-23</td><td><em>To decide in the P-01 spike.</em> If the serial bridge makes Sales or Delivery loads too slow, or viewers' permissions give different totals, add a small server-side reader (monday code, using per-user OAuth). It would run reads in parallel and hold an hourly plan cache. The app then recomputes locally only for filters and scenarios.</td><td>Ship slower loads</td><td>Removes three risks at once: bridge speed, the daily call limit and per-viewer data differences (R-03, R-15, R-16).</td><td>BE</td></tr>
+<tr><td class="id">D-23</td><td><strong>Adopted (26 Oct):</strong> a monday code back-end builds a pre-calculated snapshot on a schedule (default 03:00 and 08:00 UK) and on demand. The app opens on the snapshot (19A).</td><td>Live reads on every load</td><td>Your brief: instant loads with predictable refreshes. It also removes three risks at once: bridge speed, the daily call limit and per-viewer data differences (R-03, R-15, R-16).</td><td>BE</td></tr>
+<tr><td class="id">D-24</td><td>The snapshot lives in shared monday app storage, as versioned shards plus a pointer that is flipped last. The browser keeps a copy in IndexedDB.</td><td>A board, an external database, or browser-only cache</td><td>6 MB per key, versioned writes and no new vendor (S-17). The flip-last pointer means nobody sees a half-built snapshot.</td><td>BE</td></tr>
+<tr><td class="id">D-25</td><td>After an app save, the back-end re-reads that one item from monday and patches the snapshot. It never trusts values sent by the browser.</td><td>The browser writes the delta into storage itself</td><td>Keeps integrity, because any app user can write shared storage. The cost is one extra read per save.</td><td>BE</td></tr>
+<tr><td class="id">D-26</td><td>Read-mostly Sales tabs (Scoreboard, Pipeline, Revenue, Events) move onto the same snapshot, one at a time, after a numbers-match check. My Work and every detail panel stay live.</td><td>Leave Sales as it is</td><td>You reported the app is already slow sometimes. Editing screens stay live so nobody edits stale data.</td><td>PO</td></tr>
 <tr><td class="id">D-22</td><td>CS hours come from Projects rows of type CS or CS By IC. The account-level CSM portfolio model is deferred to Phase 4.</td><td>Model CS from the CSM Portfolio board now</td><td>Your instruction. The portfolio board is still being reworked.</td><td>PO</td></tr>
 </tbody></table></div>
 </div></section>
@@ -560,6 +569,7 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <tr><td class="id">DL-025</td><td>Handover Board (19 items) records cover for leave: Going off, Cover, Leave dates, linked project.</td><td>Board schema</td><td>A phase 4 enrichment: show cover on the heatmap during holidays.</td></tr>
 <tr><td class="id">DL-026</td><td>Boost Positions (HR) lists open roles with Department, Country and Target Start Date.</td><td>Board schema</td><td>Seed for "planned hire" rows in Phase 3 scenarios.</td></tr>
 <tr><td class="id">DL-027</td><td>monday's native Workload view takes time off only from team-level Work Schedules, which the API can't read. Capacity can vary only through schedule hours.</td><td>Sources S-07, S-08</td><td>Confirms D-01. Native Workload can't meet the requirement.</td></tr>
+<tr><td class="id">DL-033</td><td>Briefing 26 Oct: the current app is sometimes slow to load. You want summaries calculated and stored in advance, an automatic refresh (03:00, plus 08:00), a manual refresh button, and your own saves reflected immediately.</td><td>Sam, 26 Oct</td><td>Read model, section 19A (D-23 to D-26)</td></tr>
 <tr><td class="id">DL-028</td><td>The "IC Project Flow · Skill Build Tracker" board tracks Claude skills used in delivery, not people's skills. IC Performance is empty.</td><td>Board schema</td><td>Nothing to reuse for the skills matrix.</td></tr>
 <tr><td class="id">DL-029</td><td>No automation creates a project when a deal is Won. The existing "Opp Won" automation only stamps the Actual Close Date and moves the item to the Closed Won group. Project creation is manual today.</td><td>Opportunities automations</td><td>WF-02 hand-off is new process, not a replacement.</td></tr>
 <tr><td class="id">DL-030</td><td>Opportunities runs 74 automations (13 Workflow builder, 61 classic, many of them per-user email integrations). Boost Projects runs 44.</td><td>list_automations</td><td>New automations need a <code>[CAP]</code> prefix and a collision check (P-09).</td></tr>
@@ -781,7 +791,7 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <!-- ─────────────────────────── 08 BRs ─────────────────────────── -->
 <section class="chap" id="brs"><div class="wrap">
 <header><div class="eyebrow">Part B · Understand</div><h2><span class="num">08</span>Business requirements</h2></header>
-<p class="intro">These are platform-neutral needs. They say nothing about boards, columns or screens; that comes in Parts C and D. Priority uses MoSCoW: 19 of 30 are Must (63%). That is just above the usual 60% ceiling, and it is deliberate: the Musts are the minimum for any trustworthy number, plus the allocation layer you asked for. BR-026 to BR-028 come from the committee rather than a finding, and are marked as such.</p>
+<p class="intro">These are platform-neutral needs. They say nothing about boards, columns or screens; that comes in Parts C and D. Priority uses MoSCoW: 20 of 31 are Must (65%). That is just above the usual 60% ceiling, and it is deliberate: the Musts are the minimum for any trustworthy number, plus the allocation layer you asked for. BR-026 to BR-028 come from the committee rather than a finding, and are marked as such.</p>
 <div class="tbl xwide"><table>
 <thead><tr><th class="id">ID</th><th>Requirement</th><th>Priority</th><th>Source</th><th>Objective</th></tr></thead>
 <tbody>
@@ -815,6 +825,7 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <tr><td class="id">BR-028</td><td>The business needs to learn how accurate its forecasts and probabilities were, so that the model improves over time.</td><td><span class="chip could">Could</span></td><td>Committee</td><td>OBJ-01, OBJ-05</td></tr>
 <tr><td class="id">BR-029</td><td>The business needs one source of truth for leave.</td><td><span class="chip must">Must</span></td><td>DL-014, DL-015</td><td>OBJ-01</td></tr>
 <tr><td class="id">BR-030</td><td>Existing sales views must keep working unchanged while the delivery capability is added.</td><td><span class="chip must">Must</span></td><td>DL-024</td><td>All</td></tr>
+<tr><td class="id">BR-031</td><td>Every user needs screens to open almost instantly, with data refreshed on a predictable schedule and on demand, and with their own changes reflected at once, so that the tool is used rather than avoided.</td><td><span class="chip must">Must</span></td><td>DL-033</td><td>OBJ-01, OBJ-03</td></tr>
 </tbody></table></div>
 </div></section>
 
@@ -1315,7 +1326,22 @@ rounding: the engine never rounds; values are rounded only for display</code></p
 <tr><td class="id">FR-174</td><td>If a write is rejected by permissions, then the system shall roll back the optimistic change and say who can make it.</td><td>BR‑025</td><td><span class="chip must">Must</span> P0</td><td>Given a viewer without edit rights edits a skill, Then the value reverts and the message reads "Only team leads can change skills".</td></tr>
 <tr><td class="id">FR-175</td><td>The system shall show when the data was last loaded and offer a refresh.</td><td>BR‑001</td><td><span class="chip must">Must</span> P1</td><td>Given the data is 6 minutes old, Then "Updated 6 min ago · Refresh" shows. Refresh reloads the boards.</td></tr>
 </tbody></table></div>
-<p class="footnote">Totals: 96 functional requirements and 24 data quality rules. 52 are Must (54%), 31 Should and 13 Could. Every FR traces to a BR (section 26).</p>
+<h3>M18 · Pre-built data and refresh</h3>
+<div class="tbl xwide"><table>
+<thead><tr><th class="id">ID</th><th>Requirement</th><th>BR</th><th>Pri · Ph</th><th>Acceptance criteria</th></tr></thead>
+<tbody>
+<tr><td class="id">FR-180</td><td>The system shall build a complete snapshot (inputs, precomputed results for every lens and the 26-week horizon, data quality findings and actuals) at each time in <code>refresh.times</code>, in Europe/London time.</td><td>BR‑031</td><td><span class="chip must">Must</span> P1</td><td>Given refresh.times = "03:00,08:00", When the clock passes 08:00 UK in both winter and summer time, Then exactly one build runs and the pointer shows built at 08:0x, built by schedule.</td></tr>
+<tr><td class="id">FR-181</td><td>When a Delivery screen opens, the system shall render from the latest snapshot without querying boards.</td><td>BR‑031</td><td><span class="chip must">Must</span> P1</td><td>Given a snapshot exists, When Team opens, Then no board query is issued (only storage reads) and the screen is interactive in ≤ 1.5 s.</td></tr>
+<tr><td class="id">FR-182</td><td>The system shall keep a local copy of the last snapshot in the browser, render from it first, and replace it silently when the pointer shows a newer snapshot.</td><td>BR‑031</td><td><span class="chip should">Should</span> P1</td><td>Given a repeat visit, Then the screen renders from the local copy in ≤ 0.5 s, and a newer snapshot is swapped in without a reload.</td></tr>
+<tr><td class="id">FR-183</td><td>The header shall show the snapshot time, how it was built, and the number of saves applied since.</td><td>BR‑031</td><td><span class="chip must">Must</span> P1</td><td>Given an 08:00 build and 3 app saves since, Then the label reads "Data as of 08:00 · 3 saves since".</td></tr>
+<tr><td class="id">FR-184</td><td>When an allowed user presses Refresh, the system shall rebuild the snapshot and swap it in when ready, showing progress. Refresh is refused during the cool-down, saying when it will be available.</td><td>BR‑031</td><td><span class="chip must">Must</span> P1</td><td>Given cool-down 10 min and a refresh at 12:30, When another user presses Refresh at 12:35, Then the message reads "Refreshed at 12:30 · next refresh available 12:40".</td></tr>
+<tr><td class="id">FR-185</td><td>When a save made in the app succeeds, the system shall update the saver's view immediately and update the shared snapshot within 30 seconds by re-reading that item from monday.</td><td>BR‑031, BR‑025</td><td><span class="chip must">Must</span> P1</td><td>Given a rep changes Win Probability from 20 to 60, Then their weighted hours change at once, and another user who opens Demand 30 s later sees 60%.</td></tr>
+<tr><td class="id">FR-186</td><td>If a build fails, then the system shall keep serving the last good snapshot, label it as stale with the failed time, and raise an admin alert.</td><td>BR‑031</td><td><span class="chip must">Must</span> P1</td><td>Given the 08:00 build fails, Then users see "Using 03:00 data · 08:00 refresh failed" and an alert item is created.</td></tr>
+<tr><td class="id">FR-187</td><td>The snapshot shall contain only the planning fields listed in 19A.2 (no salary, leave reasons, notes or contact details).</td><td>BR‑031</td><td><span class="chip must">Must</span> P1</td><td>Given a full build, When the shards are scanned against the allow-list, Then no other field appears.</td></tr>
+<tr><td class="id">FR-188</td><td>While a user has the app open, the system shall check the pointer every 2 minutes and offer an "update" chip when a newer snapshot exists.</td><td>BR‑031</td><td><span class="chip could">Could</span> P1</td><td>Given another user's save is applied, Then within 2 minutes the chip shows "1 update", and clicking it applies the update without a reload.</td></tr>
+<tr><td class="id">FR-189</td><td>Where Phase 0B is enabled, the Scoreboard, Pipeline, Revenue and Events tabs shall render from the snapshot, with identical numbers to their live versions.</td><td>BR‑031, BR‑030</td><td><span class="chip should">Should</span> P1</td><td>Given the same moment, When a tab is computed live and from the snapshot, Then all displayed figures match.</td></tr>
+</tbody></table></div>
+<p class="footnote">Totals: 106 functional requirements and 24 data quality rules. 59 are Must (56%), 33 Should and 14 Could. Every FR traces to a BR (section 26).</p>
 </div></section>
 
 <!-- ─────────────────────────── 11 NFRs ─────────────────────────── -->
@@ -1324,10 +1350,10 @@ rounding: the engine never rounds; values are rounded only for display</code></p
 <div class="tbl xwide"><table>
 <thead><tr><th class="id">ID</th><th>Category</th><th>Requirement</th><th>Test</th></tr></thead>
 <tbody>
-<tr><td class="id">NFR-001</td><td>Performance</td><td>First load of Delivery mode (cold cache, without actuals) completes in ≤ 8 s at current volumes: ~400 live projects, ~160 opportunities read, 60 roster people. The lazy actuals load (4 weeks) adds ≤ 6 s.</td><td>Timed in Chrome on a typical laptop, median of 5 runs</td></tr>
+<tr><td class="id">NFR-001</td><td>Performance</td><td>Any Delivery screen is interactive in ≤ 1.5 s from the snapshot (≤ 0.5 s from the local copy). A full snapshot build completes in ≤ 90 s, and a manual refresh is visible to its requester in ≤ 2 minutes. Live-path fallback (no snapshot available): ≤ 8 s.</td><td>Timed in Chrome on a typical laptop, median of 5 runs</td></tr>
 <tr><td class="id">NFR-002</td><td>Performance</td><td>Changing lens, horizon, region or sort recomputes and repaints in ≤ 300 ms.</td><td>Performance timer around the engine plus render</td></tr>
 <tr><td class="id">NFR-003</td><td>Performance</td><td>The engine computes 600 work items × 60 people × 26 weeks in ≤ 150 ms.</td><td>Vitest benchmark on fixture F11 (F-large)</td></tr>
-<tr><td class="id">NFR-004</td><td>API budget</td><td>The core Delivery load uses ≤ 8 API calls, and the actuals load ≤ 12. Each query stays under 2M complexity points. Board reads are cached for 5 minutes per session, and the Opportunities read reuses the existing Sales cache. Daily budget at today's size: ~80 users × 6 opens × 6 core calls ≈ 2,900, plus actuals on request (~100 × 10 ≈ 1,000), so about 4,000 calls a day from Delivery. That is 16% of the 25,000 Enterprise daily limit (S-01), before Sales mode and integrations. P-01 confirms whether seamless app calls count toward it.</td><td>Count calls and complexity in dev tools. Budget is 5M per minute for app tokens (S-01). Daily total from the RateLimit headers.</td></tr>
+<tr><td class="id">NFR-004</td><td>API budget</td><td>With the snapshot, app opens use no API calls (storage reads only). Builds use ≤ 40 calls each, so about 250 calls a day with 2 scheduled builds, up to 4 manual refreshes and app saves. The live-path fallback: the core Delivery load uses ≤ 8 API calls, and the actuals load ≤ 12. Each query stays under 2M complexity points. Board reads are cached for 5 minutes per session, and the Opportunities read reuses the existing Sales cache. Daily budget at today's size: ~80 users × 6 opens × 6 core calls ≈ 2,900, plus actuals on request (~100 × 10 ≈ 1,000), so about 4,000 calls a day from Delivery. That is 16% of the 25,000 Enterprise daily limit (S-01), before Sales mode and integrations. P-01 confirms whether seamless app calls count toward it.</td><td>Count calls and complexity in dev tools. Budget is 5M per minute for app tokens (S-01). Daily total from the RateLimit headers.</td></tr>
 <tr><td class="id">NFR-005</td><td>Resilience</td><td>On HTTP 429 or COMPLEXITY_BUDGET_EXHAUSTED the client retries after <code>retry_in_seconds</code>, up to 3 times, and then shows a recoverable error.</td><td>Mocked 429 in tests</td></tr>
 <tr><td class="id">NFR-006</td><td>Security</td><td>No API token is present in the production bundle. All calls use the viewer's session through the monday SDK, with the scopes <code>me:read</code>, <code>users:read</code>, <code>teams:read</code>, <code>boards:read</code>, <code>boards:write</code>, <code>updates:read</code>, <code>updates:write</code> and <code>notifications:write</code>.</td><td>grep of the built bundle finds no token pattern. Scopes listed in the developer console.</td></tr>
 <tr><td class="id">NFR-007</td><td>Privacy</td><td>No salary, rate-card or HR-private data is read or stored by the planner. The HR board is never queried.</td><td>Code review checklist plus a search for board id 5090162351</td></tr>
@@ -1342,6 +1368,7 @@ rounding: the engine never rounds; values are rounded only for display</code></p
 <tr><td class="id">NFR-016</td><td>Scale</td><td>The design holds to 150 delivery people, 1,500 live work items and 20k Allocations items without schema change.</td><td>Engine benchmark at 3× fixture size</td></tr>
 <tr><td class="id">NFR-018</td><td>Consistency</td><td>For the same filters, lens and horizon, every app role sees the same totals. Every role can read Holiday Requests, Opportunities, Boost Projects, Sprint, the Roster, Settings and Public Holidays (A-12).</td><td>TC-131: compare Overview totals as an IC, a rep and an admin</td></tr>
 <tr><td class="id">NFR-019</td><td>Non-regression</td><td>Sales tab cold-load times stay within 20% of the pre-release baseline after the auth change.</td><td>TC-207</td></tr>
+<tr><td class="id">NFR-020</td><td>Freshness</td><td>Data is never older than the last scheduled build plus any failure. App saves appear in the shared snapshot within 30 s. The age of the data is always shown.</td><td>TC-180 to 184</td></tr>
 <tr><td class="id">NFR-017</td><td>Time zones</td><td>Dates are treated as calendar dates (no time-of-day), so users in IL, UK, US and UAE see the same week for the same date.</td><td>Unit test with TZ=Asia/Jerusalem and TZ=America/New_York</td></tr>
 </tbody></table></div>
 </div></section>
@@ -1703,7 +1730,9 @@ flowchart LR
     SNP["Capacity Snapshots<br/>DS-009 · P4"]
     DPS["Deal Probability Snapshots<br/>DS-014 · P4"]
   end
-  APP(["SDR OS app · Delivery mode<br/>engine joins everything at read time"])
+  MCB(["monday code back-end · DS-015<br/>builds the snapshot 03:00 · 08:00 · on demand"])
+  STO[("App storage snapshot · DS-016")]
+  APP(["SDR OS app · Delivery mode<br/>opens on the snapshot"])
 
   OPP -- "Account (existing)" --> ACC
   PRJ -- "Accounts ! (existing)" --> ACC
@@ -1717,14 +1746,17 @@ flowchart LR
   SNP -. "Person · 1 item" .-> ROS
   DPS -. "Opportunity · 1 item" .-> OPP
   HRB -. "one-off copy (P-05)" .-> ROS
-  APP --- ROS
-  APP --- ALC
-  APP --- OPP
-  APP --- PRJ
-  APP --- SPR
-  APP --- HOL
-  APP --- SET
-  APP --- PH
+  MCB --- ROS
+  MCB --- ALC
+  MCB --- OPP
+  MCB --- PRJ
+  MCB --- SPR
+  MCB --- HOL
+  MCB --- SET
+  MCB --- PH
+  MCB --> STO
+  APP --> STO
+  APP -. "saves as the viewer" .-> OPP
 </pre>
 <p class="footnote">Edges match connect-board columns one to one: 7 new connect columns, plus 3 existing ones shown for context. Dotted edges are a seed copy and a Phase 4 link. <strong>Every new connect column is one-way</strong>: it is created without a reflection column, so no back-link columns appear on Opportunities, Projects or the Roster. That is why the release of allocations on Lost or Concluded is done by the app (FR-104, FR-105) and not by a connected-board automation. The app reads Holiday Requests by the Employee people column, so no cross-workspace connect column is needed.</p>
 
@@ -1876,6 +1908,10 @@ flowchart LR
 <tr><td><code>move.face_lock_weeks</code></td><td class="num">2</td><td>Face role is locked this close to a start or end</td></tr>
 <tr><td><code>move.cost.shadow</code> · <code>.offline</code> · <code>.ba</code> · <code>.face</code> · <code>.recent_call</code></td><td class="num">0.5 · 1 · 2 · 3 · 1</td><td>Disruption costs (9.10)</td></tr>
 <tr><td><code>horizon.options</code></td><td class="num">4,8,12,26</td><td>Horizon choices in weeks (text value)</td></tr>
+<tr><td><code>refresh.times</code></td><td class="num">03:00,08:00</td><td>Automatic build times, Europe/London (text value)</td></tr>
+<tr><td><code>refresh.cooldown_minutes</code></td><td class="num">10</td><td>Minimum gap between manual refreshes</td></tr>
+<tr><td><code>refresh.manual_roles</code></td><td class="num">All</td><td>App roles allowed to press Refresh (text: All, or a list such as "Admin,Team lead,Leadership")</td></tr>
+<tr><td><code>snapshot.keep</code></td><td class="num">8</td><td>Snapshots kept in the pointer history (shards expire after 30 days)</td></tr>
 <tr><td><code>hire.lead_weeks</code></td><td class="num">10</td><td>Weeks from starting to hire to a productive start (FR-058)</td></tr>
 </tbody></table></div>
 
@@ -2159,7 +2195,7 @@ flowchart TD
 <tr><td class="id">AUT-15</td><td>Allocations</td><td>When Allocation status changes to Pending handover → notify Assignee</td><td>Native</td><td>P3</td><td>"[CAP] Handover proposed".</td></tr>
 <tr><td class="id">AUT-16</td><td>Capacity Roster</td><td>When monday level changes → set Level since to today</td><td>Native ("When column changes, set date to today")</td><td>P2</td><td>"[CAP] Level date". The app also writes the reason update.</td></tr>
 <tr><td class="id">AUT-17</td><td>Public Holidays</td><td>Yearly on 1 December → fetch next year's holidays (gov.uk JSON plus a verified API) → create items</td><td>Make.com scenario (external fetch), only if Q-06 = yes · otherwise the P-08 runbook each December</td><td>P1 Could</td><td>"[CAP] Holiday calendar load".</td></tr>
-<tr><td class="id">AUT-18</td><td>Capacity Snapshots</td><td>Weekly on Monday 05:00 UTC → run engine → write snapshot rows</td><td>monday code or other hosted function reusing the engine package (A-10) · fallback: first admin load each Monday writes the snapshot (idempotent per week)</td><td>P4</td><td>"[CAP] Weekly snapshot".</td></tr>
+<tr><td class="id">AUT-18</td><td>monday code scheduler</td><td>Hourly tick → if the UK time matches <code>refresh.times</code>, build the snapshot (19A). The Monday 03:00 build also writes Capacity Snapshots rows.</td><td>monday code scheduled job (S-16), one of the app's five slots</td><td>P1 (history rows P4)</td><td>"Snapshot build": the engine of the fast-loading design.</td></tr>
 <tr><td class="id">AUT-19</td><td>Boost Projects</td><td>When item created → only if Status is Starting Soon and Project Timeline is empty → notify Delivery Manager</td><td>Workflow builder</td><td>P1</td><td>"[CAP] Set a timeline": stops new projects arriving undated (DL-002).</td></tr>
 </tbody></table></div>
 
@@ -2228,6 +2264,13 @@ flowchart TD
     DeliverySection  WhosFree  AllocationEditor
     ReasonChips  EstimatedBadge  RequestInbox
 
+server/          (monday code, Node · DS-015)
+  index.js         routes: /mndy-cronjob/tick, /api/refresh,
+                   /api/delta, /api/status
+  build.js         read boards → engine → shards → pointer
+  storage.js       shared Storage SDK, versioned writes
+  auth.js          session-token verify, OAuth token
+
 Changed: App.jsx · api/monday.js · pages/MissingData.jsx
          utils/missingData.js
          components/opportunities/OpportunityDetailPanel.jsx</code></pre>
@@ -2252,6 +2295,7 @@ runPlan({ people, items, allocations, leave, holidays, settings, today },
 <p class="small">Dates are ISO <code>YYYY-MM-DD</code> strings throughout the engine and are never <code>Date</code> objects in local time. That keeps results identical for users in Israel, the UK, the US and the UAE (NFR-017). Internally each person holds a <code>Float64Array</code> per horizon day for capacity and demand, which keeps the F-large benchmark under 150 ms (NFR-003).</p>
 
 <h3>19.3 Loading data</h3>
+<p class="small"><strong>Since 26 Oct (D-23):</strong> the queries below are run by the snapshot builder on the server (19A), not by the browser. The browser path remains only as a fallback for local development, or when no snapshot exists yet.</p>
 <p>Two phases. The core load runs on entering Delivery mode. The actuals load runs only when a view needs it (Team with "Show actuals", or My Schedule).</p>
 <div class="tbl xwide compact"><table>
 <thead><tr><th>Call</th><th>Boards (one query, multiple <code>boards(ids:…)</code> blocks)</th><th>Server-side filter (<code>items_page query_params</code>, S-02)</th><th class="num">Est. items</th><th class="num">Pages</th></tr></thead>
@@ -2280,7 +2324,7 @@ runPlan({ people, items, allocations, leave, holidays, settings, today },
 
 <h3>19.5 State and rendering</h3>
 <ul>
-<li><code>CapacityProvider</code> sits inside Delivery mode only. Sales mode never loads capacity data (BR-030).</li>
+<li><code>CapacityProvider</code> sits inside Delivery mode only. Sales mode never loads capacity data (BR-030). It loads the snapshot (pointer, then shards in parallel), applies any change-log entries, and exposes <code>refresh()</code>, <code>status</code> and <code>dataAsOf</code>. It falls back to the live loaders only when no snapshot exists.</li>
 <li><code>usePlan({lens, horizon, region, filters})</code> memoises <code>runPlan</code> on its inputs. Changing a lens or filter is a pure recompute (NFR-002, ≤ 300 ms).</li>
 <li>The Region filter stays in <code>App.jsx</code> and is shared by both modes, as it is today. Lens and horizon live in the Delivery sub-bar and are remembered per user in <code>localStorage</code>, wrapped in try/catch.</li>
 <li>The heatmap is a semantic <code>&lt;table&gt;</code> with row and column headers. Each cell is a button with an <code>aria-label</code> such as "Priya K., week of 30 Nov, 108 percent, over". Colour is never the only signal (NFR-009).</li>
@@ -2315,6 +2359,118 @@ runPlan({ people, items, allocations, leave, holidays, settings, today },
 <li>Each Delivery tab has an error boundary with a "Copy diagnostics" button that copies the JSON of call timings and error messages. It never includes tokens.</li>
 <li>Console logging follows the existing <code>[monday]</code> prefix convention, with <code>[capacity]</code> for the engine.</li>
 </ul>
+</div></section>
+
+<!-- ─────────────────────────── 19A READ MODEL ─────────────────────────── -->
+<section class="chap" id="readmodel"><div class="wrap">
+<header><div class="eyebrow">Part D · Design</div><h2><span class="num">19A</span>Data storage and refresh</h2></header>
+<p class="intro">Your brief, 26 Oct: "do lots of summary calculation and loading and storing of data so that whenever you load into the app, all the information is there." The answer is a <strong>pre-built read model</strong>. A small server-side job reads every board and runs the engine. It then stores the finished numbers as a ready-to-use snapshot. The app opens on that snapshot almost instantly, instead of querying boards while you wait. A schedule refreshes the snapshot automatically, and a Refresh button rebuilds it on demand. Your own saves show at once.</p>
+
+<div class="grid g4">
+  <div class="stat"><div class="v">&lt; 1.5 s</div><div class="l">Target open time for every Delivery screen (today's design: up to 8 s)</div></div>
+  <div class="stat"><div class="v">03:00 · 08:00</div><div class="l">Automatic rebuilds, UK time (configurable on Settings)</div></div>
+  <div class="stat"><div class="v">~60 s</div><div class="l">Manual refresh, from button press to new numbers on screen</div></div>
+  <div class="stat"><div class="v">~95%</div><div class="l">Fewer API calls a day (about 250 instead of about 4,000)</div></div>
+</div>
+
+<h3>19A.1 How it works</h3>
+<pre class="mermaid">
+flowchart LR
+  subgraph MC["monday code · the app's own back-end (DS-015)"]
+    SCH["Scheduler<br/>hourly tick, builds at the<br/>Settings times (03:00, 08:00 UK)"]
+    BLD["Snapshot builder<br/>reads boards in parallel<br/>runs the same engine"]
+    API["/refresh · /delta endpoints<br/>verify the session token"]
+  end
+  BRD[("monday boards<br/>Opportunities · Projects · Sprint<br/>Roster · Leave · Allocations · Settings")]
+  STO[("App storage · shared<br/>snapshot shards + pointer + change log")]
+  APP(["SDR OS app in the browser<br/>opens on the snapshot (+ local copy)"])
+  SCH --> BLD
+  API --> BLD
+  BLD -- "read with the app's OAuth token" --> BRD
+  BLD -- "write shards, then flip pointer" --> STO
+  APP -- "1 + 6 storage reads" --> STO
+  APP -- "Refresh button" --> API
+  APP -- "saves as the viewer (D-15)" --> BRD
+  APP -- "after a save: re-read this item" --> API
+</pre>
+<ol>
+<li><strong>Scheduled builds.</strong> A monday code scheduled job runs every hour. It reads <code>refresh.times</code> from Settings (default 03:00 and 08:00, Europe/London), and builds only when the current UK time matches. The scheduler works in UTC (S-16), so this pattern handles summer time correctly and lets admins change the times without a release. It uses one of the app's five scheduler slots.</li>
+<li><strong>The build.</strong> The builder reads every source board in parallel with the app's own OAuth token. A server is not limited by the browser bridge. It runs the engine (the same code package the app uses), so results are identical. It writes the results to the app's shared storage as a set of shards. Last, it flips a pointer to the new snapshot, so nobody ever sees a half-written one.</li>
+<li><strong>Opening the app.</strong> The app reads the pointer and the shards (about seven small storage reads), then draws the screen. A copy is kept in the browser's IndexedDB. A repeat visit draws instantly from that copy, then checks the pointer and quietly swaps in anything newer.</li>
+<li><strong>Manual refresh.</strong> The header shows "Data as of 08:00 · 3 saves since · Refresh". Refresh calls the back-end, which checks who is asking (signed session token, S-18) and runs the same build. The button shows progress and swaps in the new data when it is ready, in about a minute. Two limits protect the API budget: a cool-down (<code>refresh.cooldown_minutes</code>, 10) and an allowed-roles setting.</li>
+<li><strong>Your own saves.</strong> When someone saves in the app (a deal's delivery fields, an allocation, a roster change), the save goes to monday as that person (D-15). The app then patches its own copy and recomputes on the spot, so the screen reflects it at once. It also tells the back-end "item X changed". The back-end re-reads that one item from monday, so it never trusts what the browser sent. It updates the shared snapshot and logs the change. Everyone else sees it the next time they open the app, or straight away through a "1 update" chip if they are already in it.</li>
+<li><strong>Edits made directly on boards</strong> (not in the app) appear at the next scheduled build or manual refresh. The freshness label says so plainly. Phase 2 can add board webhooks (S-14) so the back-end applies those edits within seconds too.</li>
+</ol>
+
+<h3>19A.2 What is stored, and how</h3>
+<p>Shared app storage is key-value, per account and app, with up to 6 MB per key and version numbers on every write (S-17). It is readable by both the app and the back-end when written with <code>shared: true</code>. The snapshot is split into shards so each stays well under the limit, and so a screen can load only what it needs.</p>
+<div class="tbl xwide compact"><table>
+<thead><tr><th>Key</th><th>Contents</th><th class="num">Est. size</th><th>Used by</th></tr></thead>
+<tbody>
+<tr><td><code>sdr:pointer</code></td><td>Current snapshot id, built at, built by (schedule, manual or delta), status (ok, building, failed), last 8 snapshot ids, cool-down until, next scheduled build</td><td class="num">1 KB</td><td>Every load</td></tr>
+<tr><td><code>sdr:{snap}:ref</code></td><td>Settings, public holidays, roster (planning fields only), users (id, name, photo)</td><td class="num">60 KB</td><td>All Delivery tabs</td></tr>
+<tr><td><code>sdr:{snap}:items</code></td><td>Normalised work items (projects and services deals): only the fields the engine and screens need, dictionary-encoded</td><td class="num">400 KB</td><td>Demand, breakdowns</td></tr>
+<tr><td><code>sdr:{snap}:alloc</code></td><td>Allocations, resource requests, leave days (dates, portion, status; no notes or reasons)</td><td class="num">80 KB</td><td>Team, Planner, My Schedule</td></tr>
+<tr><td><code>sdr:{snap}:plan</code></td><td>Precomputed results for all four lenses and 26 weeks: person × week capacity, demand and free hours; team totals by region; category coverage; unassigned and off-roster series; item × week series</td><td class="num">900 KB</td><td>Overview, Team, Demand</td></tr>
+<tr><td><code>sdr:{snap}:dq</code></td><td>Every data quality finding (DQ-01 to 24), with owner and field</td><td class="num">120 KB</td><td>My Missing Data, scorecard</td></tr>
+<tr><td><code>sdr:{snap}:actuals</code></td><td>Sprint hours summed by person × week and project × week, for the last 8 weeks. The browser never reads the 27.8k-row Sprint board again.</td><td class="num">150 KB</td><td>Team, My Schedule</td></tr>
+<tr><td><code>sdr:{snap}:sales:*</code></td><td>Optional, Phase 0B: the precomputed datasets behind Scoreboard, Pipeline, Revenue and Events</td><td class="num">≤ 2 MB each</td><td>Sales tabs</td></tr>
+<tr><td><code>sdr:changes:{snap}</code></td><td>Log of saves applied since this snapshot: board, item, fields, who, when</td><td class="num">≤ 200 KB</td><td>Freshness label, audit</td></tr>
+</tbody></table></div>
+<ul class="small">
+<li><strong>Keep and expire.</strong> Shards are written with a 30-day TTL (the maximum). The pointer keeps the last 8 snapshot ids, which also gives "what did we think last week?" for free. The Monday 03:00 build also writes its summary rows to Capacity Snapshots (DS-009), for long-term history beyond 30 days.</li>
+<li><strong>Data minimisation.</strong> The snapshot holds only planning fields: no salary, no leave reasons or notes, no deal values beyond hours, no contact details. Every app user can read shared storage, and the snapshot is built with a wider-reaching token than some viewers have, so this list is enforced by a test (TC-185).</li>
+<li><strong>Versioning.</strong> Every write passes <code>previousVersion</code>. If two saves race, the loser re-reads and retries (S-17). The engine version and a settings hash are stored with each snapshot, so a code release forces a rebuild rather than mixing old and new maths.</li>
+</ul>
+
+<h3>19A.3 Freshness rules: what you see, when</h3>
+<div class="tbl xwide"><table>
+<thead><tr><th>Change</th><th>Where it is made</th><th>Seen by the person who made it</th><th>Seen by everyone else</th></tr></thead>
+<tbody>
+<tr><td>Deal delivery fields, probability, close date</td><td>App (Delivery section)</td><td>Immediately</td><td>Within seconds (delta re-read) on their next load, or via the "update" chip</td></tr>
+<tr><td>Allocation, resource request, roster or skill change</td><td>App</td><td>Immediately</td><td>Within seconds, as above</td></tr>
+<tr><td>Same fields edited on the board directly</td><td>monday board</td><td>At next build or Refresh</td><td>At next build or Refresh (Phase 2 webhooks: within seconds)</td></tr>
+<tr><td>Leave approved</td><td>Holiday Requests board</td><td>At next build or Refresh</td><td>At next build or Refresh</td></tr>
+<tr><td>Hours logged on Sprint</td><td>Sprint board</td><td>At next build (actuals are daily figures by nature)</td><td>At next build</td></tr>
+<tr><td>Settings change</td><td>Settings board</td><td>Admin presses Refresh</td><td>After that refresh</td></tr>
+</tbody></table></div>
+<p class="small">The header always states the snapshot time and the number of saves applied since. If a scheduled build fails, the app keeps showing the last good snapshot with an amber "Using 03:00 data · 08:00 refresh failed" label. A monday code alert policy creates an item on an admin alert board (S-19).</p>
+
+<h3>19A.4 Why this design, and what we rejected</h3>
+<div class="tbl xwide compact"><table>
+<thead><tr><th>Option</th><th>Verdict</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td><strong>monday code back-end + shared app storage</strong> (chosen)</td><td><span class="chip ok">Chosen</span></td><td>Hosted inside monday with no new vendor. It has a built-in scheduler, secure storage for the OAuth token, secrets, logs and alerts (S-16, S-17, S-19). It reads in parallel with one consistent permission set, which fixes R-15 (bridge speed), R-16 (different totals per viewer) and R-03 (daily call budget) together.</td></tr>
+<tr><td>Store snapshots on a monday board (long-text JSON)</td><td><span class="chip bad">Rejected</span></td><td>Long text is capped at 2,000 characters through the API (S-12). Hundreds of rows would be needed, and every read is an API call again.</td></tr>
+<tr><td>An external database (Supabase, Firebase and similar)</td><td><span class="chip bad">Rejected</span></td><td>A new vendor, data leaving monday, and extra security and GDPR review. monday's own guidance favours its bundled storage (S-17).</td></tr>
+<tr><td>GitHub Actions cron writing to app storage</td><td><span class="chip warn">Fallback</span></td><td>The Storage SDK works from any back-end with the app's OAuth token (S-17), so scheduled builds would work. A Refresh button cannot safely trigger it from the browser, so manual refresh would be lost.</td></tr>
+<tr><td>Browser-only cache (first viewer after 03:00 builds and shares)</td><td><span class="chip warn">Fallback</span></td><td>No back-end needed, but the first person each morning waits for the slow build, and each viewer's permissions shape the result.</td></tr>
+</tbody></table></div>
+
+<h3>19A.5 The back-end in practice</h3>
+<ul>
+<li><strong>Hosting.</strong> The same monday app gains server-side code (Node) deployed with <code>mapps code:push</code>, in the region that matches the account's data region (Q-09). The scheduler is not available in monday's IL hosting region (S-16).</li>
+<li><strong>Token.</strong> An account admin authorises the app once through monday OAuth. The resulting token does not expire until the app is uninstalled (S-18). It is kept in monday code SecureStorage, and is never in the browser.</li>
+<li><strong>Endpoints.</strong>
+  <ul>
+  <li><code>POST /mndy-cronjob/tick</code>: the hourly scheduler entry point.</li>
+  <li><code>POST /api/refresh</code>: manual refresh. It checks the session token (signed with the client secret), the role from the roster and the cool-down.</li>
+  <li><code>POST /api/delta</code>: after an app save. It takes <code>{board, itemId}</code> and re-reads that item.</li>
+  <li><code>GET /api/status</code>: build progress.</li>
+  </ul></li>
+<li><strong>Limits.</strong> One vCPU, 512 MiB of memory and a 300-second request timeout (S-19). A full build is about 15 to 30 reads and an engine run under a second, well inside them. The Storage API allows 12 requests a second per token, and a build writes about 8 keys.</li>
+<li><strong>Shared engine.</strong> <code>src/capacity/engine</code> becomes a small package imported by both the app and the back-end, so there is one set of maths and one set of tests (D-20).</li>
+</ul>
+
+<h3>19A.6 Making the existing Sales tabs fast too (Phase 0B, recommended)</h3>
+<p>You said the app is already slow sometimes. The same builder can precompute the heavy, read-mostly Sales views from the same snapshot:</p>
+<ul>
+<li><strong>Scoreboard</strong> (Aircall calls, meetings, leaderboard)</li>
+<li><strong>Pipeline</strong> (the opportunity snapshot)</li>
+<li><strong>Revenue</strong></li>
+<li><strong>Events insights</strong></li>
+</ul>
+<p>Screens where people work item by item stay live: My Work, every detail panel when opened, and every save. That way you never edit stale data. Each Sales tab moves over only after a side-by-side check shows identical numbers (TC-186).</p>
 </div></section>
 
 <!-- ─────────────────────────── 20 SEEDING ─────────────────────────── -->
@@ -2394,11 +2550,13 @@ runPlan({ people, items, allocations, leave, holidays, settings, today },
 <li>Engine: calendar and capacity (5)</li>
 <li>Engine: spread rules (8)</li>
 <li>Engine: lenses and attribution (5)</li>
-<li>Data loaders and cache (5)</li>
+<li>Back-end set-up: monday code, OAuth, scheduler (5)</li>
+<li>Snapshot builder and storage (8)</li>
+<li>Snapshot loader, local copy, freshness bar, Refresh (5)</li>
 <li>Delivery mode shell (3)</li>
 <li>People read-only grid (3)</li>
 <li>Team heatmap (8)</li>
-</ul></td><td>P-11 to P-15</td><td class="num">37</td></tr>
+</ul></td><td>P-11 to P-15</td><td class="num">50</td></tr>
 <tr><td><strong>Sprint 3</strong><br><span class="chip must">P1</span></td><td>Answers for every persona</td><td class="small">
 <ul>
 <li>Overview (8)</li>
@@ -2408,8 +2566,10 @@ runPlan({ people, items, allocations, leave, holidays, settings, today },
 <li>Role-aware My Missing Data and scorecard (8)</li>
 <li>Actuals (3)</li>
 <li>AUT-01 to 04, 08, 09, 10 and 19 (2)</li>
+<li>Write-through saves (5)</li>
+<li>Phase 0B: Sales tabs on the snapshot (8, optional)</li>
 <li>Phase 1 UAT (3)</li>
-</ul></td><td>P-16 to P-22</td><td class="num">42</td></tr>
+</ul></td><td>P-16 to P-22B</td><td class="num">55</td></tr>
 <tr><td><strong>Sprint 4</strong><br><span class="chip should">P2</span></td><td>Allocations</td><td class="small">
 <ul>
 <li>Allocations board (2)</li>
@@ -2461,6 +2621,8 @@ runPlan({ people, items, allocations, leave, holidays, settings, today },
 <tr><td>HR</td><td>Leave consolidation check ~30 min</td><td>Approvals as today</td></tr>
 <tr><td>Admin</td><td>Settings and holidays ~1 h</td><td>Yearly holiday load. Joiners and leavers.</td></tr>
 </tbody></table></div>
+
+<p class="small"><strong>Velocity note:</strong> Sprints 2 and 3 now carry the back-end and snapshot work (19A) and are heavier than the rest. If velocity runs below 35 points, Phase 1 takes one extra sprint (3b) rather than dropping the snapshot. That is the change that makes the app feel fast.</p>
 
 <h3>Definition of Ready</h3>
 <ul>
@@ -2565,6 +2727,7 @@ Do:
    setRelation…) still works through the bridge. List any that need the "attributed" fallback, and why.
 
 Acceptance: TC-130 write-attribution step, TC-140 bundle-grep step, TC-207 load times, TC-200 to 206 Sales smoke.
+Note: reads move server-side in P-14A to P-14D (D-23), so the gate in 1b mainly protects the Sales tabs until P-22B.
 Report: the spike result, the list of write paths and status, and anything I must click.</pre>
 <button class="copy" data-copy="p01">Copy prompt</button></div></details>
 
@@ -2753,19 +2916,71 @@ Do:
 Acceptance: tests green. Coverage ≥ 90% lines across engine/.</pre>
 <button class="copy" data-copy="p13">Copy prompt</button></div></details>
 
-<details class="prompt"><summary><span class="pid">P-14</span><span class="pt">Data loaders, parsers and CapacityProvider<small>19.3 · 19.5 · NFR-001, 004, 005</small></span><span class="tog">Show</span></summary><div class="pb">
-<pre id="p14">Goal: load the core data in 5 to 7 calls and feed the engine.
+<details class="prompt"><summary><span class="pid">P-14A</span><span class="pt">Back-end set-up: monday code, OAuth, scheduler<small>19A.5 · DS-015 · D-23 · Q-09</small></span><span class="tog">Show</span></summary><div class="pb">
+<pre id="p14a">Goal: the app has a working monday code back-end that can read boards on its own.
+Read: pack 19A (all), S-16 to S-19.
 Do:
-1. api/queries.js: combined queries C1 to C5 (pack 19.3), requesting only the columns in pack 16, with
-   query_params filters and complexity fields. API-Version 2026-07.
-2. api/parse.js: robust parsers for timeline, date, people (expand teams via users), status label,
-   dropdown labels, numbers, connect item ids. Unit-test them with real response samples (redact names).
-3. api/loaders.js: loadCore(), loadActuals(weeks), retry on 429 using retry_in_seconds (max 3).
-4. state/CapacityProvider.jsx: cache for settings cache.minutes, refresh(), lastLoaded, an error state.
-   state/usePlan.js memoised. state/useViewer.js maps the session user to a roster person and app role.
-5. Admin-only "Data health" drawer (19.9).
-Acceptance: in the tunnel, cold load ≤ 8 s and ≤ 8 calls. Report the timings table.</pre>
+1. Create server/ (Node, Express or plain http) with routes /mndy-cronjob/tick, /api/refresh, /api/delta,
+   /api/status and a health check. Use @mondaycom/apps-sdk for Storage, SecureStorage, SecretsManager, Logger.
+2. Implement the OAuth install flow (authorize → https://auth.monday.com/oauth2/token) so an account admin
+   authorises once. Store the access token in SecureStorage, never in code, env files or the browser.
+   Ask me which region the account uses (Q-09) and deploy there with mapps code:push. The scheduler is
+   not available in the IL hosting region.
+3. auth.js: verify the frontend session token (jwt.verify with the client secret from SecretsManager), map
+   user_id to the roster app role, and reject anyone else.
+4. Create the hourly scheduled job (mapps scheduler:create -s "0 * * * *" -u "/tick", region per Q-09, retries 2).
+   The tick reads refresh.times (Europe/London) and exits quietly unless a build is due.
+5. Add an alert policy for 5xx errors on the build routes (Developer Center), pointing at an admin alert board.
+Acceptance: TC-180 (tick builds only at the configured UK times, winter and summer). The OAuth token is
+visible nowhere except SecureStorage. Report the live URL and the scheduler list output.</pre>
+<button class="copy" data-copy="p14a">Copy prompt</button></div></details>
+
+<details class="prompt"><summary><span class="pid">P-14</span><span class="pt">Snapshot builder and storage<small>19A.2 · 19.3 · DS-016 · FR-180, 186, 187</small></span><span class="tog">Show</span></summary><div class="pb">
+<pre id="p14">Goal: a complete, versioned snapshot written to shared app storage on schedule and on demand.
+Do:
+1. Make src/capacity/engine importable by server/ (a workspace package or a relative import with a build step).
+   One engine, one test suite.
+2. server/queries + parse: the combined queries C1 to C5 and the Sprint actuals query (pack 19.3), run in
+   parallel with the OAuth token, API-Version 2026-07, 500-item pages, retry on 429 using retry_in_seconds.
+   Unit-test the parsers with real response samples (redact names).
+3. build.js: read → normalise → runPlan for all four lenses and the 26-week horizon → data quality →
+   actuals (person × week, project × week, last 8 weeks). Write the shards in 19A.2 with shared: true,
+   ttl 30 days and previousVersion. Write sdr:pointer last (flip), with history (snapshot.keep), engine version
+   and settings hash.
+4. Enforce the data-minimisation allow-list (FR-187) with a test that scans every shard (TC-185).
+5. Failure handling: never flip the pointer on a failed build. Record status = failed with time and reason (FR-186).
+6. /api/refresh: role and cool-down checks (refresh.manual_roles, refresh.cooldown_minutes), start the build
+   in the background, and report progress through /api/status.
+Acceptance: TC-181, TC-184, TC-185. Report build time, calls used and shard sizes.</pre>
 <button class="copy" data-copy="p14">Copy prompt</button></div></details>
+
+<details class="prompt"><summary><span class="pid">P-14C</span><span class="pt">App: snapshot loader, local copy, freshness bar, Refresh button<small>FR-181 to 184, 188 · 19.5</small></span><span class="tog">Show</span></summary><div class="pb">
+<pre id="p14c">Goal: every Delivery screen opens in ≤ 1.5 s from the snapshot.
+Do:
+1. state/CapacityProvider.jsx: read sdr:pointer, then the shards in parallel (monday.storage global getItem),
+   then apply sdr:changes entries. Keep a copy in IndexedDB keyed by snapshot id; render from it first, then
+   swap in newer data silently (FR-182). Fall back to the live loaders only when no snapshot exists.
+2. usePlan reads the precomputed lens results directly, and recomputes locally only for filters, sorts and
+   scenarios. useViewer maps the session user to roster person and app role.
+3. Freshness bar in the Delivery sub-bar: "Data as of 08:00 · 3 saves since · Refresh", the stale and failed
+   states (FR-186), progress while refreshing, and the cool-down message (FR-184).
+4. Poll sdr:pointer every 2 minutes while the app is open and show the "update" chip (FR-188).
+5. Admin-only "Data health" drawer (19.9): snapshot id, built by, build duration, calls, shard sizes, failures.
+Acceptance: TC-182, TC-183. Timings measured in the tunnel and reported.</pre>
+<button class="copy" data-copy="p14c">Copy prompt</button></div></details>
+
+<details class="prompt"><summary><span class="pid">P-14D</span><span class="pt">Write-through saves<small>FR-185 · D-25</small></span><span class="tog">Show</span></summary><div class="pb">
+<pre id="p14d">Goal: a save in the app shows instantly for the saver and within 30 s for everyone.
+Do:
+1. A single helper wraps every capacity writer (19.4): write to monday as the viewer → on success patch the
+   in-memory snapshot and recompute → POST /api/delta {board, itemId} with the session token.
+2. /api/delta: re-read that item with the OAuth token (never trust browser values), patch the items or alloc
+   shard, recompute plan and dq for that snapshot, write with previousVersion (retry on conflict), append to
+   sdr:changes, bump the pointer version. Serialise deltas per snapshot to avoid write storms.
+3. Phase 2 option (do not build yet; write the design note only): board webhooks (S-14) on Opportunities, Projects,
+   Holiday Requests and Allocations calling /api/delta, so board-side edits also arrive within seconds.
+Acceptance: TC-183 save path. Two browsers: a save in one appears in the other within 30 s.</pre>
+<button class="copy" data-copy="p14d">Copy prompt</button></div></details>
 
 <details class="prompt"><summary><span class="pid">P-15</span><span class="pt">Delivery mode shell and Team heatmap<small>FR-060 to 066 · FR-170, 171, 175 · 12.1, 12.3</small></span><span class="tog">Show</span></summary><div class="pb">
 <pre id="p15">Goal: a Sales | Delivery switch and a working Team heatmap.
@@ -2842,6 +3057,18 @@ fallback, DQ rule, Settings key) from labels.js and quality.js, so the code and 
 Do not flip feature.delivery_mode to 2. I do that after sign-off.</pre>
 <button class="copy" data-copy="p22">Copy prompt</button></div></details>
 
+<details class="prompt"><summary><span class="pid">P-22B</span><span class="pt">Phase 0B: move the Sales tabs onto the snapshot (optional, recommended)<small>FR-189 · D-26 · TC-186</small></span><span class="tog">Show</span></summary><div class="pb">
+<pre id="p22b">Goal: Scoreboard, Pipeline, Revenue and Events open instantly, with identical numbers.
+Do, one tab at a time:
+1. Find the data each tab loads today (api/monday.js fetchers, utils/*Metrics.js) and move the reads and the
+   pure calculations into the snapshot builder as sdr:{snap}:sales:{tab} shards (≤ 2 MB each).
+   Keep month, region and other filters client-side over the precomputed data.
+2. Ship each tab behind a Settings flag (feature.sales_snapshot.{tab}). Run TC-186: compare every displayed
+   figure live vs snapshot at the same moment. Switch on only when they match.
+3. My Work, detail panels and every save stay live.
+Report the before and after load times per tab.</pre>
+<button class="copy" data-copy="p22b">Copy prompt</button></div></details>
+
 <h3>Phase 2 · Plan it (Sprints 4 to 5)</h3>
 
 <details class="prompt"><summary><span class="pid">P-23</span><span class="pt">Allocations board and engine integration<small>DS-002 · FR-042 · FR-101</small></span><span class="tog">Show</span></summary><div class="pb">
@@ -2917,9 +3144,8 @@ Acceptance: TC-090 scenario. No live writes.</pre>
 <h3>Phase 4 · Learn from it (Sprint 8+)</h3>
 
 <details class="prompt"><summary><span class="pid">P-33</span><span class="pt">Snapshots<small>DS-009 · FR-160 · AUT-18 · A-10</small></span><span class="tog">Show</span></summary><div class="pb">
-<pre id="p33">Spike hosting options for a weekly job that runs the engine (monday code or another approved host). If none
-is approved, implement the idempotent "first admin load each Monday writes the snapshot" fallback. Create the
-Capacity Snapshots and Deal Probability Snapshots boards (DS-009). Acceptance: two consecutive weekly
+<pre id="p33">Create the Capacity Snapshots and Deal Probability Snapshots boards (DS-009, DS-014). Extend the snapshot
+builder (P-14) so the Monday 03:00 build also writes their rows, idempotently per week. Acceptance: two consecutive weekly
 snapshots exist with no duplicates.</pre>
 <button class="copy" data-copy="p33">Copy prompt</button></div></details>
 
@@ -3009,6 +3235,13 @@ open issues, next. At the end of the phase, give me the go/no-go checklist from 
 <tr><td class="id">TC-140</td><td>NFR-001 to 006</td><td>Cold load timing. Network call count. Mock 429. Grep the bundle.</td><td>≤ 8 s, ≤ 8 core calls and ≤ 12 actuals calls, retry honoured, no token</td></tr>
 <tr><td class="id">TC-160 to 162</td><td>FR-160 to 162</td><td>Two weekly snapshot runs, then the Learning view on 10 closed deals and 5 person-weeks</td><td>No duplicate snapshots. Accuracy and Brier score match a hand calculation.</td></tr>
 <tr><td class="id">TC-150</td><td>NFR-009</td><td>axe scan plus keyboard-only pass of every Delivery tab</td><td>No serious violations. All controls reachable.</td></tr>
+<tr><td class="id">TC-180</td><td>FR-180</td><td>Call the tick at simulated UTC times across a summer-time change, with refresh.times = "03:00,08:00"</td><td>Exactly one build at 03:00 and one at 08:00 UK time, each day, in both seasons</td></tr>
+<tr><td class="id">TC-181</td><td>FR-181, NFR-001</td><td>Open each Delivery tab with dev tools open</td><td>No board queries, only storage reads. Interactive in ≤ 1.5 s (≤ 0.5 s on a repeat visit).</td></tr>
+<tr><td class="id">TC-182</td><td>FR-182, FR-188</td><td>Repeat visit, then trigger a build from another browser</td><td>Instant render from the local copy. The newer snapshot arrives silently, or as an "update" chip within 2 minutes.</td></tr>
+<tr><td class="id">TC-183</td><td>FR-183, FR-185</td><td>Change a deal's probability in browser A, and watch browser B</td><td>A updates at once. B shows the change within 30 s of opening, or via the chip. The label counts the save.</td></tr>
+<tr><td class="id">TC-184</td><td>FR-184, FR-186</td><td>Press Refresh twice within the cool-down. Then force a build failure.</td><td>The second press is refused with the next-available time. On failure the last good snapshot stays live, marked stale, and an alert item is created.</td></tr>
+<tr><td class="id">TC-185</td><td>FR-187</td><td>Automated scan of every shard against the field allow-list</td><td>No field outside the allow-list. No HR board id queried by the builder.</td></tr>
+<tr><td class="id">TC-186</td><td>FR-189</td><td>For each Sales tab, compute every displayed figure live and from the snapshot at the same moment</td><td>All figures equal</td></tr>
 <tr><td class="id">TC-200 to 206</td><td>NFR-014</td><td>Smoke each Sales tab: Scoreboard, Pipeline (open panel, edit a field), Revenue, Events, My Work, My Missing Data, Region filter</td><td>Same behaviour as before the release</td></tr>
 <tr><td class="id">TC-207</td><td>NFR-019</td><td>Time each Sales tab cold load before and after the auth change, median of 5</td><td>Each tab within 20% of its baseline</td></tr>
 <tr><td class="id">TC-208</td><td>NFR-013</td><td>Contract test: a frozen, anonymised snapshot of the source boards is run through the parsers and engine in CI</td><td>Totals equal the hand-calculated person-weeks from UAT-02</td></tr>
@@ -3062,6 +3295,9 @@ open issues, next. At the end of the phase, give me the go/no-go checklist from 
 <tr><td class="id">R-13</td><td>Group-by or dashboard limits (500 groups, 20k items on table widgets) if native board views are built on top</td><td>L</td><td>L</td><td>The app is the primary UI. Native views are for admins only.</td><td>Admin</td></tr>
 <tr><td class="id">R-15</td><td>Retiring the token moves every Sales tab onto the serial bridge, and the comment in <code>api/monday.js</code> records that the bridge once made the Scoreboard take ~30 s instead of ~8 s</td><td>H</td><td>H</td><td>P-01 performance gate (TC-207). Combined multi-board queries. D-23 server-side reader if needed.</td><td>Claude</td></tr>
 <tr><td class="id">R-16</td><td>Reads run with each viewer's permissions, so an IC who cannot see a source board (for example Holiday Requests in Boost HR) gets different totals</td><td>M</td><td>H</td><td>A-12 checked in the P-01 spike. NFR-018 and TC-131. D-23 as the fallback.</td><td>Admin</td></tr>
+<tr><td class="id">R-17</td><td>monday code or the OAuth install is not approved, or the account's region does not support the scheduler (it is not available in the IL hosting region, S-16)</td><td>M</td><td>H</td><td>Check Q-09 in Sprint 1. Fallbacks in 19A.4: GitHub Actions scheduled builds (no manual refresh), or the browser-only cache.</td><td>Sam</td></tr>
+<tr><td class="id">R-18</td><td>People act on morning numbers after a board-side edit made since then</td><td>M</td><td>M</td><td>The freshness label is always visible. Refresh is one click. App saves are instant. Phase 2 webhooks make board-side edits near real time.</td><td>Claude</td></tr>
+<tr><td class="id">R-19</td><td>The builder's OAuth token sees more than some viewers, and the snapshot is readable by all app users</td><td>M</td><td>H</td><td>Data-minimisation allow-list enforced by TC-185. The HR board is never queried. The admin who authorises the app is recorded.</td><td>Admin</td></tr>
 <tr><td class="id">R-14</td><td>Time-based automations run in their creator's time zone (S-05), so notices land at odd hours for other regions</td><td>M</td><td>L</td><td>Create scheduled automations from a UK user. Document it in the automation description.</td><td>Admin</td></tr>
 </tbody></table></div>
 
@@ -3078,8 +3314,10 @@ open issues, next. At the end of the phase, give me the go/no-go checklist from 
 <tr><td class="id">A-07</td><td>Withdrawn. New connect columns are one-way, so releases are done by the app (FR-104, 105).</td><td>n/a</td></tr>
 <tr><td class="id">A-08</td><td>Seamless <code>monday.api</code> works in this app's feature type with the eight scopes in NFR-006 (S-09)</td><td>P-01 spike before any other story</td></tr>
 <tr><td class="id">A-09</td><td>A free holiday API covers Israel and UAE accurately</td><td>P-08 compares against the official government calendars. Otherwise manual entry.</td></tr>
-<tr><td class="id">A-10</td><td>A hosted function (monday code or similar) is available for the weekly snapshot</td><td>Phase 4 spike. The first-admin-load fallback is designed.</td></tr>
+<tr><td class="id">A-10</td><td>monday code (hosting, scheduler, storage) is available to this app on this account (S-16, S-17, S-19)</td><td>P-14A in Sprint 2. Fallbacks in 19A.4.</td></tr>
 <tr><td class="id">A-11</td><td>Every delivery person has an active monday user</td><td>The roster seed shows any gaps</td></tr>
+<tr><td class="id">A-13</td><td>A shard stays under 6 MB per key at 3× today's volume (largest estimate: plan ~0.9 MB today)</td><td>The P-14 build reports shard sizes. Sharding by region is the fallback.</td></tr>
+<tr><td class="id">A-14</td><td>Frontend <code>monday.storage</code> global reads can see values the back-end writes with <code>shared: true</code> (S-17)</td><td>P-14A spike: write from the back-end, then read in the app</td></tr>
 <tr><td class="id">A-12</td><td>Every app role can read Holiday Requests, Opportunities, Boost Projects, Sprint, the Roster, Settings and Public Holidays</td><td>P-01 spike as a test IC. NFR-018.</td></tr>
 </tbody></table></div>
 
@@ -3112,13 +3350,15 @@ open issues, next. At the end of the phase, give me the go/no-go checklist from 
 <tr><td class="id">Q-06</td><td>Is Make.com approved for the AUT-08 team-lead leave notice and the AUT-17 yearly holiday load?</td><td>Sam</td><td>Sprint 3</td><td>Manual CSV holiday import. No team-lead leave notice.</td></tr>
 <tr><td class="id">Q-07</td><td>Are managed services hours a steady monthly load (use it or lose it), or can unused hours roll over?</td><td>Sam with MS leads</td><td>Sprint 2</td><td>Steady monthly load, capped by remaining hours</td></tr>
 <tr><td class="id">Q-08</td><td>Is the reverse mapping for "Create project" (DS-006) right for each engagement model, including deals sold on monday paper?</td><td>A delivery manager</td><td>Sprint 5</td><td>Use the table as written, and review the first 5 hand-offs by hand</td></tr>
+<tr><td class="id">Q-09</td><td>Which data region does the monday account use (US, EU or AU), and is the app allowed a monday code back-end with an admin-authorised OAuth token?</td><td>Sam with the monday account admin</td><td>Sprint 1</td><td>Deploy to the account's region. If monday code is not allowed, use the GitHub Actions fallback and drop manual refresh.</td></tr>
+<tr><td class="id">Q-10</td><td>Refresh times and who may press Refresh: 03:00 and 08:00 for everyone, with a 10-minute cool-down?</td><td>Sam</td><td>Sprint 2</td><td>Yes as stated. All values are on Settings.</td></tr>
 </tbody></table></div>
 </div></section>
 
 <!-- ─────────────────────────── 26 RTM ─────────────────────────── -->
 <section class="chap" id="rtm"><div class="wrap">
 <header><div class="eyebrow">Part E · Deliver</div><h2><span class="num">26</span>Traceability matrix</h2></header>
-<p class="intro">Every business requirement traced forward to the functional requirements that meet it, the design that builds it, the prompt that delivers it and the test that proves it. Design ids: DS-001 to DS-009 are boards (section 15). DS-010 is the Sprint read. DS-011 is the engine, DS-012 the data layer and DS-013 the Delivery UI (section 19).</p>
+<p class="intro">Every business requirement traced forward to the functional requirements that meet it, the design that builds it, the prompt that delivers it and the test that proves it. Design ids: DS-001 to DS-009 and DS-014 are boards (section 15). DS-010 is the Sprint read. DS-011 is the engine, DS-012 the data layer and DS-013 the Delivery UI (section 19). DS-015 is the monday code back-end and DS-016 the stored snapshot (section 19A).</p>
 <div class="tbl xwide compact"><table>
 <thead><tr><th class="id">BR</th><th>OBJ</th><th>FR</th><th>DS</th><th>Prompt</th><th>Test</th></tr></thead>
 <tbody>
@@ -3151,13 +3391,14 @@ open issues, next. At the end of the phase, give me the go/no-go checklist from 
 <tr><td class="id">BR-027</td><td>02</td><td>086, 106, 140, 141</td><td>008</td><td>P-26</td><td>TC-120, 121</td></tr>
 <tr><td class="id">BR-028</td><td>01, 05</td><td>160 to 162</td><td>009, 014</td><td>P-33, 34</td><td>TC-160 to 162</td></tr>
 <tr><td class="id">BR-029</td><td>01</td><td>022, 024, 094</td><td>007</td><td>P-07</td><td>TC-003, TC-025, UAT-09</td></tr>
+<tr><td class="id">BR-031</td><td>01, 03</td><td>180 to 189</td><td>015, 016</td><td>P-14A, 14, 14C, 14D, 22B</td><td>TC-180 to 186</td></tr>
 <tr><td class="id">BR-030</td><td>All</td><td>170, 171</td><td>013</td><td>P-01, P-15</td><td>TC-200 to 207</td></tr>
 </tbody></table></div>
 <h3>BA gap pass: results</h3>
 <div class="grid g4">
-<div class="stat"><div class="v">27 / 30</div><div class="l">BRs trace to a finding (BR-026 to 028 are committee additions) and 30/30 to an objective</div></div>
+<div class="stat"><div class="v">28 / 31</div><div class="l">BRs trace to a finding (BR-026 to 028 are committee additions) and 31/31 to an objective</div></div>
 <div class="stat"><div class="v">7 / 7</div><div class="l">Objectives have at least one BR</div></div>
-<div class="stat"><div class="v">30 / 30</div><div class="l">BRs have at least one FR and one test</div></div>
+<div class="stat"><div class="v">31 / 31</div><div class="l">BRs have at least one FR and one test</div></div>
 <div class="stat"><div class="v">0</div><div class="l">FRs without a parent BR</div></div>
 </div>
 <p class="small"><strong>Findings that deliberately produced no requirement:</strong> DL-025 (handover cover, Phase 4 enhancement only) and DL-028 (no reusable skills data). <strong>Every FR has at least one test case</strong>, after TC-004, 005, 025, 032, 041, 042, 121, 131 and 160 to 162 were added in review. <strong>Coverage walk:</strong> every process (WF-01 to WF-11) has a start trigger, an end state, its roles and its exceptions. Admin ownership is named (Settings, Holidays, Roster). Data at go-live is covered by the seeding plan. Permissions are covered in section 13. <strong>Readiness:</strong> ready for your review. One blocking question (Q-02).</p>
@@ -3185,6 +3426,10 @@ open issues, next. At the end of the phase, give me the go/no-go checklist from 
 <tr><td class="id">S-13</td><td>Users API fields. <code>enabled</code>, <code>is_guest</code> and <code>photo_*</code> deprecated in 2026-07 and removed in 2026-10. Team membership queries.</td><td><a href="https://developer.monday.com/api-reference/reference/users" target="_blank" rel="noopener">Users</a> · <a href="https://developer.monday.com/api-reference/reference/teams" target="_blank" rel="noopener">Teams</a></td></tr>
 <tr><td class="id">S-14</td><td>Webhooks and app custom triggers or actions (one line, Phase 4 option)</td><td><a href="https://developer.monday.com/api-reference/reference/webhooks" target="_blank" rel="noopener">Webhooks</a></td></tr>
 <tr><td class="id">S-15</td><td>UK bank holidays JSON format. A public holiday API exists. IL and AE coverage <em>not confirmed</em>.</td><td><a href="https://www.gov.uk/bank-holidays.json" target="_blank" rel="noopener">gov.uk bank holidays</a> · <a href="https://date.nager.at/api" target="_blank" rel="noopener">Nager.Date</a></td></tr>
+<tr><td class="id">S-16</td><td>monday code scheduler: cron in UTC, up to 5 jobs per region, POST endpoints under /mndy-cronjob, retries; not supported in the IL hosting region</td><td><a href="https://developer.monday.com/apps/docs/schedule-cron-jobs-in-monday-code" target="_blank" rel="noopener">Schedule cron jobs in monday code</a></td></tr>
+<tr><td class="id">S-17</td><td>Storage SDK: per account and app, 6 MB per key, versioned writes, <code>shared: true</code> readable by the frontend, TTL up to 30 days, 12 requests a second. SecureStorage for sensitive values.</td><td><a href="https://developer.monday.com/apps/docs/monday-code-javascript-sdk" target="_blank" rel="noopener">monday code SDK: Storage and Secure storage</a> · <a href="https://developer.monday.com/apps/docs/mondaystorage" target="_blank" rel="noopener">monday.storage</a></td></tr>
+<tr><td class="id">S-18</td><td>OAuth access tokens do not expire until uninstall. A session token is signed with the client secret and verified on the back-end. Seamless auth only works inside the iframe.</td><td><a href="https://developer.monday.com/apps/docs/oauth" target="_blank" rel="noopener">OAuth</a> · <a href="https://developer.monday.com/apps/docs/choosing-auth" target="_blank" rel="noopener">Choosing an authentication method</a></td></tr>
+<tr><td class="id">S-19</td><td>monday code quotas (1 vCPU, 512 MiB, 300 s request timeout, up to 10 instances per region), secrets, environment variables, logs and alert policies</td><td><a href="https://developer.monday.com/apps/docs/quotas-and-limits" target="_blank" rel="noopener">Quotas and limits</a> · <a href="https://developer.monday.com/apps/docs/manage-monday-code-in-the-developer-center" target="_blank" rel="noopener">Manage monday code</a></td></tr>
 <tr><td class="id">Internal</td><td>Workspace scan, board schemas, data profiles and automation lists (25 Oct 2026). SDR OS source code. Career Path doc. Project Assignment Flow doc. Sam's briefing.</td><td>Boost Hub 5504457 · Boost HR 5575639 · Resources 5783548 · repo sam-moveoboost/SDRDash</td></tr>
 </tbody></table></div>
 
@@ -3214,7 +3459,7 @@ open issues, next. At the end of the phase, give me the go/no-go checklist from 
 <tr><td>Sales leader</td><td>[TBC]</td><td></td><td></td></tr>
 <tr><td>HR (Holiday Requests owner)</td><td>tal negri</td><td></td><td></td></tr>
 </tbody></table></div>
-<p class="footnote">Prepared by the boost design committee with Claude. Draft v1.0, 25 Oct 2026, revised after an independent adversarial review (40 findings addressed). Nothing in monday or the codebase has been changed by this pack.</p>
+<p class="footnote">Prepared by the boost design committee with Claude. Draft v1.1, 26 Oct 2026: adds the pre-built data and refresh design (19A). v1.0 was revised after an independent adversarial review (40 findings addressed). Nothing in monday or the codebase has been changed by this pack.</p>
 </div></section>
 </main>
 </div>
