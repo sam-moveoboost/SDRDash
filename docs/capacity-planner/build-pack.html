@@ -275,7 +275,7 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <div class="shell">
 <aside class="toc" aria-label="Contents">
   <div class="brand"><b>boost</b><span>Delivery OS</span></div>
-  <p class="sub">Capacity Planner build pack<br>Draft v1.1 · 26 Oct 2026</p>
+  <p class="sub">Capacity Planner build pack<br>Draft v1.2 · 26 Oct 2026</p>
   <nav class="full" id="tocnav">
     <div class="part">A · Orientation</div>
     <a href="#how"><span class="n">01</span>How to use this pack</a>
@@ -411,7 +411,7 @@ td.num,th.num{text-align:right;white-space:nowrap}
 
 <h3>Fast by design</h3>
 <div class="callout"><span class="t">Everything is pre-calculated before you open the app</span>
-<p>A small back-end job inside monday reads every board and does all the maths. It stores the finished numbers at 03:00 and again at 08:00 UK time, with both times set on the Settings board. Opening any Delivery screen then takes under 1.5 seconds, instead of querying boards while you wait. A <strong>Refresh</strong> button rebuilds the numbers in about a minute whenever you want, for example at lunchtime. Anything you save in the app shows straight away for you, and for everyone else within seconds. The same approach can speed up today's Scoreboard, Pipeline, Revenue and Events tabs. Section 19A has the detail.</p></div>
+<p>A small back-end job inside monday reads every board and does all the maths. It stores the finished numbers at 03:00 and again at 12:00 UK time, with both times set on the Settings board. Opening any Delivery screen then takes under 1.5 seconds, instead of querying boards while you wait. A <strong>Refresh</strong> button rebuilds the numbers in about a minute whenever you want, for example at lunchtime. Anything you save in the app shows straight away for you, and for everyone else within seconds. The same approach can speed up today's Scoreboard, Pipeline, Revenue and Events tabs. Section 19A has the detail.</p></div>
 
 <h3>The rule that matters most</h3>
 <div class="callout navy"><span class="t">Probability-weighted demand</span>
@@ -444,7 +444,7 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <h3>What we need from you</h3>
 <ol>
   <li>Approve the decisions in section 03. Each one names the alternative we rejected.</li>
-  <li>Answer the ten open questions in section 25. Only Q-02 (who the team leads and admin are) blocks Phase 0.</li>
+  <li>Answer the remaining open questions in section 25. Q-09 and Q-10 are now answered. Section 21 lists exactly where people are needed at each stage. Only Q-02 (who the team leads and admin are) blocks Phase 0.</li>
   <li>Nominate one team lead per region to own the roster and skills back-fill, and one sales leader to own pipeline data quality.</li>
   <li>Approve the Phase 0 security change. Today the production build compiles a personal API token into the app's JavaScript (section 19). Until that is fixed, writes cannot be trusted to show the right author or respect board permissions, and the token is exposed to every app user.</li>
 </ol>
@@ -511,7 +511,7 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <tr><td class="id">D-19</td><td>Pin all new queries to API version <code>2026-07</code>. Migrate deprecated user fields.</td><td>Stay on <code>2024-01</code></td><td>2024-01 is past deprecation, and <code>enabled</code>, <code>is_guest</code> and <code>photo_thumb</code> are removed in 2026-10 (S-03, S-13).</td><td>BE</td></tr>
 <tr><td class="id">D-20</td><td>The engine is pure JavaScript modules covered by Vitest tests. A build fails if the engine tests fail.</td><td>Logic inside React components</td><td>The maths is the product. It must be provable and safe to refactor.</td><td>FE</td></tr>
 <tr><td class="id">D-21</td><td>Actual hours come from Sprint for the last 4 weeks by default (Settings), filtered on the server by Work Day. They load only when a view needs them.</td><td>Read the whole board, or read it on every load</td><td>Sprint holds 27.8k items, and the last 28 days alone are about 4.7k rows (about 10 pages). Loading them lazily keeps the core load to 5 to 7 calls.</td><td>BE</td></tr>
-<tr><td class="id">D-23</td><td><strong>Adopted (26 Oct):</strong> a monday code back-end builds a pre-calculated snapshot on a schedule (default 03:00 and 08:00 UK) and on demand. The app opens on the snapshot (19A).</td><td>Live reads on every load</td><td>Your brief: instant loads with predictable refreshes. It also removes three risks at once: bridge speed, the daily call limit and per-viewer data differences (R-03, R-15, R-16).</td><td>BE</td></tr>
+<tr><td class="id">D-23</td><td><strong>Adopted (26 Oct):</strong> a monday code back-end builds a pre-calculated snapshot on a schedule (default 03:00 and 12:00 UK) and on demand. The app opens on the snapshot (19A).</td><td>Live reads on every load</td><td>Your brief: instant loads with predictable refreshes. It also removes three risks at once: bridge speed, the daily call limit and per-viewer data differences (R-03, R-15, R-16).</td><td>BE</td></tr>
 <tr><td class="id">D-24</td><td>The snapshot lives in shared monday app storage, as versioned shards plus a pointer that is flipped last. The browser keeps a copy in IndexedDB.</td><td>A board, an external database, or browser-only cache</td><td>6 MB per key, versioned writes and no new vendor (S-17). The flip-last pointer means nobody sees a half-built snapshot.</td><td>BE</td></tr>
 <tr><td class="id">D-25</td><td>After an app save, the back-end re-reads that one item from monday and patches the snapshot. It never trusts values sent by the browser.</td><td>The browser writes the delta into storage itself</td><td>Keeps integrity, because any app user can write shared storage. The cost is one extra read per save.</td><td>BE</td></tr>
 <tr><td class="id">D-26</td><td>Read-mostly Sales tabs (Scoreboard, Pipeline, Revenue, Events) move onto the same snapshot, one at a time, after a numbers-match check. My Work and every detail panel stay live.</td><td>Leave Sales as it is</td><td>You reported the app is already slow sometimes. Editing screens stay live so nobody edits stale data.</td><td>PO</td></tr>
@@ -569,7 +569,7 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <tr><td class="id">DL-025</td><td>Handover Board (19 items) records cover for leave: Going off, Cover, Leave dates, linked project.</td><td>Board schema</td><td>A phase 4 enrichment: show cover on the heatmap during holidays.</td></tr>
 <tr><td class="id">DL-026</td><td>Boost Positions (HR) lists open roles with Department, Country and Target Start Date.</td><td>Board schema</td><td>Seed for "planned hire" rows in Phase 3 scenarios.</td></tr>
 <tr><td class="id">DL-027</td><td>monday's native Workload view takes time off only from team-level Work Schedules, which the API can't read. Capacity can vary only through schedule hours.</td><td>Sources S-07, S-08</td><td>Confirms D-01. Native Workload can't meet the requirement.</td></tr>
-<tr><td class="id">DL-033</td><td>Briefing 26 Oct: the current app is sometimes slow to load. You want summaries calculated and stored in advance, an automatic refresh (03:00, plus 08:00), a manual refresh button, and your own saves reflected immediately.</td><td>Sam, 26 Oct</td><td>Read model, section 19A (D-23 to D-26)</td></tr>
+<tr><td class="id">DL-033</td><td>Briefing 26 Oct: the current app is sometimes slow to load. You want summaries calculated and stored in advance, automatic refreshes (confirmed 26 Oct: 03:00 and 12:00 UK; data held on EU servers), a manual refresh button, and your own saves reflected immediately.</td><td>Sam, 26 Oct</td><td>Read model, section 19A (D-23 to D-26)</td></tr>
 <tr><td class="id">DL-028</td><td>The "IC Project Flow · Skill Build Tracker" board tracks Claude skills used in delivery, not people's skills. IC Performance is empty.</td><td>Board schema</td><td>Nothing to reuse for the skills matrix.</td></tr>
 <tr><td class="id">DL-029</td><td>No automation creates a project when a deal is Won. The existing "Opp Won" automation only stamps the Actual Close Date and moves the item to the Closed Won group. Project creation is manual today.</td><td>Opportunities automations</td><td>WF-02 hand-off is new process, not a replacement.</td></tr>
 <tr><td class="id">DL-030</td><td>Opportunities runs 74 automations (13 Workflow builder, 61 classic, many of them per-user email integrations). Boost Projects runs 44.</td><td>list_automations</td><td>New automations need a <code>[CAP]</code> prefix and a collision check (P-09).</td></tr>
@@ -1330,13 +1330,13 @@ rounding: the engine never rounds; values are rounded only for display</code></p
 <div class="tbl xwide"><table>
 <thead><tr><th class="id">ID</th><th>Requirement</th><th>BR</th><th>Pri · Ph</th><th>Acceptance criteria</th></tr></thead>
 <tbody>
-<tr><td class="id">FR-180</td><td>The system shall build a complete snapshot (inputs, precomputed results for every lens and the 26-week horizon, data quality findings and actuals) at each time in <code>refresh.times</code>, in Europe/London time.</td><td>BR‑031</td><td><span class="chip must">Must</span> P1</td><td>Given refresh.times = "03:00,08:00", When the clock passes 08:00 UK in both winter and summer time, Then exactly one build runs and the pointer shows built at 08:0x, built by schedule.</td></tr>
+<tr><td class="id">FR-180</td><td>The system shall build a complete snapshot (inputs, precomputed results for every lens and the 26-week horizon, data quality findings and actuals) at each time in <code>refresh.times</code>, in Europe/London time.</td><td>BR‑031</td><td><span class="chip must">Must</span> P1</td><td>Given refresh.times = "03:00,12:00", When the clock passes 12:00 UK in both winter and summer time, Then exactly one build runs and the pointer shows built at 12:0x, built by schedule.</td></tr>
 <tr><td class="id">FR-181</td><td>When a Delivery screen opens, the system shall render from the latest snapshot without querying boards.</td><td>BR‑031</td><td><span class="chip must">Must</span> P1</td><td>Given a snapshot exists, When Team opens, Then no board query is issued (only storage reads) and the screen is interactive in ≤ 1.5 s.</td></tr>
 <tr><td class="id">FR-182</td><td>The system shall keep a local copy of the last snapshot in the browser, render from it first, and replace it silently when the pointer shows a newer snapshot.</td><td>BR‑031</td><td><span class="chip should">Should</span> P1</td><td>Given a repeat visit, Then the screen renders from the local copy in ≤ 0.5 s, and a newer snapshot is swapped in without a reload.</td></tr>
-<tr><td class="id">FR-183</td><td>The header shall show the snapshot time, how it was built, and the number of saves applied since.</td><td>BR‑031</td><td><span class="chip must">Must</span> P1</td><td>Given an 08:00 build and 3 app saves since, Then the label reads "Data as of 08:00 · 3 saves since".</td></tr>
+<tr><td class="id">FR-183</td><td>The header shall show the snapshot time, how it was built, and the number of saves applied since.</td><td>BR‑031</td><td><span class="chip must">Must</span> P1</td><td>Given an 12:00 build and 3 app saves since, Then the label reads "Data as of 12:00 · 3 saves since".</td></tr>
 <tr><td class="id">FR-184</td><td>When an allowed user presses Refresh, the system shall rebuild the snapshot and swap it in when ready, showing progress. Refresh is refused during the cool-down, saying when it will be available.</td><td>BR‑031</td><td><span class="chip must">Must</span> P1</td><td>Given cool-down 10 min and a refresh at 12:30, When another user presses Refresh at 12:35, Then the message reads "Refreshed at 12:30 · next refresh available 12:40".</td></tr>
 <tr><td class="id">FR-185</td><td>When a save made in the app succeeds, the system shall update the saver's view immediately and update the shared snapshot within 30 seconds by re-reading that item from monday.</td><td>BR‑031, BR‑025</td><td><span class="chip must">Must</span> P1</td><td>Given a rep changes Win Probability from 20 to 60, Then their weighted hours change at once, and another user who opens Demand 30 s later sees 60%.</td></tr>
-<tr><td class="id">FR-186</td><td>If a build fails, then the system shall keep serving the last good snapshot, label it as stale with the failed time, and raise an admin alert.</td><td>BR‑031</td><td><span class="chip must">Must</span> P1</td><td>Given the 08:00 build fails, Then users see "Using 03:00 data · 08:00 refresh failed" and an alert item is created.</td></tr>
+<tr><td class="id">FR-186</td><td>If a build fails, then the system shall keep serving the last good snapshot, label it as stale with the failed time, and raise an admin alert.</td><td>BR‑031</td><td><span class="chip must">Must</span> P1</td><td>Given the 12:00 build fails, Then users see "Using 03:00 data · 12:00 refresh failed" and an alert item is created.</td></tr>
 <tr><td class="id">FR-187</td><td>The snapshot shall contain only the planning fields listed in 19A.2 (no salary, leave reasons, notes or contact details).</td><td>BR‑031</td><td><span class="chip must">Must</span> P1</td><td>Given a full build, When the shards are scanned against the allow-list, Then no other field appears.</td></tr>
 <tr><td class="id">FR-188</td><td>While a user has the app open, the system shall check the pointer every 2 minutes and offer an "update" chip when a newer snapshot exists.</td><td>BR‑031</td><td><span class="chip could">Could</span> P1</td><td>Given another user's save is applied, Then within 2 minutes the chip shows "1 update", and clicking it applies the update without a reload.</td></tr>
 <tr><td class="id">FR-189</td><td>Where Phase 0B is enabled, the Scoreboard, Pipeline, Revenue and Events tabs shall render from the snapshot, with identical numbers to their live versions.</td><td>BR‑031, BR‑030</td><td><span class="chip should">Should</span> P1</td><td>Given the same moment, When a tab is computed live and from the snapshot, Then all displayed figures match.</td></tr>
@@ -1730,7 +1730,7 @@ flowchart LR
     SNP["Capacity Snapshots<br/>DS-009 · P4"]
     DPS["Deal Probability Snapshots<br/>DS-014 · P4"]
   end
-  MCB(["monday code back-end · DS-015<br/>builds the snapshot 03:00 · 08:00 · on demand"])
+  MCB(["monday code back-end · DS-015<br/>builds the snapshot 03:00 · 12:00 · on demand"])
   STO[("App storage snapshot · DS-016")]
   APP(["SDR OS app · Delivery mode<br/>opens on the snapshot"])
 
@@ -1908,7 +1908,7 @@ flowchart LR
 <tr><td><code>move.face_lock_weeks</code></td><td class="num">2</td><td>Face role is locked this close to a start or end</td></tr>
 <tr><td><code>move.cost.shadow</code> · <code>.offline</code> · <code>.ba</code> · <code>.face</code> · <code>.recent_call</code></td><td class="num">0.5 · 1 · 2 · 3 · 1</td><td>Disruption costs (9.10)</td></tr>
 <tr><td><code>horizon.options</code></td><td class="num">4,8,12,26</td><td>Horizon choices in weeks (text value)</td></tr>
-<tr><td><code>refresh.times</code></td><td class="num">03:00,08:00</td><td>Automatic build times, Europe/London (text value)</td></tr>
+<tr><td><code>refresh.times</code></td><td class="num">03:00,12:00</td><td>Automatic build times, Europe/London (text value)</td></tr>
 <tr><td><code>refresh.cooldown_minutes</code></td><td class="num">10</td><td>Minimum gap between manual refreshes</td></tr>
 <tr><td><code>refresh.manual_roles</code></td><td class="num">All</td><td>App roles allowed to press Refresh (text: All, or a list such as "Admin,Team lead,Leadership")</td></tr>
 <tr><td><code>snapshot.keep</code></td><td class="num">8</td><td>Snapshots kept in the pointer history (shards expire after 30 days)</td></tr>
@@ -2368,7 +2368,7 @@ runPlan({ people, items, allocations, leave, holidays, settings, today },
 
 <div class="grid g4">
   <div class="stat"><div class="v">&lt; 1.5 s</div><div class="l">Target open time for every Delivery screen (today's design: up to 8 s)</div></div>
-  <div class="stat"><div class="v">03:00 · 08:00</div><div class="l">Automatic rebuilds, UK time (configurable on Settings)</div></div>
+  <div class="stat"><div class="v">03:00 · 12:00</div><div class="l">Automatic rebuilds, UK time (configurable on Settings)</div></div>
   <div class="stat"><div class="v">~60 s</div><div class="l">Manual refresh, from button press to new numbers on screen</div></div>
   <div class="stat"><div class="v">~95%</div><div class="l">Fewer API calls a day (about 250 instead of about 4,000)</div></div>
 </div>
@@ -2377,7 +2377,7 @@ runPlan({ people, items, allocations, leave, holidays, settings, today },
 <pre class="mermaid">
 flowchart LR
   subgraph MC["monday code · the app's own back-end (DS-015)"]
-    SCH["Scheduler<br/>hourly tick, builds at the<br/>Settings times (03:00, 08:00 UK)"]
+    SCH["Scheduler<br/>hourly tick, builds at the<br/>Settings times (03:00, 12:00 UK)"]
     BLD["Snapshot builder<br/>reads boards in parallel<br/>runs the same engine"]
     API["/refresh · /delta endpoints<br/>verify the session token"]
   end
@@ -2394,10 +2394,10 @@ flowchart LR
   APP -- "after a save: re-read this item" --> API
 </pre>
 <ol>
-<li><strong>Scheduled builds.</strong> A monday code scheduled job runs every hour. It reads <code>refresh.times</code> from Settings (default 03:00 and 08:00, Europe/London), and builds only when the current UK time matches. The scheduler works in UTC (S-16), so this pattern handles summer time correctly and lets admins change the times without a release. It uses one of the app's five scheduler slots.</li>
+<li><strong>Scheduled builds.</strong> A monday code scheduled job runs every hour. It reads <code>refresh.times</code> from Settings (default 03:00 and 12:00, Europe/London), and builds only when the current UK time matches. The scheduler works in UTC (S-16), so this pattern handles summer time correctly and lets admins change the times without a release. It uses one of the app's five scheduler slots.</li>
 <li><strong>The build.</strong> The builder reads every source board in parallel with the app's own OAuth token. A server is not limited by the browser bridge. It runs the engine (the same code package the app uses), so results are identical. It writes the results to the app's shared storage as a set of shards. Last, it flips a pointer to the new snapshot, so nobody ever sees a half-written one.</li>
 <li><strong>Opening the app.</strong> The app reads the pointer and the shards (about seven small storage reads), then draws the screen. A copy is kept in the browser's IndexedDB. A repeat visit draws instantly from that copy, then checks the pointer and quietly swaps in anything newer.</li>
-<li><strong>Manual refresh.</strong> The header shows "Data as of 08:00 · 3 saves since · Refresh". Refresh calls the back-end, which checks who is asking (signed session token, S-18) and runs the same build. The button shows progress and swaps in the new data when it is ready, in about a minute. Two limits protect the API budget: a cool-down (<code>refresh.cooldown_minutes</code>, 10) and an allowed-roles setting.</li>
+<li><strong>Manual refresh.</strong> The header shows "Data as of 12:00 · 3 saves since · Refresh". Refresh calls the back-end, which checks who is asking (signed session token, S-18) and runs the same build. The button shows progress and swaps in the new data when it is ready, in about a minute. Two limits protect the API budget: a cool-down (<code>refresh.cooldown_minutes</code>, 10) and an allowed-roles setting.</li>
 <li><strong>Your own saves.</strong> When someone saves in the app (a deal's delivery fields, an allocation, a roster change), the save goes to monday as that person (D-15). The app then patches its own copy and recomputes on the spot, so the screen reflects it at once. It also tells the back-end "item X changed". The back-end re-reads that one item from monday, so it never trusts what the browser sent. It updates the shared snapshot and logs the change. Everyone else sees it the next time they open the app, or straight away through a "1 update" chip if they are already in it.</li>
 <li><strong>Edits made directly on boards</strong> (not in the app) appear at the next scheduled build or manual refresh. The freshness label says so plainly. Phase 2 can add board webhooks (S-14) so the back-end applies those edits within seconds too.</li>
 </ol>
@@ -2434,7 +2434,7 @@ flowchart LR
 <tr><td>Hours logged on Sprint</td><td>Sprint board</td><td>At next build (actuals are daily figures by nature)</td><td>At next build</td></tr>
 <tr><td>Settings change</td><td>Settings board</td><td>Admin presses Refresh</td><td>After that refresh</td></tr>
 </tbody></table></div>
-<p class="small">The header always states the snapshot time and the number of saves applied since. If a scheduled build fails, the app keeps showing the last good snapshot with an amber "Using 03:00 data · 08:00 refresh failed" label. A monday code alert policy creates an item on an admin alert board (S-19).</p>
+<p class="small">The header always states the snapshot time and the number of saves applied since. If a scheduled build fails, the app keeps showing the last good snapshot with an amber "Using 03:00 data · 12:00 refresh failed" label. A monday code alert policy creates an item on an admin alert board (S-19).</p>
 
 <h3>19A.4 Why this design, and what we rejected</h3>
 <div class="tbl xwide compact"><table>
@@ -2609,6 +2609,87 @@ flowchart LR
 <li>CS portfolio discovery (3)</li>
 </ul></td><td>P-33 to P-35</td><td class="num">24</td></tr>
 </tbody></table></div>
+
+<h3>What Claude does, and exactly where a person is needed</h3>
+<p>Claude can write all of the code and tests, create the boards, columns, automations and settings, prepare every data list, and write all the guides and checklists. People are needed for five kinds of thing that Claude cannot or should not do:</p>
+<ul>
+<li><strong>Approvals.</strong> Each monday change made through the connector shows a preview and runs as the approver.</li>
+<li><strong>Admin screens Claude has no access to.</strong> The monday Developer Center, GitHub secrets, a personal token, column permissions and teams.</li>
+<li><strong>Testing inside monday.</strong> Claude's environment cannot open the app inside your monday account, so a person runs the app and reports back.</li>
+<li><strong>Knowledge only your people have.</strong> Skills, timelines, deal details and probabilities.</li>
+<li><strong>Sign-off and go-live decisions.</strong></li>
+</ul>
+<div class="tbl xwide"><table>
+<thead><tr><th>Stage</th><th>Claude does on its own</th><th>Human input needed</th><th>Who</th><th class="num">Effort</th></tr></thead>
+<tbody>
+<tr><td><strong>Before Sprint 1</strong></td><td>—</td><td>
+<ol class="small">
+<li>Sign off this pack (or mark changes).</li>
+<li>Answer Q-02: team leads per region, and the admin.</li>
+<li>Confirm a monday account admin will authorise the app once (Q-09).</li>
+</ol></td><td>Sam</td><td class="num">1 to 2 h</td></tr>
+<tr><td><strong>Sprint 1 · P-01 security</strong></td><td>Code changes, the runbook and the bundle check</td><td>
+<ol class="small">
+<li>Open the app in monday and run the spike page, once as yourself and once as a test IC. Report what you see (about 10 minutes).</li>
+<li>In the Developer Center, add the 8 scopes, promote the new version and update the <code>MONDAY_APP_VERSION_ID</code> GitHub secret.</li>
+<li>Account admin approves the scopes.</li>
+<li>Delete the <code>VITE_MONDAY_API_TOKEN</code> GitHub secret and regenerate your personal token in monday.</li>
+<li>Time the Sales tabs before and after, using Claude's checklist.</li>
+</ol></td><td>Sam (or app owner) + account admin</td><td class="num">1 h</td></tr>
+<tr><td><strong>Sprint 1 · P-02 to P-04 boards</strong></td><td>Builds every board, column, label, setting and <code>ids.js</code></td><td>
+<ol class="small">
+<li>Approve each monday write preview, about 15 approvals in batches.</li>
+<li>Add "Day portion" to the Holiday Requests form, if the form cannot be edited through the API.</li>
+<li>Create the "Delivery Leads" team and apply column restrictions from Claude's click-by-click checklist.</li>
+</ol></td><td>Sam · admin</td><td class="num">1 h</td></tr>
+<tr><td><strong>Sprint 1 · P-05 to P-08 data</strong></td><td>Drafts the roster, back-fill mappings, missing-timeline lists, deal-to-project matches, leave copies and holiday lists</td><td>
+<ol class="small">
+<li>Review the roster draft: who is in, roles and app roles.</li>
+<li>Approve the engagement-model back-fill and the deal-to-project matches.</li>
+<li>Team leads rate levels and skills (with a calibration call).</li>
+<li>Project owners fill their missing timelines.</li>
+<li>HR confirms the copied leave and fixes the 2 broken statuses.</li>
+<li>Confirm the Israel and UAE holiday lists.</li>
+</ol></td><td>Sam · team leads · project owners · HR</td><td class="num">Team leads ~2.5 h each · owners ~10 min each · HR 30 min</td></tr>
+<tr><td><strong>Sprint 1 · P-09, P-10</strong></td><td>Automation inventory, CI, ESLint and Vitest. Fully automatic.</td><td>None, other than reading the collision report</td><td>—</td><td class="num">10 min</td></tr>
+<tr><td><strong>Sprint 2 · P-11 to P-13 engine</strong></td><td>All the maths and every unit test. Fully automatic.</td><td>None</td><td>—</td><td class="num">0</td></tr>
+<tr><td><strong>Sprint 2 · P-14A back-end</strong></td><td>Writes the back-end, routes, auth and the scheduler set-up commands</td><td>
+<ol class="small">
+<li>Give Claude a monday developer token for the <code>mapps</code> CLI as a secret in the session environment, or run the 4 deploy commands Claude gives you.</li>
+<li>Account admin clicks "Authorise" once for the app's OAuth.</li>
+<li>Add the client secret in the Developer Center (Claude cannot read it).</li>
+</ol></td><td>Sam · account admin</td><td class="num">30 min</td></tr>
+<tr><td><strong>Sprint 2 to 3 · P-14 to P-20 screens</strong></td><td>Builds every screen, the snapshot, refresh and saves, and merges PRs into the sprint branch</td><td>
+<ol class="small">
+<li>At the mid-sprint demo, open the app in monday and look at the screens (Claude cannot see inside your monday).</li>
+<li>Answer Q-01 (stage probabilities) and Q-07 (managed services hours).</li>
+</ol></td><td>Sam · a team lead</td><td class="num">30 min per sprint</td></tr>
+<tr><td><strong>Sprint 3 · P-21 automations</strong></td><td>Creates the automations</td><td>Approve each automation preview. Ideally created by a UK user, so times run in UK time.</td><td>Sam</td><td class="num">15 min</td></tr>
+<tr><td><strong>End of Sprint 3 · P-22 go-live gate</strong></td><td>UAT scripts, guides, the go/no-go evidence pack and the TC-208 contract test</td><td>
+<ol class="small">
+<li>UAT by one person per persona.</li>
+<li>Sign the go/no-go.</li>
+<li>Approve the merge to <code>main</code> (that is the release).</li>
+<li>Set <code>feature.delivery_mode</code> to 2 when ready.</li>
+<li>Send the launch message.</li>
+</ol></td><td>Sam · CEO · a team lead · a rep · an IC</td><td class="num">~1 h each</td></tr>
+<tr><td><strong>Phase 0B · P-22B Sales tabs</strong></td><td>Moves each tab and runs the numbers-match test</td><td>Look at each tab after it moves. Approve switching its flag on.</td><td>Sam</td><td class="num">10 min per tab</td></tr>
+<tr><td><strong>Phases 2 to 4</strong></td><td>Builds everything in P-23 to P-35</td><td>
+<ol class="small">
+<li>Confirm the hand-off mapping table (Q-08).</li>
+<li>Apply the Resource Requests permissions from the checklist.</li>
+<li>UAT and sign-off at the end of each phase.</li>
+<li>Approve each merge to <code>main</code>.</li>
+<li>Decide on Make.com (Q-06).</li>
+</ol></td><td>Sam · a delivery manager · admin</td><td class="num">~2 h per phase</td></tr>
+<tr><td><strong>Ongoing, after go-live</strong></td><td>Builds run at 03:00 and 12:00 on their own. Failure alerts reach the admin.</td><td>The weekly rhythm (WF-03), keeping data current, the yearly holiday load each December and joiners and leavers on the roster</td><td>Everyone, as in WF-03</td><td class="num">See below</td></tr>
+</tbody></table></div>
+<div class="callout"><span class="t">Two ways to make the hand-off smoother</span>
+<ol>
+<li><strong>Give Claude a monday developer token for the <code>mapps</code> CLI</strong>, held as a secret in the Claude environment settings, never in the repo. Claude can then deploy the back-end and the client app, and create the scheduled job, without you running commands. You would still approve scopes, authorise OAuth and handle GitHub secrets yourself.</li>
+<li><strong>Nominate one "monday driver"</strong> (you or an admin) who approves Claude's monday write previews in batches and does the 10-minute in-app checks. Everything else can run as "Run Phase N" prompts (P-RUN), pausing only at the steps in this table.</li>
+</ol></div>
+<p class="small"><strong>Working across sessions.</strong> Each Claude session is a fresh container. Claude keeps <code>docs/capacity-planner/progress.md</code> on the sprint branch up to date after every prompt, so any new session (or person) picks up exactly where the last one stopped.</p>
 
 <h3>People time this needs</h3>
 <div class="tbl wide compact"><table>
@@ -2924,11 +3005,11 @@ Do:
    /api/status and a health check. Use @mondaycom/apps-sdk for Storage, SecureStorage, SecretsManager, Logger.
 2. Implement the OAuth install flow (authorize → https://auth.monday.com/oauth2/token) so an account admin
    authorises once. Store the access token in SecureStorage, never in code, env files or the browser.
-   Ask me which region the account uses (Q-09) and deploy there with mapps code:push. The scheduler is
-   not available in the IL hosting region.
+   Deploy to the EU region (Q-09: the account is on EU servers) with mapps code:push. The scheduler is
+   supported in EU.
 3. auth.js: verify the frontend session token (jwt.verify with the client secret from SecretsManager), map
    user_id to the roster app role, and reject anyone else.
-4. Create the hourly scheduled job (mapps scheduler:create -s "0 * * * *" -u "/tick", region per Q-09, retries 2).
+4. Create the hourly scheduled job (mapps scheduler:create -s "0 * * * *" -u "/tick" -z eu, retries 2).
    The tick reads refresh.times (Europe/London) and exits quietly unless a build is due.
 5. Add an alert policy for 5xx errors on the build routes (Developer Center), pointing at an admin alert board.
 Acceptance: TC-180 (tick builds only at the configured UK times, winter and summer). The OAuth token is
@@ -2962,7 +3043,7 @@ Do:
    swap in newer data silently (FR-182). Fall back to the live loaders only when no snapshot exists.
 2. usePlan reads the precomputed lens results directly, and recomputes locally only for filters, sorts and
    scenarios. useViewer maps the session user to roster person and app role.
-3. Freshness bar in the Delivery sub-bar: "Data as of 08:00 · 3 saves since · Refresh", the stale and failed
+3. Freshness bar in the Delivery sub-bar: "Data as of 12:00 · 3 saves since · Refresh", the stale and failed
    states (FR-186), progress while refreshing, and the cool-down message (FR-184).
 4. Poll sdr:pointer every 2 minutes while the app is open and show the "update" chip (FR-188).
 5. Admin-only "Data health" drawer (19.9): snapshot id, built by, build duration, calls, shard sizes, failures.
@@ -3235,7 +3316,7 @@ open issues, next. At the end of the phase, give me the go/no-go checklist from 
 <tr><td class="id">TC-140</td><td>NFR-001 to 006</td><td>Cold load timing. Network call count. Mock 429. Grep the bundle.</td><td>≤ 8 s, ≤ 8 core calls and ≤ 12 actuals calls, retry honoured, no token</td></tr>
 <tr><td class="id">TC-160 to 162</td><td>FR-160 to 162</td><td>Two weekly snapshot runs, then the Learning view on 10 closed deals and 5 person-weeks</td><td>No duplicate snapshots. Accuracy and Brier score match a hand calculation.</td></tr>
 <tr><td class="id">TC-150</td><td>NFR-009</td><td>axe scan plus keyboard-only pass of every Delivery tab</td><td>No serious violations. All controls reachable.</td></tr>
-<tr><td class="id">TC-180</td><td>FR-180</td><td>Call the tick at simulated UTC times across a summer-time change, with refresh.times = "03:00,08:00"</td><td>Exactly one build at 03:00 and one at 08:00 UK time, each day, in both seasons</td></tr>
+<tr><td class="id">TC-180</td><td>FR-180</td><td>Call the tick at simulated UTC times across a summer-time change, with refresh.times = "03:00,12:00"</td><td>Exactly one build at 03:00 and one at 12:00 UK time, each day, in both seasons</td></tr>
 <tr><td class="id">TC-181</td><td>FR-181, NFR-001</td><td>Open each Delivery tab with dev tools open</td><td>No board queries, only storage reads. Interactive in ≤ 1.5 s (≤ 0.5 s on a repeat visit).</td></tr>
 <tr><td class="id">TC-182</td><td>FR-182, FR-188</td><td>Repeat visit, then trigger a build from another browser</td><td>Instant render from the local copy. The newer snapshot arrives silently, or as an "update" chip within 2 minutes.</td></tr>
 <tr><td class="id">TC-183</td><td>FR-183, FR-185</td><td>Change a deal's probability in browser A, and watch browser B</td><td>A updates at once. B shows the change within 30 s of opening, or via the chip. The label counts the save.</td></tr>
@@ -3350,8 +3431,8 @@ open issues, next. At the end of the phase, give me the go/no-go checklist from 
 <tr><td class="id">Q-06</td><td>Is Make.com approved for the AUT-08 team-lead leave notice and the AUT-17 yearly holiday load?</td><td>Sam</td><td>Sprint 3</td><td>Manual CSV holiday import. No team-lead leave notice.</td></tr>
 <tr><td class="id">Q-07</td><td>Are managed services hours a steady monthly load (use it or lose it), or can unused hours roll over?</td><td>Sam with MS leads</td><td>Sprint 2</td><td>Steady monthly load, capped by remaining hours</td></tr>
 <tr><td class="id">Q-08</td><td>Is the reverse mapping for "Create project" (DS-006) right for each engagement model, including deals sold on monday paper?</td><td>A delivery manager</td><td>Sprint 5</td><td>Use the table as written, and review the first 5 hand-offs by hand</td></tr>
-<tr><td class="id">Q-09</td><td>Which data region does the monday account use (US, EU or AU), and is the app allowed a monday code back-end with an admin-authorised OAuth token?</td><td>Sam with the monday account admin</td><td>Sprint 1</td><td>Deploy to the account's region. If monday code is not allowed, use the GitHub Actions fallback and drop manual refresh.</td></tr>
-<tr><td class="id">Q-10</td><td>Refresh times and who may press Refresh: 03:00 and 08:00 for everyone, with a 10-minute cool-down?</td><td>Sam</td><td>Sprint 2</td><td>Yes as stated. All values are on Settings.</td></tr>
+<tr><td class="id">Q-09</td><td><strong>Answered 26 Oct:</strong> the account is on EU servers, so the back-end deploys to the EU region (the scheduler is supported there). Still to confirm: an account admin will authorise the app's OAuth once.</td><td>Sam with the monday account admin</td><td>Sprint 2</td><td>Deploy to EU</td></tr>
+<tr><td class="id">Q-10</td><td><strong>Answered 26 Oct:</strong> automatic builds at 03:00 and 12:00 UK time. Everyone may press Refresh, with a 10-minute cool-down (default, can be changed on Settings).</td><td>Sam</td><td>Done</td><td>As answered</td></tr>
 </tbody></table></div>
 </div></section>
 
@@ -3459,7 +3540,7 @@ open issues, next. At the end of the phase, give me the go/no-go checklist from 
 <tr><td>Sales leader</td><td>[TBC]</td><td></td><td></td></tr>
 <tr><td>HR (Holiday Requests owner)</td><td>tal negri</td><td></td><td></td></tr>
 </tbody></table></div>
-<p class="footnote">Prepared by the boost design committee with Claude. Draft v1.1, 26 Oct 2026: adds the pre-built data and refresh design (19A). v1.0 was revised after an independent adversarial review (40 findings addressed). Nothing in monday or the codebase has been changed by this pack.</p>
+<p class="footnote">Prepared by the boost design committee with Claude. Draft v1.2, 26 Oct 2026: refresh at 03:00 and 12:00 UK, EU hosting, and a stage-by-stage list of human input (section 21). v1.1 added the pre-built data and refresh design (19A). v1.0 was revised after an independent adversarial review (40 findings addressed). Nothing in monday or the codebase has been changed by this pack.</p>
 </div></section>
 </main>
 </div>
