@@ -1,0 +1,179 @@
+<title>Capacity Planner Admin Setup</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Google+Sans+Flex:wght@400..700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one reading column, a numbered checklist grouped by when each step happens, secrets shown as copyable chips. */
+:root{
+  --bg:#fbfaf7; --surface:#ffffff; --sunken:#f1f3f1; --line:#e1e4e1;
+  --ink:#1a385e; --body:#363d38; --muted:#69716c; --accent:#027361; --accent-bg:#e3f3ee;
+  --warn:#9a6a10; --warn-bg:#fbf1dc; --navy:#1a385e;
+  --display:"Newsreader",Georgia,serif; --sans:"Google Sans Flex","Segoe UI",system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1b2b; --surface:#152437; --sunken:#1b2d44; --line:#2a3d55;
+  --ink:#e8eef7; --body:#cfd6df; --muted:#97a3b3; --accent:#4cc3a5; --accent-bg:#16332d;
+  --warn:#e2b24f; --warn-bg:#3a3020; --navy:#0b1522; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1b2b; --surface:#152437; --sunken:#1b2d44; --line:#2a3d55;
+  --ink:#e8eef7; --body:#cfd6df; --muted:#97a3b3; --accent:#4cc3a5; --accent-bg:#16332d;
+  --warn:#e2b24f; --warn-bg:#3a3020; --navy:#0b1522; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--body);font-family:var(--sans);font-size:15px;line-height:1.55;margin:0}
+.page{max-width:860px;margin:0 auto;padding-block:28px 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header.top{background:var(--navy);color:#f6f3ee;border-radius:14px;padding:20px 22px;display:grid;gap:6px}
+.eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;opacity:.75;font-weight:600}
+h1{font-family:var(--display);font-weight:600;font-size:30px;line-height:1.15;margin:0;color:#fff;text-wrap:balance}
+header.top p{margin:0;max-width:68ch;opacity:.9}
+.meta{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px;opacity:.85;margin-top:4px}
+.meta b{color:#e0feca;font-weight:600}
+.context{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:16px 0 4px}
+.context div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:13.5px;min-width:0}
+.context b{display:block;color:var(--ink);font-size:12px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:2px}
+@media (max-width:640px){.context{grid-template-columns:minmax(0,1fr)}}
+h2{font-family:var(--display);font-weight:600;color:var(--ink);font-size:21px;margin:26px 0 4px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+h2 small{font-family:var(--sans);font-size:13px;color:var(--muted);font-weight:500}
+.when{font-size:13px;color:var(--muted);margin:0 0 10px}
+ol.steps{list-style:none;margin:0;padding:0;display:grid;gap:8px;counter-reset:s}
+ol.steps>li{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:grid;grid-template-columns:22px minmax(0,1fr);gap:10px;align-items:start}
+ol.steps>li.done{opacity:.55}
+ol.steps input{width:18px;height:18px;margin:2px 0 0;accent-color:var(--accent)}
+.st b.t{color:var(--ink)}
+.st .who{font-size:12px;color:var(--accent);font-weight:600;margin-left:6px}
+.path{font-size:13.5px;margin-top:2px}
+.path span{white-space:nowrap}
+.path span+span::before{content:"› ";color:var(--muted)}
+code,.k{font-family:var(--mono);font-size:12.5px;background:var(--sunken);border-radius:5px;padding:1px 5px;overflow-wrap:anywhere}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+button.k{border:1px solid var(--line);cursor:pointer;color:var(--ink);font-weight:600;padding:3px 8px}
+button.k:hover{border-color:var(--accent)}
+button.k.ok{background:var(--accent-bg);color:var(--accent)}
+.tbl{overflow-x:auto;margin-top:6px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:left;padding:5px 8px;border-top:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:12px;border-top:0}
+.note{background:var(--warn-bg);color:var(--body);border-radius:10px;padding:10px 12px;font-size:13.5px;margin-top:10px}
+.note b{color:var(--warn)}
+.foot{font-size:12.5px;color:var(--muted);margin-top:22px;border-top:1px solid var(--line);padding-top:10px}
+a{color:var(--accent)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:6px}
+</style>
+
+<div class="page">
+<header class="top">
+  <div class="eyebrow">For Boaz · from Sam · SDR OS capacity planner</div>
+  <h1>What I need you to set up</h1>
+  <p>The capacity planner is an extension of the SDR OS app we already run in Boost Hub. Claude writes and deploys all the code. These steps are the admin screens and keys that only a person with admin rights can do. Total time is about one hour, split across three moments.</p>
+  <div class="meta"><span>monday app <b>SDR OS (existing)</b></span><span>Repo <b>sam-moveoboost/SDRDash</b></span><span>Hosting <b>monday code, EU</b></span></div>
+</header>
+
+<div class="context">
+  <div><b>What it is</b>Six new screens, Slack assistants and a Messages inbox, added to the same monday app.</div>
+  <div><b>Why you</b>Keys, app permissions, the one-time authorisation and the Slack install need admin rights.</div>
+  <div><b>Background</b>"Section 19" in the PDF is now Appendices C6 to C9 in the latest version. You don't need it to do this.</div>
+</div>
+
+<div class="note"><b>Never paste a key or secret into Slack, email or a Claude chat.</b> Each one goes straight into the box named below. Keep a copy in the boost password manager.</div>
+
+<h2>A · Before the build <small>any time, about 20 min</small></h2>
+<p class="when">You can do these on your own today.</p>
+<ol class="steps" data-group="a">
+  <li><input type="checkbox" id="a1" aria-label="Done"><div class="st"><b class="t">Create the Claude API key</b>
+    <div class="path"><span>console.anthropic.com</span><span>boost organisation</span><span>Settings</span><span>API keys</span><span>Create key</span></div>
+    Name it <code>boost-delivery-assistant</code>. Copy it once into the password manager; you paste it in step B3. Optional: under <span class="k">Settings › Limits</span> set a monthly cap of $300 (expected spend is about $165).</div></li>
+  <li><input type="checkbox" id="a2" aria-label="Done"><div class="st"><b class="t">Make sure you can edit the app</b>
+    <div class="path"><span>monday</span><span>profile picture</span><span>Developers</span><span>SDR OS</span></div>
+    If you can't see SDR OS there, ask Sam to add you as a collaborator on the app.</div></li>
+  <li><input type="checkbox" id="a3" aria-label="Done"><div class="st"><b class="t">Create a draft app version</b>
+    <div class="path"><span>SDR OS</span><span>Manage</span><span>App versions</span><span>New version</span></div>
+    Every change below goes on this draft. Users keep the live version until step C1.</div></li>
+  <li><input type="checkbox" id="a4" aria-label="Done"><div class="st"><b class="t">Add the API permissions</b>
+    <div class="path"><span>Build</span><span>OAuth &amp; Permissions</span><span>Scopes</span></div>
+    Tick these 8, then Save:
+    <div class="chips"><button class="k" type="button">me:read</button><button class="k" type="button">users:read</button><button class="k" type="button">teams:read</button><button class="k" type="button">boards:read</button><button class="k" type="button">boards:write</button><button class="k" type="button">updates:read</button><button class="k" type="button">updates:write</button><button class="k" type="button">notifications:write</button></div></div></li>
+  <li><input type="checkbox" id="a5" aria-label="Done"><div class="st"><b class="t">Turn on server hosting</b>
+    <div class="path"><span>Host on monday</span><span>Server-side code</span></div>
+    Accept the monday code terms if asked. This lets Claude deploy the back-end that pre-calculates the numbers.</div></li>
+  <li><input type="checkbox" id="a6" aria-label="Done"><div class="st"><b class="t">Line up a Slack admin for the evening</b><span class="who">if you aren't one</span>
+    Step B4 needs a Slack workspace admin. If that isn't you, book 15 minutes with whoever is.</div></li>
+</ol>
+
+<h2>B · Build evening <small>about 40 min, with Claude running</small></h2>
+<p class="when">Claude first deploys an empty back-end and commits the Slack app file. Claude posts in the session when each is ready, then you do these in order.</p>
+<ol class="steps" data-group="b">
+  <li><input type="checkbox" id="b1" aria-label="Done"><div class="st"><b class="t">Copy the back-end address</b>
+    <div class="path"><span>Host on monday</span><span>Server-side code</span><span>General</span><span>Live URL</span></div>
+    Call it <code>{LIVE}</code> below.</div></li>
+  <li><input type="checkbox" id="b2" aria-label="Done"><div class="st"><b class="t">Add the redirect URL</b>
+    <div class="path"><span>Build</span><span>OAuth &amp; Permissions</span><span>Redirect URLs</span></div>
+    Add <code>{LIVE}/oauth/callback</code> and Save.</div></li>
+  <li><input type="checkbox" id="b3" aria-label="Done"><div class="st"><b class="t">Add the secrets to monday code</b>
+    <div class="path"><span>Host on monday</span><span>Server-side code</span><span>Secrets</span><span>Add new secret</span></div>
+    Use exactly these names. Secrets can't be read back once saved.
+    <div class="tbl"><table>
+      <thead><tr><th>Secret name</th><th>Where the value comes from</th></tr></thead>
+      <tbody>
+      <tr><td><button class="k" type="button">ANTHROPIC_API_KEY</button></td><td>The key from A1</td></tr>
+      <tr><td><button class="k" type="button">MONDAY_CLIENT_SECRET</button></td><td>General settings › App credentials › Client secret</td></tr>
+      <tr><td><button class="k" type="button">MONDAY_SIGNING_SECRET</button></td><td>General settings › App credentials › Signing secret</td></tr>
+      <tr><td><button class="k" type="button">SLACK_BOT_TOKEN</button></td><td>From B4, starts <code>xoxb-</code></td></tr>
+      <tr><td><button class="k" type="button">SLACK_SIGNING_SECRET</button></td><td>From B4</td></tr>
+      </tbody></table></div></div></li>
+  <li><input type="checkbox" id="b4" aria-label="Done"><div class="st"><b class="t">Create and install the Slack bot</b><span class="who">Slack admin</span>
+    <div class="path"><span>api.slack.com/apps</span><span>Create New App</span><span>From a manifest</span><span>boost workspace</span></div>
+    Paste the contents of <code>docs/capacity-planner/slack-manifest.yaml</code> from the repo, then Create › Install to Workspace › Allow. Copy the <b>Bot User OAuth Token</b> (OAuth &amp; Permissions page) and the <b>Signing Secret</b> (Basic Information › App Credentials) into B3.</div></li>
+  <li><input type="checkbox" id="b5" aria-label="Done"><div class="st"><b class="t">Create the three Slack channels</b>
+    <div class="chips"><button class="k" type="button">#delivery-capacity</button><button class="k" type="button">#delivery-alerts</button><button class="k" type="button">#capacity-leadership</button></div>
+    Make the last one private. In each, type <code>/invite @boost Delivery Assistant</code>.</div></li>
+  <li><input type="checkbox" id="b6" aria-label="Done"><div class="st"><b class="t">Authorise the back-end once</b><span class="who">monday account admin</span>
+    Signed in to monday as an account admin, open <code>{LIVE}/oauth/start</code> and click <b>Authorize</b>. The page says "Connected" when done. This lets the back-end read the boards overnight.</div></li>
+  <li><input type="checkbox" id="b7" aria-label="Done"><div class="st"><b class="t">Tell Sam it's done</b>
+    Sam tells Claude, and the overnight build starts.</div></li>
+</ol>
+
+<h2>C · Morning after <small>about 15 min, after Sam has tested</small></h2>
+<p class="when">Only once Sam says the tests passed. Do C2 to C4 in one sitting, straight after C1.</p>
+<ol class="steps" data-group="c">
+  <li><input type="checkbox" id="c1" aria-label="Done"><div class="st"><b class="t">Put the new version live</b>
+    <div class="path"><span>SDR OS</span><span>Manage</span><span>App versions</span><span>⋯ on the draft</span><span>Publish</span></div>
+    Then, as an account admin, open the app in monday and approve the new permissions in the banner.</div></li>
+  <li><input type="checkbox" id="c2" aria-label="Done"><div class="st"><b class="t">Point the deploy at the new version</b>
+    <div class="path"><span>GitHub</span><span>sam-moveoboost/SDRDash</span><span>Settings</span><span>Secrets and variables</span><span>Actions</span></div>
+    Edit <code>MONDAY_APP_VERSION_ID</code> to the new version's id (the number after <code>app_versions/</code> in the Developer Center address bar).</div></li>
+  <li><input type="checkbox" id="c3" aria-label="Done"><div class="st"><b class="t">Delete the old token secret</b>
+    Same GitHub page: delete <code>VITE_MONDAY_API_TOKEN</code>. The app no longer uses it, and it was visible in the app's code.</div></li>
+  <li><input type="checkbox" id="c4" aria-label="Done"><div class="st"><b class="t">Regenerate that personal token</b><span class="who">the token's owner</span>
+    <div class="path"><span>monday</span><span>profile picture</span><span>Developers</span><span>My access tokens</span><span>Regenerate</span></div>
+    If the same token is in the GitHub secret <code>MAPPS_ACCESS_TOKEN</code> or in Claude's environment, update both with the new value.</div></li>
+</ol>
+
+<div class="note"><b>Sam's own steps, not yours:</b> add the monday developer token to Claude's environment (environment menu in the session title bar › Edit › Network secrets, name <code>MAPPS_ACCESS_TOKEN</code>), name the team lead for each region, and do the morning test with one team lead.</div>
+
+<p class="foot">If a screen doesn't match these steps, stop and tell Sam rather than guessing; monday renames tabs from time to time. Claude will flag in the session before it switches anything on for users. Ticks on this page are saved in your browser only.</p>
+</div>
+
+<script>
+(function(){
+  var KEY='cap-setup-ticks';
+  var saved={};
+  try{saved=JSON.parse(localStorage.getItem(KEY)||'{}')}catch(e){}
+  document.querySelectorAll('ol.steps input[type=checkbox]').forEach(function(cb){
+    var li=cb.closest('li');
+    if(saved[cb.id]){cb.checked=true;li.classList.add('done')}
+    cb.addEventListener('change',function(){
+      li.classList.toggle('done',cb.checked);saved[cb.id]=cb.checked;
+      try{localStorage.setItem(KEY,JSON.stringify(saved))}catch(e){}
+    });
+  });
+  document.querySelectorAll('button.k').forEach(function(b){
+    b.title='Copy';
+    b.addEventListener('click',function(){
+      var t=b.textContent;
+      var done=function(){b.classList.add('ok');setTimeout(function(){b.classList.remove('ok')},1200)};
+      try{navigator.clipboard.writeText(t).then(done,function(){sel(b)})}catch(e){sel(b)}
+    });
+  });
+  function sel(el){var r=document.createRange();r.selectNodeContents(el);var s=getSelection();s.removeAllRanges();s.addRange(r)}
+})();
+</script>
