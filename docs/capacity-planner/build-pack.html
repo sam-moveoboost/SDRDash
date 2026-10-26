@@ -331,7 +331,7 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <div class="shell">
 <aside class="toc" aria-label="Contents">
   <div class="brand"><b>boost</b><span>Delivery OS</span></div>
-  <p class="sub">Capacity Planner<br>Proposal and build plan · v1.6</p>
+  <p class="sub">Capacity Planner<br>Proposal and build plan · v1.7</p>
   <nav class="full" id="tocnav">
     <div class="part">Main report</div>
     <a href="#summary"><span class="n">1</span>Executive summary</a>
@@ -366,7 +366,7 @@ td.num,th.num{text-align:right;white-space:nowrap}
     <a href="#meetings"><span class="n">C9</span>Meeting follow-up</a>
     <a href="#seeding"><span class="n">C10</span>Data foundation and set-up</a>
     <div class="part">Appendix D · Delivery and governance</div>
-    <a href="#plan"><span class="n">D1</span>Day-by-day plan</a>
+    <a href="#plan"><span class="n">D1</span>Overnight build plan</a>
     <a href="#prompts"><span class="n">D2</span>Build steps</a>
     <a href="#tests"><span class="n">D3</span>Testing and acceptance</a>
     <a href="#raid"><span class="n">D4</span>Risks, assumptions and issues</a>
@@ -388,7 +388,7 @@ td.num,th.num{text-align:right;white-space:nowrap}
       <span>Prepared for <b>Sam Moore, UK GM</b></span>
       <span>Prepared by <b>boost</b></span>
       <span>Status <b>For review and sign-off</b></span>
-      <span>Version <b>1.6 · 26 Oct 2026</b></span>
+      <span>Version <b>1.7 · 26 Oct 2026</b></span>
     </div>
   </div>
 </div>
@@ -416,9 +416,9 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <p class="keypoint">boost cannot yet answer "do we have the people to deliver what we are selling?" without a spreadsheet and a lot of asking around. We propose a Delivery mode in the SDR OS app that answers it live, for every region, from the boards you already use.</p>
 
 <div class="kpis summary-kpis">
-  <div class="kpi"><div class="l">First look</div><div class="v">Day 1</div><div class="d">Team heatmap for leaders, on estimates</div></div>
-  <div class="kpi"><div class="l">Live for everyone</div><div class="v">Day 4</div><div class="d">Phase 1, once your people have tested it</div></div>
-  <div class="kpi"><div class="l">Full build</div><div class="v">~9 days</div><div class="d">working days, in 5 phases</div></div>
+  <div class="kpi"><div class="l">Build</div><div class="v">Overnight</div><div class="d">all five phases, in one night</div></div>
+  <div class="kpi"><div class="l">Live for everyone</div><div class="v">24 hours</div><div class="d">after a morning test in monday</div></div>
+  <div class="kpi"><div class="l">Admin time</div><div class="v">~1 hour</div><div class="d">one evening slot, one short follow-up</div></div>
   <div class="kpi"><div class="l">AI running cost</div><div class="v">~$165</div><div class="d">a month at forecast volume</div></div>
 </div>
 
@@ -458,7 +458,7 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <ol>
   <li><strong>Sign off this document</strong>, or mark the changes you want. The key decisions are summarised in <a href="#next">section 8</a>.</li>
   <li><strong>Name a team lead per region</strong> (UK, IL, US, UAE) and the app admin. This is the only question that blocks the start.</li>
-  <li><strong>Keep people free on the days they are needed</strong>, mainly Days 0 to 4. That sets the pace more than the build does.</li>
+  <li><strong>Book the build night</strong>: an hour of your CTO's time that evening, and an hour or two of yours to test the next morning.</li>
   <li><strong>Approve the security fix</strong> that comes first. Today a personal API token is built into the app, so changes can show the wrong author and skip board permissions.</li>
   <li><strong>Nominate data owners</strong>: one team lead per region for skills and the roster, one sales leader for pipeline data.</li>
 </ol>
@@ -604,31 +604,30 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <!-- ─────────────────────────── 7 DELIVERY ─────────────────────────── -->
 <section class="chap" id="delivery"><div class="wrap">
 <header><div class="eyebrow">Main report</div><h2><span class="num">7</span>Delivery plan and your team's time</h2></header>
-<p class="keypoint">Claude builds it in about nine working days. Leaders get a first look on Day 1, and Phase 1 is live for everyone on Day 4. What sets the pace is your people's approvals, data and testing, not the code.</p>
+<p class="keypoint">Claude builds the whole planner overnight. You test it the next morning, and it is live for everyone within 24 hours. Your admin time is about an hour.</p>
 
 <div class="phases">
-  <div class="phase"><div class="pn">Day 1</div><h4>Foundations and a first look</h4><ul><li>Security fix</li><li>New boards and columns</li><li>Team heatmap preview</li></ul><div class="wk">Phase 0</div></div>
-  <div class="phase"><div class="pn">Days 2 to 4</div><h4>See it</h4><ul><li>Overview, Team, Demand</li><li>My Schedule, deal Delivery section</li><li>Messages and first assistants</li></ul><div class="wk">Phase 1 · live Day 4</div></div>
-  <div class="phase"><div class="pn">Days 5 to 6</div><h4>Plan it</h4><ul><li>Planner and allocations</li><li>Hand-off and requests</li><li>Meeting follow-up</li></ul><div class="wk">Phase 2</div></div>
-  <div class="phase"><div class="pn">Days 7 to 8</div><h4>Optimise it</h4><ul><li>Best-fit ranking</li><li>Suggested moves</li><li>Skill gaps, scenarios</li></ul><div class="wk">Phase 3</div></div>
-  <div class="phase"><div class="pn">Day 9</div><h4>Learn from it</h4><ul><li>Weekly history</li><li>Forecast accuracy</li><li>Probability tuning</li></ul><div class="wk">Phase 4 · fills over 8 weeks</div></div>
+  <div class="phase"><div class="pn">The week before</div><h4>Get the data in</h4><ul><li>Skills and levels rated</li><li>Project timelines filled</li><li>Deal Delivery fields filled</li></ul><div class="wk">Team leads, owners, reps</div></div>
+  <div class="phase"><div class="pn">Evening</div><h4>Admin set-up</h4><ul><li>Keys and permissions</li><li>Slack bot installed</li><li>Back-end authorised</li></ul><div class="wk">CTO · about 40 min</div></div>
+  <div class="phase"><div class="pn">Overnight</div><h4>Claude builds</h4><ul><li>All five phases</li><li>Tests and a progress log</li><li>Ready behind a switch</li></ul><div class="wk">No one needed</div></div>
+  <div class="phase"><div class="pn">Morning</div><h4>Test in monday</h4><ul><li>Run the test script</li><li>Check Sales tab speed</li><li>Claude fixes the same morning</li></ul><div class="wk">Sam and a team lead · 1 to 2 h</div></div>
+  <div class="phase"><div class="pn">Afternoon</div><h4>Go live</h4><ul><li>Phase 1 for everyone</li><li>Messages and assistants on</li><li>Phases 2 and 3 over the next 2 days</li></ul><div class="wk">Sam says go</div></div>
 </div>
-<p>Each phase goes live as soon as one person from each role has tested it in monday and you have said go. The days assume each people step happens on the day it is needed. Each day lost waiting moves the rest by a day.</p>
 
-<div class="callout"><span class="t">Why not one day for everything?</span>
-<p>The code is the fast part. Phase 1's code is about two days of Claude build time, and the first look can be ready on Day 1. Four things take longer: admin steps Claude cannot reach (authorising the app, installing the Slack bot, secrets), testing inside your monday account, which Claude cannot open, the skills ratings and project timelines only your people know, and about 45 build steps that each need building and checking. Going live before the data is in would show a confident-looking plan built on guesses.</p></div>
+<div class="callout"><span class="t">Why it can be this quick</span>
+<p>The data goes in during the week before, so the numbers are right on the first morning. Every admin step is batched into one evening slot and one 15-minute follow-up. Claude runs several build sessions in parallel through the night. And nothing goes live unattended: it stays behind a switch until a person has tested it in monday and said go.</p></div>
 
 <h3>Where your people are needed</h3>
 <div class="tbl compact"><table>
 <thead><tr><th>Who</th><th>When</th><th>What, and roughly how long</th></tr></thead>
 <tbody>
-<tr><td>Sam (sponsor)</td><td>Day 0, then daily</td><td>Sign-off about 2 h. About 1 h of admin steps on Day 1. A 15-minute end-of-day check, and the go or no-go for each phase.</td></tr>
-<tr><td>Each regional team lead</td><td>Days 1 to 2, Day 4</td><td>Skills and level ratings about 2 h, a 30-minute calibration call and 1 h of testing. Then 45 min a week.</td></tr>
-<tr><td>Project owners and sales reps</td><td>Days 1 to 3</td><td>Timelines about 10 min each. Delivery fields on open deals about 3 min a deal.</td></tr>
-<tr><td>HR</td><td>Day 2</td><td>Check the copied holidays, 30 min.</td></tr>
-<tr><td>monday and Slack admins</td><td>Days 2 and 3</td><td>Authorise the app and install the Slack bot, about 1 h in total.</td></tr>
+<tr><td>Sam (sponsor)</td><td>Before, morning, afternoon</td><td>Sign-off about 2 h. The morning test, 1 to 2 h. Say go.</td></tr>
+<tr><td>CTO</td><td>Evening, afternoon</td><td>The admin checklist: about 40 minutes on the evening and 15 minutes after go-live.</td></tr>
+<tr><td>Each regional team lead</td><td>The week before</td><td>Skills and level ratings about 2 h, plus a 30-minute calibration call. One lead joins the morning test.</td></tr>
+<tr><td>Project owners and sales reps</td><td>The week before</td><td>Timelines about 10 min each. Delivery fields on open deals about 3 min a deal.</td></tr>
+<tr><td>Slack admin</td><td>Evening</td><td>Install the Slack bot, 15 minutes.</td></tr>
 </tbody></table></div>
-<p class="more">More detail: <a href="#plan">D1 Day-by-day plan</a> · <a href="#scope">A4 Scope and phasing</a> · <a href="#tests">D3 Testing and acceptance</a> · <a href="#prompts">D2 Build steps</a></p>
+<p class="more">More detail: <a href="#plan">D1 Overnight build plan</a> · <a href="#scope">A4 Scope and phasing</a> · <a href="#tests">D3 Testing and acceptance</a> · <a href="#prompts">D2 Build steps</a></p>
 </div></section>
 
 <!-- ─────────────────────────── 8 NEXT ─────────────────────────── -->
@@ -640,7 +639,7 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <div class="tbl compact"><table>
 <thead><tr><th>Risk</th><th>How we handle it</th></tr></thead>
 <tbody>
-<tr><td>Data too thin at launch, so the plan looks wrong and trust is lost</td><td>Ratings and timelines filled in on Days 1 to 3, before go-live. Estimates clearly marked. My Missing Data for every role.</td></tr>
+<tr><td>Data too thin at launch, so the plan looks wrong and trust is lost</td><td>Ratings and timelines filled in the week before the build night. Estimates clearly marked. My Missing Data for every role.</td></tr>
 <tr><td>A personal API token is built into the live app today</td><td>Fixed first. Every change is then saved under the user's own name and permissions.</td></tr>
 <tr><td>The security fix slows the Sales tabs</td><td>A speed check gates the change. Pre-calculated numbers can then make the tabs faster than today.</td></tr>
 <tr><td>Team leads keep using spreadsheets</td><td>Phase 1 answers their real questions first, and leadership runs its monthly review from the app.</td></tr>
@@ -659,13 +658,13 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <p>All 31 decisions, with the alternatives considered, are in <a href="#decisions">Appendix D5</a>.</p>
 
 <h3>Open questions</h3>
-<p>Thirteen questions are still open or partly open. Each has a sensible default we will build to if there is no answer. Only one blocks the start: who leads each region, and who is the app admin. The rest are needed between Days 2 and 5. See <a href="#questions">Appendix D6</a>.</p>
+<p>Thirteen questions are still open or partly open. Each has a sensible default we will build to if there is no answer. Only one blocks the start: who leads each region, and who is the app admin. The rest are needed before go-live or within a few days of it. See <a href="#questions">Appendix D6</a>.</p>
 
 <h3>Next steps</h3>
 <ol>
   <li>Review this report and mark any changes.</li>
   <li>Name the regional team leads and the app admin.</li>
-  <li>Sign off below. Day 1 starts with the security fix, the new boards and a first look at the Team heatmap.</li>
+  <li>Sign off below and pick a build night. Your CTO runs the admin checklist that evening, Claude builds overnight and you test the next morning.</li>
 </ol>
 
 <div class="tbl sig"><table>
@@ -889,7 +888,7 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <li>Roster, Public Holidays and Settings boards</li>
 <li>New columns on Opportunities and Projects</li>
 <li>Roster seeded</li>
-<li>Data back-fill for timelines, engagement model and deal delivery fields, alongside Days 1 to 3</li>
+<li>Data back-fill for timelines, engagement model and deal delivery fields, in the week before the build night</li>
 </ul></td><td>
 <ul class="small">
 <li>All app writes appear under the user's own name, and Sales tabs load within 20% of today (gate)</li>
@@ -2418,7 +2417,7 @@ flowchart TD
 <div class="callout bad"><span class="t">Two things to fix before any Delivery code ships</span>
 <ol>
 <li><strong>The token in the bundle.</strong> <code>.github/workflows/deploy.yml</code> builds production with <code>VITE_MONDAY_API_TOKEN: ${{ secrets.VITE_MONDAY_API_TOKEN }}</code>. Vite inlines every <code>VITE_</code> variable into client JavaScript, so a personal API token is downloaded by every app user. <code>gql()</code> uses it for every call whenever it is set. That bypasses the viewer's permissions and stamps the token owner on every write. P-01 removes it, moves to seamless auth and rotates the token (D-15, R-02).</li>
-<li><strong>Auto-deploy on main.</strong> Any merge to <code>main</code> is live within minutes. Delivery work therefore lands behind a feature flag (C6.7) on feature branches, and merges only after the end-of-day check with your approval.</li>
+<li><strong>Auto-deploy on main.</strong> Any merge to <code>main</code> is live within minutes. Delivery work therefore lands behind a feature flag (C6.7) on feature branches, and merges only after the morning test with your approval.</li>
 </ol></div>
 
 <h3>C6.1 Module map</h3>
@@ -2544,7 +2543,7 @@ runPlan({ people, items, allocations, leave, holidays, settings, today },
 <h3>C6.7 Release safety</h3>
 <ul>
 <li><strong>Feature flag:</strong> Settings key <code>feature.delivery_mode</code> = 0 (off), 1 (beta: Admin and Team lead app roles only) or 2 (everyone). The Sales | Delivery switch renders only when allowed.</li>
-<li><strong>Branches:</strong> at the start of each phase, create <code>capacity/phase-N</code> from <code>main</code>. Each prompt branches from the phase branch, and its PR targets it. Claude may merge into the phase branch once CI is green, so later prompts build on earlier ones. Only the phase branch merges to <code>main</code>, after the end-of-day check with your approval, with <code>feature.delivery_mode</code> still 0 unless UAT has passed. <code>main</code> auto-deploys, so that merge is a release.</li>
+<li><strong>Branches:</strong> at the start of each phase, create <code>capacity/phase-N</code> from <code>main</code>. Each prompt branches from the phase branch, and its PR targets it. Claude may merge into the phase branch once CI is green, so later prompts build on earlier ones. Only the phase branch merges to <code>main</code>, after the morning test with your approval, with <code>feature.delivery_mode</code> still 0 unless UAT has passed. <code>main</code> auto-deploys, so that merge is a release.</li>
 <li><strong>New CI workflow</strong> <code>.github/workflows/test.yml</code> on pull requests: the same install step as <code>deploy.yml</code> (it strips <code>@mondaycom/apps-cli</code> and runs <code>npm install --legacy-peer-deps</code>, so <code>npm ci</code> would fail) → <code>npm run lint</code> (ESLint 8 added in P-10) → <code>npm test</code> (Vitest, run under two time zones) → <code>npm run deploy:build</code> → bundle token check.</li>
 <li><strong>package.json:</strong> replace the broken <code>"test": "react-scripts test"</code> with <code>"vitest run"</code>. Add <code>vitest</code> and <code>@vitest/coverage-v8</code> as dev dependencies.</li>
 </ul>
@@ -2924,7 +2923,7 @@ sequenceDiagram
 <section class="chap" id="seeding"><div class="wrap">
 <header><div class="eyebrow">Appendix C · Design <a class="backlink" href="#top">Back to main report ↑</a></div><h2><span class="num">C10</span>Data foundation and set-up</h2></header>
 <div class="brief"><span class="t">In brief</span><p>How the roster, skills, levels, timelines and holidays are loaded and cleaned before launch, with the skills rubric.</p></div>
-<p class="intro">The planner is only as good as its inputs. Today, half the live projects have no dates and most deals have no probability. Phase 0 therefore includes a <strong>data foundation push</strong> that runs alongside Days 1 to 3 of the build. The work runs in parallel: Claude prepares the data and the tools, and named owners confirm and fill the gaps.</p>
+<p class="intro">The planner is only as good as its inputs. Today, half the live projects have no dates and most deals have no probability. Phase 0 therefore includes a <strong>data foundation push</strong> in the week before the build night. The work runs in parallel: Claude prepares the data and the tools, and named owners confirm and fill the gaps.</p>
 
 <div class="tbl xwide"><table>
 <thead><tr><th class="id">Step</th><th>Data set</th><th>Source → target</th><th>Method</th><th>Volume</th><th>Owner</th><th>Done when</th></tr></thead>
@@ -2934,7 +2933,7 @@ sequenceDiagram
 <tr><td class="id">SD-3</td><td>Levels and skills</td><td>Team lead judgement → Roster</td><td>The app's People grid (P2 edit), or for Phase 0 a pre-filled board view with one row per person. Rubric below.</td><td>~60 × 13</td><td>Team leads (one per region)</td><td>DQ-20 is zero. Calibration call held across regions.</td></tr>
 <tr><td class="id">SD-4</td><td>Engagement model on projects</td><td>Type and Workbase → Projects</td><td>P-06: rules in DS-006, written through the API, plus an exceptions list for team leads</td><td>~400</td><td>Claude + delivery managers</td><td>≥ 95% of live projects tagged</td></tr>
 <tr><td class="id">SD-5</td><td>Project timelines</td><td>Owners → Projects</td><td>P-06 produces each owner's list of live projects with no timeline. A "Missing timelines" board view is grouped by owner. The rule is 10 minutes per owner.</td><td>~180</td><td>Project owners</td><td>DQ-11 under 5%</td></tr>
-<tr><td class="id">SD-6</td><td>Deal delivery fields</td><td>Reps → Opportunities</td><td>On Days 1 to 2, reps fill the new columns directly in a "CAP · Deal delivery" board view. From Day 3, the Delivery section (P-19) with the flag on for the Sales role, plus the DQ list and a Tuesday session.</td><td>~60 services deals</td><td>Sales leader</td><td>DQ-01, 02 and 05 at zero for Proposal or later</td></tr>
+<tr><td class="id">SD-6</td><td>Deal delivery fields</td><td>Reps → Opportunities</td><td>Before the build night, reps fill the new columns directly in a "CAP · Deal delivery" board view. After go-live, the Delivery section (P-19) with the flag on for the Sales role, plus the DQ list and a Tuesday session.</td><td>~60 services deals</td><td>Sales leader</td><td>DQ-01, 02 and 05 at zero for Proposal or later</td></tr>
 <tr><td class="id">SD-7</td><td>Leave</td><td>Vacation/OOO Planner + Projects Holidays group → Holiday Requests</td><td>P-07 copies future-dated entries once. HR confirms the statuses.</td><td>~20</td><td>HR (tal negri)</td><td>Holiday Requests is the only live source</td></tr>
 <tr><td class="id">SD-8</td><td>Public holidays 2026 to 2027</td><td>gov.uk + verified source → Public Holidays</td><td>P-08</td><td>~60</td><td>Admin</td><td>All four regions loaded through Dec 2027</td></tr>
 <tr><td class="id">SD-9</td><td>Settings</td><td>This pack → Capacity Settings</td><td>P-04 creates the items with the defaults in DS-004</td><td>~45 keys</td><td>Claude, then Admin</td><td>Leadership confirms the stage probabilities (Q-01)</td></tr>
@@ -2952,11 +2951,11 @@ sequenceDiagram
 </tbody></table></div>
 <div class="callout info"><span class="t">Calibration</span><p>Ratings drift between team leads. After the first pass, the four regional leads spend 30 minutes comparing five people each across regions and adjust. The training-gap report is only as fair as this step.</p></div>
 </div></section>
-<div class="part-band" id="app-d"><div class="wrap"><div class="eyebrow">Appendix D</div><h2>Delivery and governance</h2><p>The day-by-day plan, build steps, testing, risks, decisions, open questions and traceability.</p><ul class="apx-index"><li><a href="#plan"><b>D1</b> Day-by-day plan</a></li><li><a href="#prompts"><b>D2</b> Build steps</a></li><li><a href="#tests"><b>D3</b> Testing and acceptance</a></li><li><a href="#raid"><b>D4</b> Risks, assumptions and issues</a></li><li><a href="#decisions"><b>D5</b> Decisions log</a></li><li><a href="#questions"><b>D6</b> Open questions</a></li><li><a href="#rtm"><b>D7</b> Traceability matrix</a></li><li><a href="#sources"><b>D8</b> Sources and glossary</a></li></ul></div></div>
+<div class="part-band" id="app-d"><div class="wrap"><div class="eyebrow">Appendix D</div><h2>Delivery and governance</h2><p>The overnight build plan, build steps, testing, risks, decisions, open questions and traceability.</p><ul class="apx-index"><li><a href="#plan"><b>D1</b> Overnight build plan</a></li><li><a href="#prompts"><b>D2</b> Build steps</a></li><li><a href="#tests"><b>D3</b> Testing and acceptance</a></li><li><a href="#raid"><b>D4</b> Risks, assumptions and issues</a></li><li><a href="#decisions"><b>D5</b> Decisions log</a></li><li><a href="#questions"><b>D6</b> Open questions</a></li><li><a href="#rtm"><b>D7</b> Traceability matrix</a></li><li><a href="#sources"><b>D8</b> Sources and glossary</a></li></ul></div></div>
 <section class="chap" id="plan"><div class="wrap">
-<header><div class="eyebrow">Appendix D · Delivery and governance <a class="backlink" href="#top">Back to main report ↑</a></div><h2><span class="num">D1</span>Day-by-day plan</h2></header>
-<div class="brief"><span class="t">In brief</span><p>Responsibilities, the day-by-day build plan, what sets the pace, exactly where a person is needed and how much of their time it takes.</p></div>
-<p class="intro">Claude builds through the prompt sequence in Appendix <a href="#prompts">D2</a>, phase by phase, measured in working days rather than sprints. People own decisions, data, testing inside monday and sign-off, and those steps set the pace. Each phase goes live as soon as it passes its test, so value arrives in stages rather than at the end.</p>
+<header><div class="eyebrow">Appendix D · Delivery and governance <a class="backlink" href="#top">Back to main report ↑</a></div><h2><span class="num">D1</span>Overnight build plan</h2></header>
+<div class="brief"><span class="t">In brief</span><p>Responsibilities, the overnight build plan, what makes 24 hours work, exactly where a person is needed and how much of their time it takes.</p></div>
+<p class="intro">Claude builds the whole planner overnight, through the prompt sequence in Appendix <a href="#prompts">D2</a>, running several sessions in parallel. People do a short set of admin steps on the evening, test the next morning and say go. Phase 1 is live for everyone within 24 hours of the build starting.</p>
 
 <h3>Team and RACI</h3>
 <div class="tbl xwide compact"><table>
@@ -2974,26 +2973,24 @@ sequenceDiagram
 </tbody></table></div>
 <p class="footnote">R responsible · A accountable · C consulted · I informed.</p>
 
-<h3>Build plan, day by day</h3>
-<p>Working days, assuming the people steps on each day happen that day. Independent steps run in parallel Claude sessions (for example the engine alongside the boards). A day lost waiting for an approval, a rating or a test moves everything after it by a day.</p>
+<h3>The overnight build</h3>
 <div class="tbl xwide"><table>
-<thead><tr><th>Day</th><th>Phase</th><th>Claude builds</th><th>People needed that day</th><th>Live at the end of the day</th></tr></thead>
+<thead><tr><th>When</th><th>What happens</th><th>Who</th><th>Their time</th></tr></thead>
 <tbody>
-<tr><td><strong>Day 0</strong></td><td>Ready</td><td class="small">Nothing yet</td><td class="small">Sign off this document. Name the team leads and the app admin (Q-02). Add a monday developer token to the Claude environment. Line up the monday account admin and the Slack admin for Days 2 and 3.</td><td class="small">—</td></tr>
-<tr><td><strong>Day 1</strong></td><td><span class="chip p0">P0</span> + first look</td><td class="small">P-01 to P-04: security fix, API version, boards and columns. P-05: roster draft. P-11 to P-13: engine and tests, in a parallel session. A first-look Team heatmap on live reads, behind the beta flag.</td><td class="small">Sam about 1 h: the in-app security check, secrets and token rotation. Approve about 15 board previews. Review the roster draft. Team leads start skills and level ratings.</td><td class="small"><strong>First look</strong> for Sam and team leads: the Team heatmap on default hours and estimated data.</td></tr>
-<tr><td><strong>Day 2</strong></td><td><span class="chip must">P1</span></td><td class="small">P-06 to P-10: back-fills, leave, holidays, CI. P-14A to P-14D: back-end, snapshot, scheduled and manual refresh. P-16, P-17: Overview and Demand.</td><td class="small">Account admin authorises the app (one click) and adds the client secret. Team leads finish ratings, then a 30-minute calibration call. Project owners fill their timelines (about 10 min each). HR checks the copied leave.</td><td class="small">Pre-calculated numbers at 03:00 and 12:00.</td></tr>
-<tr><td><strong>Day 3</strong></td><td><span class="chip must">P1</span></td><td class="small">P-18 to P-21: My Schedule, the deal Delivery section, My Missing Data, actuals, automations and saves. P-36 to P-38B: Slack app, wave A assistants and the Messages inbox.</td><td class="small">Slack admin installs the app (15 min). Approve one sample message per assistant. Approve the automation previews.</td><td class="small">—</td></tr>
-<tr><td><strong>Day 4</strong></td><td><span class="chip must">P1</span> go-live</td><td class="small">P-22: test pack and guides. Fixes from testing, the same day.</td><td class="small">One person per role tests in monday (about 1 h each). Sam signs the go or no-go and approves the merge to main.</td><td class="small"><strong>Phase 1 live for everyone</strong>, with Messages and the first assistants.</td></tr>
-<tr><td><strong>Days 5 to 6</strong></td><td><span class="chip should">P2</span></td><td class="small">P-23 to P-28: allocations, Planner, requests, hand-off. P-39, P-40: wave B, Ask the planner, meeting follow-up.</td><td class="small">Confirm the hand-off mapping (Q-08) and Notetaker sharing (Q-15). A team lead and a rep label 30 past meetings for the accuracy check (about 1 h). Test and sign off (about 2 h).</td><td class="small"><strong>Phase 2 live.</strong></td></tr>
-<tr><td><strong>Days 7 to 8</strong></td><td><span class="chip could">P3</span></td><td class="small">P-29 to P-32, P-41: ranking, suggested moves, skill-gap shortfall, scenarios, wave C.</td><td class="small">Test and sign off (about 2 h).</td><td class="small"><strong>Phase 3 live.</strong></td></tr>
-<tr><td><strong>Day 9</strong></td><td><span class="chip">P4</span></td><td class="small">P-33 to P-35: weekly history, forecast accuracy, calibration. P-22B: Sales tabs on the snapshot, one at a time.</td><td class="small">Look at each Sales tab after it moves (10 min each).</td><td class="small"><strong>Phase 4 recording.</strong> Its accuracy and calibration views fill up over the following 8 weeks.</td></tr>
+<tr><td><strong>Before the build</strong><br><span class="small">the week before</span></td><td class="small">Sign off this document. Name the team leads and the app admin (Q-02). Team leads rate skills and levels from Claude's roster draft; project owners fill their timelines; reps fill Delivery fields on open deals. Part A of the admin checklist.</td><td class="small">Sam · team leads · owners · reps · CTO</td><td class="small">Team leads ~2.5 h each · owners ~10 min · CTO 20 min</td></tr>
+<tr><td><strong>Build evening</strong><br><span class="small">~18:00</span></td><td class="small">Claude creates the boards and columns, deploys an empty back-end and writes the Slack app file. The CTO adds the redirect URL and secrets, installs the Slack bot and authorises the back-end (part B of the checklist).</td><td class="small">CTO · Slack admin · Sam</td><td class="small">~40 min</td></tr>
+<tr><td><strong>Overnight</strong></td><td class="small">Claude builds Phases 0 to 4: the engine and its tests, pre-calculated numbers, every screen, the Planner, ranking and suggestions, the assistants, meeting follow-up and the Messages inbox. Everything lands on a branch behind switches, with a progress log and a list of any defaults chosen.</td><td class="small">Claude</td><td class="small">None</td></tr>
+<tr><td><strong>Morning</strong></td><td class="small">Claude posts a short report. Sam and a team lead open the app in monday, run the test script and time the Sales tabs. Claude fixes what they find the same morning.</td><td class="small">Sam · a team lead</td><td class="small">1 to 2 h</td></tr>
+<tr><td><strong>Afternoon</strong></td><td class="small">Sam says go: the branch merges, Phase 1 switches on for everyone with Messages and the first assistants. The CTO publishes the new app version and removes the old token (part C).</td><td class="small">Sam · CTO</td><td class="small">~15 min</td></tr>
+<tr><td><strong>Days 2 to 3</strong></td><td class="small">Phases 2 and 3 switch on after a 30-minute look each. Meeting follow-up switches on after a team lead and a rep label 30 past meetings for the accuracy check.</td><td class="small">Sam · a team lead · a rep</td><td class="small">~30 min per phase · 1 h for meetings</td></tr>
+<tr><td><strong>After that</strong></td><td class="small">Numbers rebuild at 03:00 and 12:00 on their own. Phase 4's accuracy and calibration views fill up as the weeks of history build.</td><td class="small">Everyone, as in WF-03</td><td class="small">The weekly rhythm</td></tr>
 </tbody></table></div>
-<div class="callout"><span class="t">What sets the pace, and why it is not one day for everything</span>
+<div class="callout"><span class="t">What makes 24 hours work</span>
 <ul>
-<li><strong>The code is the fast part.</strong> The first look can be in front of you on Day 1, and Phase 1's code is about two days of Claude build time. The whole scope is about 45 build steps, each built, tested and checked against its acceptance criteria, which is several days of work even with parallel sessions.</li>
-<li><strong>People steps can't be compressed by Claude.</strong> Approvals, the OAuth authorisation, the Slack install, secrets and token rotation are admin screens Claude cannot reach.</li>
-<li><strong>Testing happens inside your monday.</strong> Claude cannot open the app in your account, so someone has to look before each go-live.</li>
-<li><strong>The numbers are only as good as the data.</strong> Skills ratings and project timelines come from your people. Going live before they are in would show a confident-looking plan built on estimates.</li>
+<li><strong>The data goes in first.</strong> Ratings, timelines and deal fields are filled in the week before, so the numbers are right on the first morning.</li>
+<li><strong>Admin steps are batched.</strong> Everything that needs an admin happens in one 40-minute evening slot and one 15-minute slot after go-live.</li>
+<li><strong>Nothing goes live unattended.</strong> The overnight build stays behind switches. A person tests it in monday, which Claude cannot open, before anyone else sees it.</li>
+<li><strong>Surprises don't stop the night.</strong> Where a board behaves differently than expected, Claude uses the default in this document, logs it and carries on. The morning report lists every such choice.</li>
 </ul></div>
 
 <h3>What Claude does, and exactly where a person is needed</h3>
@@ -3008,13 +3005,13 @@ sequenceDiagram
 <div class="tbl xwide"><table>
 <thead><tr><th>Stage</th><th>Claude does on its own</th><th>Human input needed</th><th>Who</th><th class="num">Effort</th></tr></thead>
 <tbody>
-<tr><td><strong>Day 0</strong></td><td>—</td><td>
+<tr><td><strong>Before the build</strong></td><td>—</td><td>
 <ol class="small">
 <li>Sign off this pack (or mark changes).</li>
 <li>Answer Q-02: team leads per region, and the admin.</li>
 <li>Confirm a monday account admin will authorise the app once (Q-09).</li>
 </ol></td><td>Sam</td><td class="num">1 to 2 h</td></tr>
-<tr><td><strong>Day 1 · P-01 security</strong></td><td>Code changes, the runbook and the bundle check</td><td>
+<tr><td><strong>Morning · P-01 security check</strong></td><td>Code changes, the runbook and the bundle check</td><td>
 <ol class="small">
 <li>Open the app in monday and run the spike page, once as yourself and once as a test IC. Report what you see (about 10 minutes).</li>
 <li>In the Developer Center, add the 8 scopes, promote the new version and update the <code>MONDAY_APP_VERSION_ID</code> GitHub secret.</li>
@@ -3022,13 +3019,13 @@ sequenceDiagram
 <li>Delete the <code>VITE_MONDAY_API_TOKEN</code> GitHub secret and regenerate your personal token in monday.</li>
 <li>Time the Sales tabs before and after, using Claude's checklist.</li>
 </ol></td><td>Sam (or app owner) + account admin</td><td class="num">1 h</td></tr>
-<tr><td><strong>Day 1 · P-02 to P-04 boards</strong></td><td>Builds every board, column, label, setting and <code>ids.js</code></td><td>
+<tr><td><strong>Evening · P-02 to P-04 boards</strong></td><td>Builds every board, column, label, setting and <code>ids.js</code></td><td>
 <ol class="small">
 <li>Approve each monday write preview, about 15 approvals in batches.</li>
 <li>Add "Day portion" to the Holiday Requests form, if the form cannot be edited through the API.</li>
 <li>Create the "Delivery Leads" team and apply column restrictions from Claude's click-by-click checklist.</li>
 </ol></td><td>Sam · admin</td><td class="num">1 h</td></tr>
-<tr><td><strong>Days 1 to 2 · P-05 to P-08 data</strong></td><td>Drafts the roster, back-fill mappings, missing-timeline lists, deal-to-project matches, leave copies and holiday lists</td><td>
+<tr><td><strong>Before the build · P-05 to P-08 data</strong></td><td>Drafts the roster, back-fill mappings, missing-timeline lists, deal-to-project matches, leave copies and holiday lists</td><td>
 <ol class="small">
 <li>Review the roster draft: who is in, roles and app roles.</li>
 <li>Approve the engagement-model back-fill and the deal-to-project matches.</li>
@@ -3037,21 +3034,21 @@ sequenceDiagram
 <li>HR confirms the copied leave and fixes the 2 broken statuses.</li>
 <li>Confirm the Israel and UAE holiday lists.</li>
 </ol></td><td>Sam · team leads · project owners · HR</td><td class="num">Team leads ~2.5 h each · owners ~10 min each · HR 30 min</td></tr>
-<tr><td><strong>Day 2 · P-09, P-10</strong></td><td>Automation inventory, CI, ESLint and Vitest. Fully automatic.</td><td>None, other than reading the collision report</td><td>—</td><td class="num">10 min</td></tr>
-<tr><td><strong>Day 1 · P-11 to P-13 engine</strong></td><td>All the maths and every unit test. Fully automatic.</td><td>None</td><td>—</td><td class="num">0</td></tr>
-<tr><td><strong>Day 2 · P-14A back-end</strong></td><td>Writes the back-end, routes, auth and the scheduler set-up commands</td><td>
+<tr><td><strong>Overnight · P-09, P-10</strong></td><td>Automation inventory, CI, ESLint and Vitest. Fully automatic.</td><td>None, other than reading the collision report</td><td>—</td><td class="num">10 min</td></tr>
+<tr><td><strong>Overnight · P-11 to P-13 engine</strong></td><td>All the maths and every unit test. Fully automatic.</td><td>None</td><td>—</td><td class="num">0</td></tr>
+<tr><td><strong>Evening · P-14A back-end</strong></td><td>Writes the back-end, routes, auth and the scheduler set-up commands</td><td>
 <ol class="small">
 <li>Give Claude a monday developer token for the <code>mapps</code> CLI as a secret in the session environment, or run the 4 deploy commands Claude gives you.</li>
 <li>Account admin clicks "Authorise" once for the app's OAuth.</li>
 <li>Add the client secret in the Developer Center (Claude cannot read it).</li>
 </ol></td><td>Sam · account admin</td><td class="num">30 min</td></tr>
-<tr><td><strong>Days 2 to 3 · P-14 to P-20 screens</strong></td><td>Builds every screen, the snapshot, refresh and saves, and merges PRs into the build branch</td><td>
+<tr><td><strong>Overnight · P-14 to P-20 screens</strong></td><td>Builds every screen, the snapshot, refresh and saves, and merges PRs into the build branch</td><td>
 <ol class="small">
-<li>At the end-of-day check, open the app in monday and look at the screens (Claude cannot see inside your monday).</li>
+<li>At the morning test, open the app in monday and look at the screens (Claude cannot see inside your monday).</li>
 <li>Answer Q-01 (stage probabilities) and Q-07 (managed services hours).</li>
 </ol></td><td>Sam · a team lead</td><td class="num">30 min per sprint</td></tr>
-<tr><td><strong>Day 3 · P-21 automations</strong></td><td>Creates the automations</td><td>Approve each automation preview. Ideally created by a UK user, so times run in UK time.</td><td>Sam</td><td class="num">15 min</td></tr>
-<tr><td><strong>Day 4 · P-22 go-live gate</strong></td><td>UAT scripts, guides, the go/no-go evidence pack and the TC-208 contract test</td><td>
+<tr><td><strong>Morning · P-21 automations</strong></td><td>Creates the automations</td><td>Approve each automation preview. Ideally created by a UK user, so times run in UK time.</td><td>Sam</td><td class="num">15 min</td></tr>
+<tr><td><strong>Afternoon · P-22 go-live gate</strong></td><td>UAT scripts, guides, the go/no-go evidence pack and the TC-208 contract test</td><td>
 <ol class="small">
 <li>UAT by one person per persona.</li>
 <li>Sign the go/no-go.</li>
@@ -3059,14 +3056,14 @@ sequenceDiagram
 <li>Set <code>feature.delivery_mode</code> to 2 when ready.</li>
 <li>Send the launch message.</li>
 </ol></td><td>Sam · CEO · a team lead · a rep · an IC</td><td class="num">~1 h each</td></tr>
-<tr><td><strong>Day 3 · P-36 to P-38B assistants and Messages</strong></td><td>Writes the Slack manifest, outbox, deep links, signal rules, the Claude writer and every message template</td><td>
+<tr><td><strong>Evening and overnight · P-36 to P-38B assistants and Messages</strong></td><td>Writes the Slack manifest, outbox, deep links, signal rules, the Claude writer and every message template</td><td>
 <ol class="small">
 <li>A Slack workspace admin creates and installs the app from the manifest (about 15 minutes).</li>
 <li>Add the bot token, signing secret and Anthropic API key to monday code secrets.</li>
 <li>Create the 3 channels (Q-12).</li>
 <li>Approve one sample message per assistant before it goes live.</li>
 </ol></td><td>Slack admin · Sam</td><td class="num">45 min</td></tr>
-<tr><td><strong>Days 5 to 6 · P-39, P-40 meetings and Q&amp;A</strong></td><td>Builds wave B, Ask the planner, the meeting follow-up, the review screen and the eval</td><td>
+<tr><td><strong>Days 2 to 3 · P-39, P-40 meetings and Q&amp;A</strong></td><td>Builds wave B, Ask the planner, the meeting follow-up, the review screen and the eval</td><td>
 <ol class="small">
 <li>Add this use to the processing record. It is covered by the same terms as Sally Gecko (Q-13).</li>
 <li>Confirm Notetaker sharing, so meetings are visible to the app (Q-15), and agree with the owner of the current Meetings-board summary process.</li>
@@ -3094,7 +3091,7 @@ sequenceDiagram
 <div class="tbl wide compact"><table>
 <thead><tr><th>Who</th><th>One-off (Phase 0 to 1)</th><th>Ongoing</th></tr></thead>
 <tbody>
-<tr><td>Sam (sponsor)</td><td>Sign-off ~2 h. End-of-day checks 15 min × 9.</td><td>Monthly gap review 45 min</td></tr>
+<tr><td>Sam (sponsor)</td><td>Sign-off ~2 h. Morning test 1 to 2 h, then 30 min per later phase.</td><td>Monthly gap review 45 min</td></tr>
 <tr><td>Each regional team lead</td><td>Roster and skills ratings ~2 h. Calibration 30 min. UAT 1 h.</td><td>Monday planning 30 min. Thursday cross-region 15 min.</td></tr>
 <tr><td>Each project owner (IC)</td><td>Timeline back-fill ~10 min</td><td>2 min a day on My Schedule and My Missing Data</td></tr>
 <tr><td>Each rep</td><td>Delivery fields on open deals ~3 min a deal</td><td>3 min per new services deal. Tuesday review 20 min.</td></tr>
@@ -3116,18 +3113,19 @@ sequenceDiagram
 <li>No token in the bundle (NFR-006). API version pinned (NFR-015).</li>
 <li>The Sales mode smoke checklist passes (NFR-014).</li>
 <li>Run locally in the monday tunnel. Screenshots are attached to the PR.</li>
-<li>The PR is merged into the build branch. After the end-of-day check and your approval, the build branch merges to <code>main</code>, which deploys through <code>deploy.yml</code> to the app version in <code>MONDAY_APP_VERSION_ID</code>. Release notes are posted.</li>
+<li>The PR is merged into the build branch. After the morning test and your approval, the build branch merges to <code>main</code>, which deploys through <code>deploy.yml</code> to the app version in <code>MONDAY_APP_VERSION_ID</code>. Release notes are posted.</li>
 <li>Any data written to boards during the story can be traced (activity log or item update).</li>
 </ul>
 
 <h3>Critical path and dependencies</h3>
 <div class="flow"><span class="st">P-01 Auth</span><span class="ar">→</span><span class="st">P-03/04 Boards and ids</span><span class="ar">→</span><span class="st">P-05 Roster seed</span><span class="ar">→</span><span class="st">P-11 to 13 Engine</span><span class="ar">→</span><span class="st">P-15 Heatmap</span><span class="ar">→</span><span class="st">P-22 UAT gate 1</span><span class="ar">→</span><span class="st">P-23 Allocations</span><span class="ar">→</span><span class="st">P-29 Ranking</span></div>
-<p class="small">The data back-fill (SD-4 to SD-6 in Appendix <a href="#seeding">C10</a>) runs alongside Days 1 to 3. The Phase 0 data figures are targets, not gates. If they slip, Phase 1 still ships, but with a large "Estimated" share. That is visible, honest and self-correcting through My Missing Data. The only Phase 0 gates are the auth change and the Sales load-time check.</p>
+<p class="small">The data back-fill (SD-4 to SD-6 in Appendix <a href="#seeding">C10</a>) runs in the week before the build night. The Phase 0 data figures are targets, not gates. If they slip, Phase 1 still ships, but with a large "Estimated" share. That is visible, honest and self-correcting through My Missing Data. The only Phase 0 gates are the auth change and the Sales load-time check.</p>
 
-<h3>Daily rhythm</h3>
+<h3>Rhythm of the build</h3>
 <ul>
-<li><strong>Start of day</strong> (5 min, async): Claude posts what it will build today and which people steps it needs.</li>
-<li><strong>End-of-day check</strong> (15 min, Sam or the nominated monday driver): open the app in monday, look at what is new, approve the merge.</li>
+<li><strong>Evening kick-off</strong> (5 min): Claude confirms the admin steps are done and starts the night's sessions.</li>
+<li><strong>Overnight log</strong>: Claude keeps <code>docs/capacity-planner/progress.md</code> current, so anyone can see where it is.</li>
+<li><strong>Morning report</strong> (10 min read): what was built, test results, defaults chosen and what to test first.</li>
 <li><strong>Phase sign-off</strong> (30 min, with the people affected): accept or reject against the acceptance criteria, then switch the phase on.</li>
 </ul>
 </div></section>
@@ -3154,7 +3152,7 @@ Rules:
 1. Branching: at the start of each phase create capacity/phase-N from main. Each prompt works on
    capacity/P-xx-short-name, branched from the phase branch, with its PR targeting it. Merge into the phase branch
    once CI is green, so later prompts build on earlier ones. Never push or merge to main yourself. main auto-deploys
-   to production; the phase branch merges to main only after the end-of-day check, with my approval.
+   to production; the phase branch merges to main only after the morning test, with my approval.
 2. All Delivery UI sits behind the Settings flag feature.delivery_mode (Appendix C6.7). Sales mode must behave exactly as before.
 3. Board and column ids live only in src/capacity/config/ids.js. Never hard-code ids in components.
 4. The engine (src/capacity/engine) is pure JavaScript: no fetch, no React, no Date-in-local-time. ISO date strings only.
@@ -3170,7 +3168,7 @@ Rules:
 9. Report back with: what changed (files), tests run and results, screenshots or numbers, open issues, and the next prompt.</pre>
 <button class="copy" data-copy="p00">Copy prompt</button></div></details>
 
-<h3>Phase 0 · Foundations (Day 1)</h3>
+<h3>Phase 0 · Foundations (build evening)</h3>
 
 <details class="prompt"><summary><span class="pid">P-01</span><span class="pt">Retire the bundled token and move to seamless auth<small>FR-172 to 174 · NFR-006 · D-15 · R-02 · blocks everything that writes</small></span><span class="tog">Show</span></summary><div class="pb">
 <pre id="p01">Goal: every monday API call runs as the signed-in viewer, and no personal token ships in the production bundle.
@@ -3347,7 +3345,7 @@ Do:
 Acceptance: CI runs green on the PR.</pre>
 <button class="copy" data-copy="p10">Copy prompt</button></div></details>
 
-<h3>Phase 1 · See it (Days 1 to 4)</h3>
+<h3>Phase 1 · See it (overnight, live next day)</h3>
 
 <details class="prompt"><summary><span class="pid">P-11</span><span class="pt">Engine: calendar and capacity<small>FR-020 to 025 · B1.2 · F1</small></span><span class="tog">Show</span></summary><div class="pb">
 <pre id="p11">Goal: capacity(person, day) and weekly rollups, exactly as Appendix B1.2.
@@ -3546,7 +3544,7 @@ Do, one tab at a time:
 Report the before and after load times per tab.</pre>
 <button class="copy" data-copy="p22b">Copy prompt</button></div></details>
 
-<h3>Phase 2 · Plan it (Days 5 to 6)</h3>
+<h3>Phase 2 · Plan it (overnight, switched on Days 2 to 3)</h3>
 
 <details class="prompt"><summary><span class="pid">P-23</span><span class="pt">Allocations board and engine integration<small>DS-002 · FR-042 · FR-101</small></span><span class="tog">Show</span></summary><div class="pb">
 <pre id="p23">Create the Allocations board in Capacity › Back-end per DS-002 (preview and approve). Create its connect
@@ -3591,7 +3589,7 @@ column restrictions in Appendix B5 (they are set in the UI), then verify them wi
 lead succeeds and is logged).</pre>
 <button class="copy" data-copy="p28">Copy prompt</button></div></details>
 
-<h3>Phase 3 · Optimise it (Days 7 to 8)</h3>
+<h3>Phase 3 · Optimise it (overnight, switched on Days 2 to 3)</h3>
 
 <details class="prompt"><summary><span class="pid">P-29</span><span class="pt">Best-fit ranking with reasons and overrides<small>FR-110, 111 · B1.9 · F9</small></span><span class="tog">Show</span></summary><div class="pb">
 <pre id="p29">Implement engine/rank.js (hard filters + weighted score from Settings, continuity from 18 months of project
@@ -3618,7 +3616,7 @@ global monday.storage, never on live boards), and show deltas against live. Writ
 Acceptance: TC-090 scenario. No live writes.</pre>
 <button class="copy" data-copy="p32">Copy prompt</button></div></details>
 
-<h3>Phase 4 · Learn from it (Day 9)</h3>
+<h3>Phase 4 · Learn from it (overnight, fills over the following weeks)</h3>
 
 <details class="prompt"><summary><span class="pid">P-33</span><span class="pt">Snapshots<small>DS-009 · FR-160 · AUT-18 · A-10</small></span><span class="tog">Show</span></summary><div class="pb">
 <pre id="p33">Create the Capacity Snapshots and Deal Probability Snapshots boards (DS-009, DS-014). Extend the snapshot
@@ -3640,7 +3638,7 @@ options paper using Billy's BA approach (findings, options, recommendation) for 
 
 <h3>Assistants and meetings (run alongside the phases)</h3>
 
-<details class="prompt"><summary><span class="pid">P-36</span><span class="pt">Slack app, outbox and delivery rules<small>DS-018 · FR-191, 193, 195, 196, 198 · Day 3</small></span><span class="tog">Show</span></summary><div class="pb">
+<details class="prompt"><summary><span class="pid">P-36</span><span class="pt">Slack app, outbox and delivery rules<small>DS-018 · FR-191, 193, 195, 196, 198 · build night</small></span><span class="tog">Show</span></summary><div class="pb">
 <pre id="p36">Goal: the back-end can send a well-behaved Slack message to any roster person, with working buttons.
 Read: Appendix C8 (all), D-27, D-28.
 Do:
@@ -3865,7 +3863,7 @@ open issues, next. At the end of the phase, give me the go/no-go checklist from 
 <div class="tbl xwide"><table>
 <thead><tr><th class="id">ID</th><th>Risk</th><th>L</th><th>I</th><th>Mitigation</th><th>Owner</th></tr></thead>
 <tbody>
-<tr><td class="id">R-01</td><td>Input data too sparse at launch: the plan looks wrong and trust is lost</td><td>H</td><td>H</td><td>Data back-fill alongside the build, Days 1 to 3 (Appendix <a href="#seeding">C10</a>). Estimated items visibly hatched. My Missing Data. "Estimated share" KPI with targets.</td><td>Sam</td></tr>
+<tr><td class="id">R-01</td><td>Input data too sparse at launch: the plan looks wrong and trust is lost</td><td>H</td><td>H</td><td>Data back-fill in the week before the build night (Appendix <a href="#seeding">C10</a>). Estimated items visibly hatched. My Missing Data. "Estimated share" KPI with targets.</td><td>Sam</td></tr>
 <tr><td class="id">R-02</td><td>The production build (deploy.yml) is made with <code>VITE_MONDAY_API_TOKEN</code>, so a personal token ships in client JavaScript. Writes bypass viewer permissions and are logged under the token owner (DL-031).</td><td>H</td><td>H</td><td>P-01: seamless auth for all writes. Remove the variable from production builds. Rotate the existing token. NFR-006 bundle check.</td><td>Claude + Admin</td></tr>
 <tr><td class="id">R-03</td><td>Account-wide daily API limit (25,000 calls on Enterprise, S-01) is shared with every integration and app</td><td>M</td><td>M</td><td>About 4,000 calls a day from Delivery (NFR-004 budget). ≤ 8 core calls per load, a 5-minute cache, reuse of the Sales opportunity cache, actuals only on request. Watch the RateLimit headers. D-23 if it gets close.</td><td>Claude</td></tr>
 <tr><td class="id">R-04</td><td>Visible skill ratings upset people, or ratings are inconsistent between team leads</td><td>M</td><td>M</td><td>Rubric plus cross-region calibration (Appendix <a href="#seeding">C10</a>). Optional ✓-only display (Q-04). Framed as development, not judgement.</td><td>Team leads</td></tr>
@@ -3880,7 +3878,7 @@ open issues, next. At the end of the phase, give me the go/no-go checklist from 
 <tr><td class="id">R-13</td><td>Group-by or dashboard limits (500 groups, 20k items on table widgets) if native board views are built on top</td><td>L</td><td>L</td><td>The app is the primary UI. Native views are for admins only.</td><td>Admin</td></tr>
 <tr><td class="id">R-15</td><td>Retiring the token moves every Sales tab onto the serial bridge, and the comment in <code>api/monday.js</code> records that the bridge once made the Scoreboard take ~30 s instead of ~8 s</td><td>H</td><td>H</td><td>P-01 performance gate (TC-207). Combined multi-board queries. D-23 server-side reader if needed.</td><td>Claude</td></tr>
 <tr><td class="id">R-16</td><td>Reads run with each viewer's permissions, so an IC who cannot see a source board (for example Holiday Requests in Boost HR) gets different totals</td><td>M</td><td>H</td><td>A-12 checked in the P-01 spike. NFR-018 and TC-131. D-23 as the fallback.</td><td>Admin</td></tr>
-<tr><td class="id">R-17</td><td>monday code or the OAuth install is not approved, or the account's region does not support the scheduler (it is not available in the IL hosting region, S-16)</td><td>M</td><td>H</td><td>Check Q-09 on Day 0. Fallbacks in C7.4: GitHub Actions scheduled builds (no manual refresh), or the browser-only cache.</td><td>Sam</td></tr>
+<tr><td class="id">R-17</td><td>monday code or the OAuth install is not approved, or the account's region does not support the scheduler (it is not available in the IL hosting region, S-16)</td><td>M</td><td>H</td><td>Check Q-09 before the build. Fallbacks in C7.4: GitHub Actions scheduled builds (no manual refresh), or the browser-only cache.</td><td>Sam</td></tr>
 <tr><td class="id">R-18</td><td>People act on morning numbers after a board-side edit made since then</td><td>M</td><td>M</td><td>The freshness label is always visible. Refresh is one click. App saves are instant. Phase 2 webhooks make board-side edits near real time.</td><td>Claude</td></tr>
 <tr><td class="id">R-19</td><td>The builder's OAuth token sees more than some viewers, and the snapshot is readable by all app users</td><td>M</td><td>H</td><td>Data-minimisation allow-list enforced by TC-185. The HR board is never queried. The admin who authorises the app is recorded.</td><td>Admin</td></tr>
 <tr><td class="id">R-20</td><td>Notification fatigue: people mute the bot and miss what matters</td><td>M</td><td>H</td><td>Daily cap, digests, dedupe, quiet hours, one ask per item, click-through review monthly (NFR-021), low performers reworked or muted by default</td><td>Sam</td></tr>
@@ -3903,7 +3901,7 @@ open issues, next. At the end of the phase, give me the go/no-go checklist from 
 <tr><td class="id">A-07</td><td>Withdrawn. New connect columns are one-way, so releases are done by the app (FR-104, 105).</td><td>n/a</td></tr>
 <tr><td class="id">A-08</td><td>Seamless <code>monday.api</code> works in this app's feature type with the eight scopes in NFR-006 (S-09)</td><td>P-01 spike before any other story</td></tr>
 <tr><td class="id">A-09</td><td>A free holiday API covers Israel and UAE accurately</td><td>P-08 compares against the official government calendars. Otherwise manual entry.</td></tr>
-<tr><td class="id">A-10</td><td>monday code (hosting, scheduler, storage) is available to this app on this account (S-16, S-17, S-19)</td><td>P-14A on Day 2. Fallbacks in C7.4.</td></tr>
+<tr><td class="id">A-10</td><td>monday code (hosting, scheduler, storage) is available to this app on this account (S-16, S-17, S-19)</td><td>P-14A on the build evening. Fallbacks in C7.4.</td></tr>
 <tr><td class="id">A-11</td><td>Every delivery person has an active monday user</td><td>The roster seed shows any gaps</td></tr>
 <tr><td class="id">A-13</td><td>A shard stays under 6 MB per key at 3× today's volume (largest estimate: plan ~0.9 MB today)</td><td>The P-14 build reports shard sizes. Sharding by region is the fallback.</td></tr>
 <tr><td class="id">A-14</td><td>Frontend <code>monday.storage</code> global reads can see values the back-end writes with <code>shared: true</code> (S-17)</td><td>P-14A spike: write from the back-end, then read in the app</td></tr>
@@ -3970,25 +3968,25 @@ open issues, next. At the end of the phase, give me the go/no-go checklist from 
 <section class="chap" id="questions"><div class="wrap">
 <header><div class="eyebrow">Appendix D · Delivery and governance <a class="backlink" href="#top">Back to main report ↑</a></div><h2><span class="num">D6</span>Open questions</h2></header>
 <div class="brief"><span class="t">In brief</span><p>What we still need to know, who owns each question, when it is needed and the default we will use if there is no answer.</p></div>
-<p class="intro">None of these block Day 1 except Q-02 (for the regions without a default). Each one has the default we will build to if there is no answer.</p>
+<p class="intro">None of these block the build except Q-02 (for the regions without a default). Each one has the default we will build to if there is no answer.</p>
 <div class="tbl xwide"><table>
 <thead><tr><th class="id">ID</th><th>Question</th><th>Owner</th><th>Needed by</th><th>Default if no answer</th></tr></thead>
 <tbody>
-<tr><td class="id">Q-01</td><td>Are the stage default probabilities right (10, 20, 40, 60, 70, 85; On hold and Ghosting 5)?</td><td>Sales leadership</td><td>Day 2</td><td>Use them as listed. Adjustable on Settings.</td></tr>
-<tr><td class="id">Q-02</td><td>Who are the team lead per region (UK, IL, US, UAE) and the app admin?</td><td>Sam</td><td><strong>Day 0 (blocking)</strong></td><td>Delivery Managers from Projects (Ori, Nadav, Shaul) for IL and global work, and Sam for UK. US and UAE: no default, so Q-02 blocks their roster seeding only. Sam as admin.</td></tr>
-<tr><td class="id">Q-03</td><td>Can we retire the Vacation/OOO Planner and the Projects Holidays group once their entries are copied?</td><td>HR (tal negri)</td><td>Day 1</td><td>Copy entries, then add a "moved to Holiday Requests" notice. Do not delete anything.</td></tr>
-<tr><td class="id">Q-04</td><td>Should non-leads see other people's 0 to 3 skill numbers, or only "qualified ✓"?</td><td>Sam with team leads</td><td>Day 3</td><td>Numbers visible to all, with the toggle available</td></tr>
-<tr><td class="id">Q-05</td><td>Should Win Probability % edits be restricted to the deal team?</td><td>Sales leader</td><td>Day 3</td><td>No restriction</td></tr>
-<tr><td class="id">Q-06</td><td>Is Make.com approved for the AUT-08 team-lead leave notice and the AUT-17 yearly holiday load?</td><td>Sam</td><td>Day 3</td><td>Manual CSV holiday import. No team-lead leave notice.</td></tr>
-<tr><td class="id">Q-07</td><td>Are managed services hours a steady monthly load (use it or lose it), or can unused hours roll over?</td><td>Sam with MS leads</td><td>Day 2</td><td>Steady monthly load, capped by remaining hours</td></tr>
-<tr><td class="id">Q-08</td><td>Is the reverse mapping for "Create project" (DS-006) right for each engagement model, including deals sold on monday paper?</td><td>A delivery manager</td><td>Day 5</td><td>Use the table as written, and review the first 5 hand-offs by hand</td></tr>
-<tr><td class="id">Q-11</td><td>Who is the Slack workspace admin who can create and install the "boost Delivery Assistant" app?</td><td>Sam</td><td>Day 3</td><td>No default. This blocks the assistants only.</td></tr>
-<tr><td class="id">Q-12</td><td>Channel names: <code>#delivery-capacity</code>, <code>#delivery-alerts</code>, <code>#capacity-leadership</code> (private)?</td><td>Sam</td><td>Day 3</td><td>Use these names</td></tr>
+<tr><td class="id">Q-01</td><td>Are the stage default probabilities right (10, 20, 40, 60, 70, 85; On hold and Ghosting 5)?</td><td>Sales leadership</td><td>Before the build</td><td>Use them as listed. Adjustable on Settings.</td></tr>
+<tr><td class="id">Q-02</td><td>Who are the team lead per region (UK, IL, US, UAE) and the app admin?</td><td>Sam</td><td><strong>Before the build (blocking)</strong></td><td>Delivery Managers from Projects (Ori, Nadav, Shaul) for IL and global work, and Sam for UK. US and UAE: no default, so Q-02 blocks their roster seeding only. Sam as admin.</td></tr>
+<tr><td class="id">Q-03</td><td>Can we retire the Vacation/OOO Planner and the Projects Holidays group once their entries are copied?</td><td>HR (tal negri)</td><td>Before the build</td><td>Copy entries, then add a "moved to Holiday Requests" notice. Do not delete anything.</td></tr>
+<tr><td class="id">Q-04</td><td>Should non-leads see other people's 0 to 3 skill numbers, or only "qualified ✓"?</td><td>Sam with team leads</td><td>Before go-live</td><td>Numbers visible to all, with the toggle available</td></tr>
+<tr><td class="id">Q-05</td><td>Should Win Probability % edits be restricted to the deal team?</td><td>Sales leader</td><td>Before go-live</td><td>No restriction</td></tr>
+<tr><td class="id">Q-06</td><td>Is Make.com approved for the AUT-08 team-lead leave notice and the AUT-17 yearly holiday load?</td><td>Sam</td><td>Before go-live</td><td>Manual CSV holiday import. No team-lead leave notice.</td></tr>
+<tr><td class="id">Q-07</td><td>Are managed services hours a steady monthly load (use it or lose it), or can unused hours roll over?</td><td>Sam with MS leads</td><td>Before the build</td><td>Steady monthly load, capped by remaining hours</td></tr>
+<tr><td class="id">Q-08</td><td>Is the reverse mapping for "Create project" (DS-006) right for each engagement model, including deals sold on monday paper?</td><td>A delivery manager</td><td>Day 2</td><td>Use the table as written, and review the first 5 hand-offs by hand</td></tr>
+<tr><td class="id">Q-11</td><td>Who is the Slack workspace admin who can create and install the "boost Delivery Assistant" app?</td><td>Sam</td><td>Before go-live</td><td>No default. This blocks the assistants only.</td></tr>
+<tr><td class="id">Q-12</td><td>Channel names: <code>#delivery-capacity</code>, <code>#delivery-alerts</code>, <code>#capacity-leadership</code> (private)?</td><td>Sam</td><td>Before go-live</td><td>Use these names</td></tr>
 <tr><td class="id">Q-13</td><td><strong>Answered 26 Oct:</strong> yes. The contractual and DPA terms that cover Sally Gecko also cover this use. The processing record is updated to include it.</td><td>Sam</td><td>Done</td><td>As answered</td></tr>
 <tr><td class="id">Q-14</td><td><strong>Answered 26 Oct:</strong> Sonnet 5.5 for messages. Opus 5.5 stays for meeting extraction and Q&amp;A (D-30).</td><td>Sam</td><td>Done</td><td>As answered</td></tr>
-<tr><td class="id">Q-16</td><td><strong>Partly answered 26 Oct:</strong> Sam owns Sally Gecko, and everyone in boost has access to it. Still open: for sales calls Sally already processes, should the capacity follow-up merge into Sally's Slack message, or send its own message covering only delivery fields, actions and projects?</td><td>Sam</td><td>Day 5</td><td>A separate message, covering only what Sally does not, with no shared fields</td></tr>
-<tr><td class="id">Q-15</td><td>Will Notetaker meetings be shared with the account (or the app's authorising user invited), and who owns today's Meetings-board summary process ("Run Agent", Summary Doc Creator)?</td><td>Sam with Nadav</td><td>Day 5</td><td>Share with the account. Keep the existing process and read its output.</td></tr>
-<tr><td class="id">Q-09</td><td><strong>Answered 26 Oct:</strong> the account is on EU servers, so the back-end deploys to the EU region (the scheduler is supported there). Still to confirm: an account admin will authorise the app's OAuth once.</td><td>Sam with the monday account admin</td><td>Day 2</td><td>Deploy to EU</td></tr>
+<tr><td class="id">Q-16</td><td><strong>Partly answered 26 Oct:</strong> Sam owns Sally Gecko, and everyone in boost has access to it. Still open: for sales calls Sally already processes, should the capacity follow-up merge into Sally's Slack message, or send its own message covering only delivery fields, actions and projects?</td><td>Sam</td><td>Day 2</td><td>A separate message, covering only what Sally does not, with no shared fields</td></tr>
+<tr><td class="id">Q-15</td><td>Will Notetaker meetings be shared with the account (or the app's authorising user invited), and who owns today's Meetings-board summary process ("Run Agent", Summary Doc Creator)?</td><td>Sam with Nadav</td><td>Day 2</td><td>Share with the account. Keep the existing process and read its output.</td></tr>
+<tr><td class="id">Q-09</td><td><strong>Answered 26 Oct:</strong> the account is on EU servers, so the back-end deploys to the EU region (the scheduler is supported there). Still to confirm: an account admin will authorise the app's OAuth once.</td><td>Sam with the monday account admin</td><td>Before the build</td><td>Deploy to EU</td></tr>
 <tr><td class="id">Q-10</td><td><strong>Answered 26 Oct:</strong> automatic builds at 03:00 and 12:00 UK time. Everyone may press Refresh, with a 10-minute cool-down (default, can be changed on Settings).</td><td>Sam</td><td>Done</td><td>As answered</td></tr>
 </tbody></table></div>
 </div></section>
@@ -4092,7 +4090,7 @@ open issues, next. At the end of the phase, give me the go/no-go checklist from 
 </tbody></table></div>
 
 <hr>
-<p class="footnote">Prepared by boost. Version 1.6, 26 Oct 2026. Figures marked Example are illustrative only; real figures come from your boards once the engine is live. Every platform claim is cited above. Nothing in monday or the codebase has been changed by this document.</p>
+<p class="footnote">Prepared by boost. Version 1.7, 26 Oct 2026. Figures marked Example are illustrative only; real figures come from your boards once the engine is live. Every platform claim is cited above. Nothing in monday or the codebase has been changed by this document.</p>
 </div></section>
 </main>
 </div>

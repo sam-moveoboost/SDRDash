@@ -81,13 +81,13 @@ a{color:var(--accent)}
 <ol class="steps" data-group="a">
   <li><input type="checkbox" id="a1" aria-label="Done"><div class="st"><b class="t">Create the Claude API key</b>
     <div class="path"><span>console.anthropic.com</span><span>boost organisation</span><span>Settings</span><span>API keys</span><span>Create key</span></div>
-    Name it <code>boost-delivery-assistant</code>. Copy it once into the password manager; you paste it in step B3. Optional: under <span class="k">Settings › Limits</span> set a monthly cap of $300 (expected spend is about $165).</div></li>
+    Name it <code>boost-delivery-assistant</code>. Copy it once into the password manager; you paste it in step B3 on this page (section B below, "Add the secrets to monday code"). Optional: under <span class="k">Settings › Limits</span> set a monthly cap of $300 (expected spend is about $165).</div></li>
   <li><input type="checkbox" id="a2" aria-label="Done"><div class="st"><b class="t">Make sure you can edit the app</b>
     <div class="path"><span>monday</span><span>profile picture</span><span>Developers</span><span>SDR OS</span></div>
     If you can't see SDR OS there, ask Sam to add you as a collaborator on the app.</div></li>
   <li><input type="checkbox" id="a3" aria-label="Done"><div class="st"><b class="t">Create a draft app version</b>
     <div class="path"><span>SDR OS</span><span>Manage</span><span>App versions</span><span>New version</span></div>
-    Every change below goes on this draft. Users keep the live version until step C1.</div></li>
+    Every change below goes on this draft. Users keep the live version until step C1 on this page.</div></li>
   <li><input type="checkbox" id="a4" aria-label="Done"><div class="st"><b class="t">Add the API permissions</b>
     <div class="path"><span>Build</span><span>OAuth &amp; Permissions</span><span>Scopes</span></div>
     Tick these 8, then Save:
@@ -96,7 +96,7 @@ a{color:var(--accent)}
     <div class="path"><span>Host on monday</span><span>Server-side code</span></div>
     Accept the monday code terms if asked. This lets Claude deploy the back-end that pre-calculates the numbers.</div></li>
   <li><input type="checkbox" id="a6" aria-label="Done"><div class="st"><b class="t">Line up a Slack admin for the evening</b><span class="who">if you aren't one</span>
-    Step B4 needs a Slack workspace admin. If that isn't you, book 15 minutes with whoever is.</div></li>
+    Step B4 on this page needs a Slack workspace admin. If that isn't you, book 15 minutes with whoever is.</div></li>
 </ol>
 
 <h2>B · Build evening <small>about 40 min, with Claude running</small></h2>
@@ -114,15 +114,15 @@ a{color:var(--accent)}
     <div class="tbl"><table>
       <thead><tr><th>Secret name</th><th>Where the value comes from</th></tr></thead>
       <tbody>
-      <tr><td><button class="k" type="button">ANTHROPIC_API_KEY</button></td><td>The key from A1</td></tr>
+      <tr><td><button class="k" type="button">ANTHROPIC_API_KEY</button></td><td>The key from step A1 on this page</td></tr>
       <tr><td><button class="k" type="button">MONDAY_CLIENT_SECRET</button></td><td>General settings › App credentials › Client secret</td></tr>
       <tr><td><button class="k" type="button">MONDAY_SIGNING_SECRET</button></td><td>General settings › App credentials › Signing secret</td></tr>
-      <tr><td><button class="k" type="button">SLACK_BOT_TOKEN</button></td><td>From B4, starts <code>xoxb-</code></td></tr>
-      <tr><td><button class="k" type="button">SLACK_SIGNING_SECRET</button></td><td>From B4</td></tr>
+      <tr><td><button class="k" type="button">SLACK_BOT_TOKEN</button></td><td>From step B4 on this page, starts <code>xoxb-</code></td></tr>
+      <tr><td><button class="k" type="button">SLACK_SIGNING_SECRET</button></td><td>From step B4 on this page</td></tr>
       </tbody></table></div></div></li>
   <li><input type="checkbox" id="b4" aria-label="Done"><div class="st"><b class="t">Create and install the Slack bot</b><span class="who">Slack admin</span>
     <div class="path"><span>api.slack.com/apps</span><span>Create New App</span><span>From a manifest</span><span>boost workspace</span></div>
-    Paste the contents of <code>docs/capacity-planner/slack-manifest.yaml</code> from the repo, then Create › Install to Workspace › Allow. Copy the <b>Bot User OAuth Token</b> (OAuth &amp; Permissions page) and the <b>Signing Secret</b> (Basic Information › App Credentials) into B3.</div></li>
+    Paste the contents of <code>docs/capacity-planner/slack-manifest.yaml</code> from the repo, then Create › Install to Workspace › Allow. Copy the <b>Bot User OAuth Token</b> (OAuth &amp; Permissions page) and the <b>Signing Secret</b> (Basic Information › App Credentials) into the table in step B3 on this page.</div></li>
   <li><input type="checkbox" id="b5" aria-label="Done"><div class="st"><b class="t">Create the three Slack channels</b>
     <div class="chips"><button class="k" type="button">#delivery-capacity</button><button class="k" type="button">#delivery-alerts</button><button class="k" type="button">#capacity-leadership</button></div>
     Make the last one private. In each, type <code>/invite @boost Delivery Assistant</code>.</div></li>
