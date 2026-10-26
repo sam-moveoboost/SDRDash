@@ -5,5 +5,5 @@ Open it in a browser. It covers findings, objectives, personas, business and fun
 capacity engine rules, screens, board specifications, workflows, automations, technical design, seeding,
 sprint plan, the sequential build prompts (section 22), tests, RAID and traceability.
 
-Status: Draft v1.4 (26 Oct 2026). Sonnet for assistant messages; full Notetaker transcripts via the same monday API route as Sally Gecko.
+Status: v1.5 (26 Oct 2026), client edition. An 8-page main report with executive summaries, and the full detail in Appendices A to D. Q-13 answered (same terms as Sally Gecko); Q-16 partly answered (Sam owns Sally Gecko).
 Start the build with prompt P-01 in section 22, after sign-off.
