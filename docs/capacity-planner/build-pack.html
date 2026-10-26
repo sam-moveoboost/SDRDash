@@ -145,7 +145,7 @@ td.num,th.num{text-align:right;white-space:nowrap}
 .stat .l{font-size:13px;color:var(--muted)}
 .persona{border-top:4px solid var(--navy-2)}
 .persona.s1{border-top-color:var(--emerald)} .persona.s2{border-top-color:var(--purple)} .persona.s3{border-top-color:var(--warn)} .persona.s4{border-top-color:var(--navy-2)} .persona.s5{border-top-color:var(--bad)}
-/* ── Committee voices ───────────────────────────────── */
+/* ── Quote blocks ───────────────────────────────── */
 .voice{display:grid;grid-template-columns:44px minmax(0,1fr);gap:12px;margin:0 0 14px}
 .avatar{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:14px;color:#fff}
 .av-po{background:var(--emerald)} .av-sm{background:var(--purple)} .av-be{background:var(--navy-2)} .av-fe{background:#b5841c}
@@ -331,7 +331,7 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <div class="shell">
 <aside class="toc" aria-label="Contents">
   <div class="brand"><b>boost</b><span>Delivery OS</span></div>
-  <p class="sub">Capacity Planner<br>Proposal and build plan · v1.7</p>
+  <p class="sub">Capacity Planner<br>Proposal and build plan · v1.8</p>
   <nav class="full" id="tocnav">
     <div class="part">Main report</div>
     <a href="#summary"><span class="n">1</span>Executive summary</a>
@@ -388,7 +388,7 @@ td.num,th.num{text-align:right;white-space:nowrap}
       <span>Prepared for <b>Sam Moore, UK GM</b></span>
       <span>Prepared by <b>boost</b></span>
       <span>Status <b>For review and sign-off</b></span>
-      <span>Version <b>1.7 · 26 Oct 2026</b></span>
+      <span>Version <b>1.8 · 26 Oct 2026</b></span>
     </div>
   </div>
 </div>
@@ -457,10 +457,10 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <h3>What we need from you</h3>
 <ol>
   <li><strong>Sign off this document</strong>, or mark the changes you want. The key decisions are summarised in <a href="#next">section 8</a>.</li>
-  <li><strong>Name a team lead per region</strong> (UK, IL, US, UAE) and the app admin. This is the only question that blocks the start.</li>
+  <li><strong>Name the delivery teams</strong>, their leads and members, and the app admin. This is the only question that blocks the start.</li>
   <li><strong>Book the build night</strong>: an hour of your CTO's time that evening, and an hour or two of yours to test the next morning.</li>
   <li><strong>Approve the security fix</strong> that comes first. Today a personal API token is built into the app, so changes can show the wrong author and skip board permissions.</li>
-  <li><strong>Nominate data owners</strong>: one team lead per region for skills and the roster, one sales leader for pipeline data.</li>
+  <li><strong>Nominate data owners</strong>: each team lead for their team's skills and roster, one sales leader for pipeline data.</li>
 </ol>
 </div></section>
 
@@ -475,7 +475,7 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <tr><td><strong>CEO and leadership</strong></td><td>Where are we short of people, by region and type of work, over the next 4, 8 or 12 weeks? Do we need to hire or train?</td><td><strong>Overview</strong>: FTE gap, % full, heatmaps and gaps by work type such as managed services or CRM.</td></tr>
 <tr><td><strong>Sales reps</strong></td><td>If I sell this, who could deliver it, and when could they start?</td><td><strong>Delivery section</strong> on the deal: engagement model, hours, window, on-site needs and a live "who's free" check.</td></tr>
 <tr><td><strong>Sales leaders</strong></td><td>How much delivery work is coming, and how reliable is the pipeline data behind it?</td><td><strong>Overview</strong> and a <strong>data quality scorecard</strong> by rep.</td></tr>
-<tr><td><strong>IC team leads</strong></td><td>Who is overloaded, who is free, and who is the best fit for this job?</td><td><strong>Team heatmap</strong> and <strong>Planner</strong>, with best-fit ranking and suggested moves.</td></tr>
+<tr><td><strong>Team leads</strong></td><td>How is my team doing, who is free across the other teams, and who is the best fit for this job?</td><td><strong>My team</strong> view: their own team first, every other team alongside with its free hours, plus the <strong>Planner</strong> with best-fit ranking and suggested moves.</td></tr>
 <tr><td><strong>ICs</strong></td><td>What am I on, when, and how busy am I?</td><td><strong>My Schedule</strong>, with holidays, plus <strong>My Missing Data</strong> for their role and <strong>Messages</strong> for every nudge they have had.</td></tr>
 <tr><td><strong>Admins</strong></td><td>Are the assumptions right?</td><td><strong>Settings</strong> board for probabilities, default hours and thresholds, with no code release needed.</td></tr>
 </tbody></table></div>
@@ -519,6 +519,9 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <h3>Four ways to view it</h3>
 <p>Leaders plan on the expected value but hire against the risk. So every screen can switch between four views: <strong>Committed</strong> (won work only), <strong>Weighted</strong> (the default), <strong>Best case</strong> and <strong>Full pipeline</strong>. If a deal has no probability, a default for its stage is used. It is marked "estimated", and the rep is asked to fill it in.</p>
 
+<h3>Teams</h3>
+<p>People are grouped into named delivery teams, each with a team lead. A team is broadly regional but doesn't have to be: an Israel-based consultant can sit in the UK-focused team. Region still sets each person's holidays and working week. Each team lead sees their own team first and every other team alongside, with free hours, so work can be shared across teams.</p>
+
 <h3>Who carries the work</h3>
 <p>Each project's hours go to the people assigned to it. Hour-based assignments are taken first, then percentage splits. With no assignments, the project owner carries the work. Anything unassigned still counts in team totals, with the skills, level and region it needs. From Phase 3, the planner ranks the best fit for each job and suggests moves when someone is overbooked.</p>
 <p class="more">More detail, including a working calculator: <a href="#engine">B1 The capacity engine</a> · <a href="#frs">B2 Functional requirements</a></p>
@@ -527,13 +530,14 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <!-- ─────────────────────────── 4 MONDAY CHANGES ─────────────────────────── -->
 <section class="chap" id="changes"><div class="wrap">
 <header><div class="eyebrow">Main report</div><h2><span class="num">4</span>What changes in monday</h2></header>
-<p class="keypoint">Your data stays on monday boards and the app is the front end, so nobody has to jump between boards. We add four small boards and some columns. Nothing existing is restructured.</p>
+<p class="keypoint">Your data stays on monday boards and the app is the front end, so nobody has to jump between boards. We add five small boards and some columns. Nothing existing is restructured.</p>
 
 <div class="tbl"><table>
 <thead><tr><th>Change</th><th>Why</th></tr></thead>
 <tbody>
 <tr><td><strong>New board:</strong> Capacity Roster</td><td>One row per delivery person, with hours, region, level and skills. It is kept apart from the private HR board, which holds salary data.</td></tr>
 <tr><td><strong>New board:</strong> Allocations</td><td>Records who does how much of which job, such as "fronts the project" or "offline support". It is edited only through the app.</td></tr>
+<tr><td><strong>New board:</strong> Delivery Teams</td><td>Named teams, each with a team lead. People can sit in any team wherever they are based, and everyone stays one shared pool. Teams can be renamed at any time.</td></tr>
 <tr><td><strong>New boards:</strong> Public Holidays and Capacity Settings</td><td>Holidays for each region, and the planning assumptions admins can tune.</td></tr>
 <tr><td><strong>New columns:</strong> 15 on Opportunities, 11 on Boost Projects</td><td>Engagement model, delivery window, on-site needs, complexity, minimum level and the link from a deal to its project. All are editable in the app.</td></tr>
 <tr><td><strong>New:</strong> back-end service and Slack app</td><td>Runs inside the same monday app on EU servers. It pre-calculates the numbers and sends the assistant messages. No outside vendor is involved.</td></tr>
@@ -623,7 +627,7 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <tbody>
 <tr><td>Sam (sponsor)</td><td>Before, morning, afternoon</td><td>Sign-off about 2 h. The morning test, 1 to 2 h. Say go.</td></tr>
 <tr><td>CTO</td><td>Evening, afternoon</td><td>The admin checklist: about 40 minutes on the evening and 15 minutes after go-live.</td></tr>
-<tr><td>Each regional team lead</td><td>The week before</td><td>Skills and level ratings about 2 h, plus a 30-minute calibration call. One lead joins the morning test.</td></tr>
+<tr><td>Each team lead</td><td>The week before</td><td>Skills and level ratings about 2 h, plus a 30-minute calibration call. One lead joins the morning test.</td></tr>
 <tr><td>Project owners and sales reps</td><td>The week before</td><td>Timelines about 10 min each. Delivery fields on open deals about 3 min a deal.</td></tr>
 <tr><td>Slack admin</td><td>Evening</td><td>Install the Slack bot, 15 minutes.</td></tr>
 </tbody></table></div>
@@ -658,12 +662,12 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <p>All 31 decisions, with the alternatives considered, are in <a href="#decisions">Appendix D5</a>.</p>
 
 <h3>Open questions</h3>
-<p>Thirteen questions are still open or partly open. Each has a sensible default we will build to if there is no answer. Only one blocks the start: who leads each region, and who is the app admin. The rest are needed before go-live or within a few days of it. See <a href="#questions">Appendix D6</a>.</p>
+<p>Thirteen questions are still open or partly open. Each has a sensible default we will build to if there is no answer. Only one blocks the start: the delivery teams, their names and leads, and who is the app admin. The rest are needed before go-live or within a few days of it. See <a href="#questions">Appendix D6</a>.</p>
 
 <h3>Next steps</h3>
 <ol>
   <li>Review this report and mark any changes.</li>
-  <li>Name the regional team leads and the app admin.</li>
+  <li>Name the delivery teams, their leads and the app admin.</li>
   <li>Sign off below and pick a build night. Your CTO runs the admin checklist that evening, Claude builds overnight and you test the next morning.</li>
 </ol>
 
@@ -730,6 +734,7 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <tr><td class="id">DL-034</td><td>Briefing 26 Oct: you want supporting Claude processes that suggest, inform, run on schedules, spot future conflicts, chase the most important missing information when needed, and notify people in Slack with links that go straight to the right place. You also want AI Notetaker summaries pushed to attendees in Slack, with options to create actions or update deals and projects.</td><td>Sam, 26 Oct</td><td>Appendices <a href="#assistants">C8</a> and <a href="#meetings">C9</a></td></tr>
 <tr><td class="id">DL-035</td><td>The Meetings board (5089995828) holds 8,527 meetings with attendee emails and links to Opportunities, Projects and Sprint. It also has a "Run Agent" trigger and a "Meeting Summary Doc Creator" user, so a summary process already exists.</td><td>Board schema</td><td>Build meeting follow-up on top of it (D-31). Agree ownership with whoever runs the current process (Q-15).</td></tr>
 <tr><td class="id">DL-037</td><td>Briefing 26 Oct: boost's Sally Gecko project already reads full Notetaker transcripts from the monday API and processes them with Claude.</td><td>Sam, 26 Oct</td><td>Reuse its integration (D-31). Coordinate so a sales call gets one message (Q-16).</td></tr>
+<tr><td class="id">DL-038</td><td>Briefing 26 Oct: as boost scales, delivery people will be split into named teams, each with a team lead. Teams are broadly regional but not strictly (for example Israel-based people in the UK-focused team). People are still shared across teams.</td><td>Sam, 26 Oct</td><td>Team is separate from region, needs its own name and lead, and team leads need their own team first with the rest alongside (D-33).</td></tr>
 <tr><td class="id">DL-036</td><td>Slack has <code>#boost-sales</code> and client project channels (for example <code>#generali-uk-risks-ms</code>), but no delivery or capacity channels.</td><td>Slack channel search</td><td>Create three channels (Q-12). DMs are the default delivery.</td></tr>
 <tr><td class="id">DL-028</td><td>The "IC Project Flow · Skill Build Tracker" board tracks Claude skills used in delivery, not people's skills. IC Performance is empty.</td><td>Board schema</td><td>Nothing to reuse for the skills matrix.</td></tr>
 <tr><td class="id">DL-029</td><td>No automation creates a project when a deal is Won. The existing "Opp Won" automation only stamps the Actual Close Date and moves the item to the Closed Won group. Project creation is manual today.</td><td>Opportunities automations</td><td>WF-02 hand-off is new process, not a replacement.</td></tr>
@@ -947,8 +952,8 @@ td.num,th.num{text-align:right;white-space:nowrap}
 </div></section>
 <section class="chap" id="brs"><div class="wrap">
 <header><div class="eyebrow">Appendix A · Discovery <a class="backlink" href="#top">Back to main report ↑</a></div><h2><span class="num">A5</span>Business requirements</h2></header>
-<div class="brief"><span class="t">In brief</span><p>Thirty-four platform-neutral needs, prioritised Must, Should or Could, each traced to a finding and an objective.</p></div>
-<p class="intro">These are platform-neutral needs. They say nothing about boards, columns or screens; that comes in Appendices B and C. Priority uses MoSCoW: 21 of 34 are Must (62%). That is just above the usual 60% ceiling, and it is deliberate: the Musts are the minimum for any trustworthy number, plus the allocation layer you asked for. BR-026 to BR-028 come from solution design rather than a finding, and are marked as such.</p>
+<div class="brief"><span class="t">In brief</span><p>Thirty-five platform-neutral needs, prioritised Must, Should or Could, each traced to a finding and an objective.</p></div>
+<p class="intro">These are platform-neutral needs. They say nothing about boards, columns or screens; that comes in Appendices B and C. Priority uses MoSCoW: 22 of 35 are Must (63%). That is just above the usual 60% ceiling, and it is deliberate: the Musts are the minimum for any trustworthy number, plus the allocation layer you asked for. BR-026 to BR-028 come from solution design rather than a finding, and are marked as such.</p>
 <div class="tbl xwide"><table>
 <thead><tr><th class="id">ID</th><th>Requirement</th><th>Priority</th><th>Source</th><th>Objective</th></tr></thead>
 <tbody>
@@ -985,6 +990,7 @@ td.num,th.num{text-align:right;white-space:nowrap}
 <tr><td class="id">BR-032</td><td>Each person needs to be told, at the right moment and in their own channel, what needs their attention and what to do about it, with a direct route to where they can act.</td><td><span class="chip must">Must</span></td><td>DL-034</td><td>OBJ-05, OBJ-06, OBJ-03</td></tr>
 <tr><td class="id">BR-033</td><td>Team leads and leaders need early warning of future capacity conflicts and skill gaps, with suggested options, before the conflicts happen.</td><td><span class="chip should">Should</span></td><td>DL-034, DL-021</td><td>OBJ-03, OBJ-04</td></tr>
 <tr><td class="id">BR-034</td><td>After a client meeting, attendees need its summary, actions and implied record changes in front of them, so follow-up and data updates happen the same day without retyping.</td><td><span class="chip should">Should</span></td><td>DL-034, DL-035</td><td>OBJ-05, OBJ-06</td></tr>
+<tr><td class="id">BR-035</td><td>Delivery people must be grouped into named teams, each with a team lead, independent of where they are based, so each lead sees their own team first and the capacity of every other team alongside it, while people remain one shared pool.</td><td><span class="chip must">Must</span></td><td>DL-038</td><td>OBJ-01, OBJ-03, OBJ-07</td></tr>
 <tr><td class="id">BR-031</td><td>Every user needs screens to open almost instantly, with data refreshed on a predictable schedule and on demand, and with their own changes reflected at once, so that the tool is used rather than avoided.</td><td><span class="chip must">Must</span></td><td>DL-033</td><td>OBJ-01, OBJ-03</td></tr>
 </tbody></table></div>
 </div></section>
@@ -1252,7 +1258,7 @@ rounding: the engine never rounds; values are rounded only for display</code></p
 </div></section>
 <section class="chap" id="frs"><div class="wrap">
 <header><div class="eyebrow">Appendix B · Requirements and screens <a class="backlink" href="#top">Back to main report ↑</a></div><h2><span class="num">B2</span>Functional requirements</h2></header>
-<div class="brief"><span class="t">In brief</span><p>What the system shall do: 130 requirements in 20 modules, each requirement with acceptance criteria and a phase.</p></div>
+<div class="brief"><span class="t">In brief</span><p>What the system shall do: 138 requirements in 20 modules, each requirement with acceptance criteria and a phase.</p></div>
 <p class="intro">These describe behaviour, not configuration, and use EARS phrasing ("When…", "While…", "If… then…"). Each has a parent BR, a priority, a phase and at least one Given/When/Then test. They are grouped into 17 modules. The sections that follow say how each one is built.</p>
 <div class="callout"><span class="t">Reading the tables</span><p><span class="chip must">Must</span> <span class="chip should">Should</span> <span class="chip could">Could</span> are MoSCoW priorities. P0 to P4 is the phase. Acceptance criteria are written so a tester can mark them pass or fail without asking anyone.</p></div>
 
@@ -1277,6 +1283,14 @@ rounding: the engine never rounds; values are rounded only for display</code></p
 <tr><td class="id">FR-014</td><td>When a level or skill changes, the system shall post an update on that person's roster record recording the old value, new value, editor and reason.</td><td>BR‑024, BR‑025</td><td><span class="chip should">Should</span> P2</td><td>Given a level change from L3 to L4 with the reason "Led Davies alone", Then the roster item's updates show "Level L3 → L4 · reason · by [name]".</td></tr>
 <tr><td class="id">FR-015</td><td>The system shall show, per level, how many people are at that level, the date each person reached it and the time spent at it.</td><td>BR‑024</td><td><span class="chip should">Should</span> P2</td><td>Given 3 people at L4, Then People → Levels shows L4 = 3 and each person's "since" date.</td></tr>
 <tr><td class="id">FR-016</td><td>The system shall let an Admin add a planned hire (with no monday user) with region, start date, hours, level and skills, used only in scenarios.</td><td>BR‑023</td><td><span class="chip could">Could</span> P3</td><td>Given a planned hire starting 1 Feb, When the "Include planned hires" scenario is on, Then team capacity rises from w/c 1 Feb. When it is off, capacity is unchanged.</td></tr>
+<tr><td class="id">FR-215</td><td>Admins shall create, rename and archive delivery teams in the app (Settings › Teams), each with a name, a team lead and the regions it mainly serves. A team lead shall be able to rename their own team.</td><td>BR‑035</td><td><span class="chip must">Must</span> P1</td><td>Given "Team UK" is renamed "UK Delivery", When saved, Then every screen shows the new name and past snapshots keep the old one.</td></tr>
+<tr><td class="id">FR-216</td><td>Each roster person shall belong to exactly one team, set independently of their region. Region keeps driving holidays and the working week.</td><td>BR‑035</td><td><span class="chip must">Must</span> P1</td><td>Given an Israel-based IC in the UK team, Then they appear in the UK team and their capacity uses Israeli holidays and a Sunday to Thursday week.</td></tr>
+<tr><td class="id">FR-217</td><td>A team lead shall land on "My team": their own team's people first, then every other team as a collapsible group showing its capacity, demand, % full and free hours by week. "All teams" shows everyone.</td><td>BR‑035</td><td><span class="chip must">Must</span> P1</td><td>Given the UK team lead opens Team, Then UK rows are expanded at the top and the other teams appear collapsed below with their totals.</td></tr>
+<tr><td class="id">FR-218</td><td>Every Delivery screen shall filter and group by team as well as region. Overview shall show the gap and % full per team.</td><td>BR‑035, BR‑022</td><td><span class="chip must">Must</span> P1</td><td>Given filter Team = UK Delivery, Then all totals cover only that team's people, wherever they are based.</td></tr>
+<tr><td class="id">FR-219</td><td>The system shall show sharing between teams: per team per week, hours its people spend on other teams' work (lent) and hours other teams' people spend on its work (borrowed). A project's home team is its owner's team; a deal's is the team serving its region.</td><td>BR‑035</td><td><span class="chip should">Should</span> P2</td><td>Given a UK-team person plans 6 h on an IL-team project, Then UK shows 6 h lent and IL shows 6 h borrowed.</td></tr>
+<tr><td class="id">FR-220</td><td>"Who's free", best-fit ranking and suggested moves shall search every team, showing each person's team, so people stay one shared pool.</td><td>BR‑035</td><td><span class="chip must">Must</span> P1</td><td>Given the best fit sits in another team, Then they rank first, with a team chip.</td></tr>
+<tr><td class="id">FR-221</td><td>Team-scoped messages (AI-02, AI-10, data-quality nudges) shall go to the lead of the person's team. Resource requests shall go to the lead of the team serving the deal's region, who can pass them to another team.</td><td>BR‑035, BR‑027</td><td><span class="chip must">Must</span> P1</td><td>Given a US deal and a US-serving team, Then its lead gets the request and can hand it to the UK team's lead.</td></tr>
+<tr><td class="id">FR-222</td><td>A person's hours, level and skills shall be editable by the lead of that person's team and by admins only.</td><td>BR‑035, BR‑025</td><td><span class="chip must">Must</span> P1</td><td>Given the IL team lead opens a UK-team person, Then the ratings are read-only.</td></tr>
 </tbody></table></div>
 
 <h3>M3 · Calendar and leave</h3>
@@ -1533,7 +1547,7 @@ rounding: the engine never rounds; values are rounded only for display</code></p
 <tr><td class="id">FR-205</td><td>"Review updates" shall open a Meeting review screen showing each proposed change (old → new, quote, confidence). The user saves the selected changes as themselves.</td><td>BR‑034, BR‑025</td><td><span class="chip should">Should</span> P2</td><td>Given 4 proposals and 3 ticked, Then 3 fields change, the activity log names the user, and the follow-up record marks 3 applied and 1 declined.</td></tr>
 <tr><td class="id">FR-206</td><td>The system shall send a pre-meeting brief 30 minutes before client meetings linked to a deal or project.</td><td>BR‑034</td><td><span class="chip could">Could</span> P3</td><td>Given a linked meeting at 14:00, Then attendees get the brief at 13:30 with the status, open actions and last decisions.</td></tr>
 </tbody></table></div>
-<p class="footnote">Totals: 130 functional requirements and 24 data quality rules. 70 are Must (54%), 45 Should and 15 Could. Every FR traces to a BR (Appendix <a href="#rtm">D7</a>).</p>
+<p class="footnote">Totals: 138 functional requirements and 24 data quality rules. 77 are Must (56%), 46 Should and 15 Could. Every FR traces to a BR (Appendix <a href="#rtm">D7</a>).</p>
 </div></section>
 <section class="chap" id="nfrs"><div class="wrap">
 <header><div class="eyebrow">Appendix B · Requirements and screens <a class="backlink" href="#top">Back to main report ↑</a></div><h2><span class="num">B3</span>Non-functional requirements</h2></header>
@@ -1594,7 +1608,7 @@ rounding: the engine never rounds; values are rounded only for display</code></p
 <p class="small">You said you're happy to share everything. We agree, with three nuances:</p>
 <ul class="small">
 <li><strong>Hide nothing.</strong> Every screen is readable by everyone. Transparency drives better pipeline data.</li>
-<li><strong>Default landing by role.</strong> Sales open in Sales mode. ICs open on My Schedule. Team leads open on Team. Leadership opens on Overview. Nobody has to hunt.</li>
+<li><strong>Default landing by role.</strong> Sales open in Sales mode. ICs open on My Schedule. Team leads open on Team, showing My team first. Leadership opens on Overview. Nobody has to hunt.</li>
 <li><strong>Gate edits, not views.</strong> Only team leads and admins edit skills, levels, hours and allocations. Deal owners edit their deals' Delivery sections. ICs edit their own projects' delivery fields.</li>
 <li><strong>One watch-out.</strong> Skill ratings are personal. If team leads would rather not show other people's 0 to 3 ratings to the whole company, People can show "Qualified ✓" instead of the number to non-leads. It's a toggle in Settings (Q-04).</li>
 </ul>
@@ -1865,6 +1879,23 @@ rounding: the engine never rounds; values are rounded only for display</code></p
 <li>They are assigned Offline allocations alongside a Face IC.</li>
 </ol></td><td>They appear on the heatmap with their offline load</td></tr>
 </tbody></table></div>
+
+<h3>B4.10 Teams: my team first, every team alongside</h3>
+<div class="frame" role="img" aria-label="Wireframe of the Team screen in My team mode">
+  <div class="bar"><b>boost</b><span style="opacity:.7">SDR OS</span><div class="tabs"><span>Overview</span><span class="on">Team</span><span>Demand</span><span>Planner</span><span>People</span></div><div class="mode"><span>Sales</span><span class="on">Delivery</span></div></div>
+  <div class="body">
+    <div class="wf-row"><span class="example-tag">Example data</span><span class="wf-pill on">My team</span><span class="wf-pill">All teams</span><span class="wf-pill">Region: All</span><span class="wf-pill on">Weighted</span><span class="wf-pill">8w</span></div>
+    <table class="hm"><thead><tr><th class="pn"></th><th>26 Oct</th><th>2 Nov</th><th>9 Nov</th><th>16 Nov</th><th>23 Nov</th><th>30 Nov</th></tr></thead>
+    <tbody>
+    <tr><td class="pn"><b>▾ UK Delivery</b> <small>· your team · 7 people · 1 IL-based</small></td><td><span class="c c3">88%</span></td><td><span class="c c3">94%</span></td><td><span class="c c4">104%</span></td><td><span class="c c4">107%</span></td><td><span class="c c3">96%</span></td><td><span class="c c5">118%</span></td></tr>
+    <tr><td class="pn">&nbsp;&nbsp;Jake <small>UK · L4</small></td><td><span class="c c3">92%</span></td><td><span class="c c3">98%</span></td><td><span class="c c4">110%</span></td><td><span class="c chol">Leave</span></td><td><span class="c c3">90%</span></td><td><span class="c c5">125%</span></td></tr>
+    <tr><td class="pn">&nbsp;&nbsp;Ilay <small>IL · L3</small></td><td><span class="c c2">70%</span></td><td><span class="c c2">75%</span></td><td><span class="c c3">88%</span></td><td><span class="c c3">90%</span></td><td><span class="c c2">80%</span></td><td><span class="c c3">95%</span></td></tr>
+    <tr><td class="pn"><b>▸ IL Delivery</b> <small>· 14 people · 62 h free</small></td><td><span class="c c2">78%</span></td><td><span class="c c2">81%</span></td><td><span class="c c2">80%</span></td><td><span class="c c3">86%</span></td><td><span class="c c2">79%</span></td><td><span class="c c2">74%</span></td></tr>
+    <tr><td class="pn"><b>▸ US Delivery</b> <small>· 4 people · 18 h free</small></td><td><span class="c c2">82%</span></td><td><span class="c c3">90%</span></td><td><span class="c c3">93%</span></td><td><span class="c c3">88%</span></td><td><span class="c c2">80%</span></td><td><span class="c c2">77%</span></td></tr>
+    </tbody></table>
+  </div>
+</div>
+<p class="frame-cap">A team lead sees their own team expanded at the top, then every other team collapsed with its totals and free hours, so they can see where to borrow from. Team and region are separate: Ilay is Israel-based but sits in the UK team (FR-215 to FR-222).</p>
 </div></section>
 <section class="chap" id="roles"><div class="wrap">
 <header><div class="eyebrow">Appendix B · Requirements and screens <a class="backlink" href="#top">Back to main report ↑</a></div><h2><span class="num">B5</span>Roles and access</h2></header>
@@ -1885,7 +1916,7 @@ rounding: the engine never rounds; values are rounded only for display</code></p
 <div class="tbl xwide"><table>
 <thead><tr><th>Board</th><th>Board permission</th><th>Column restrictions</th><th>Why</th></tr></thead>
 <tbody>
-<tr><td>Capacity Roster</td><td>Viewable by all members of Boost Hub</td><td>Restrict editing of Hours/week, Level, Skills ×12, App role and Team lead to a new <em>Delivery Leads</em> team and admins (S-04)</td><td>Stops anyone raising their own level or changing their own capacity</td></tr>
+<tr><td>Capacity Roster</td><td>Viewable by all members of Boost Hub</td><td>Restrict editing of Hours/week, Level, Skills ×12, App role and Team to a new <em>Delivery Leads</em> monday team and admins (S-04); the app further limits each lead to their own team (FR-222)</td><td>Stops anyone raising their own level or changing their own capacity</td></tr>
 <tr><td>Resource Requests</td><td>All members can create items</td><td>Restrict editing of Request status and Proposed person to <em>Delivery Leads</em></td><td>Reps raise requests, leads answer them</td></tr>
 <tr><td>Allocations</td><td>Edit content: Delivery Leads team; others view</td><td>n/a</td><td>Only team leads plan</td></tr>
 <tr><td>Capacity Settings · Public Holidays</td><td>Owners only edit; all view</td><td>n/a</td><td>Planning assumptions are governed</td></tr>
@@ -1918,6 +1949,7 @@ flowchart LR
     REQ["Resource Requests<br/>DS-008 · P2"]
     SET["Capacity Settings<br/>DS-004"]
     PH["Public Holidays<br/>DS-003"]
+    TMS["Delivery Teams<br/>DS-020"]
     SNP["Capacity Snapshots<br/>DS-009 · P4"]
     DPS["Deal Probability Snapshots<br/>DS-014 · P4"]
   end
@@ -1930,6 +1962,7 @@ flowchart LR
   SPR -- "Boost Projects (existing)" --> PRJ
   OPP -- "Delivery project · NEW · 1 item (many deals → one project)" --> PRJ
   ALC -- "Person · 1 item" --> ROS
+  ROS -- "Team · 1 item" --> TMS
   ALC -- "Project · 1 item" --> PRJ
   ALC -- "Opportunity · 1 item" --> OPP
   REQ -- "Opportunity · 1 item" --> OPP
@@ -1945,11 +1978,12 @@ flowchart LR
   MCB --- HOL
   MCB --- SET
   MCB --- PH
+  MCB --- TMS
   MCB --> STO
   APP --> STO
   APP -. "saves as the viewer" .-> OPP
 </pre>
-<p class="footnote">Edges match connect-board columns one to one: 7 new connect columns, plus 3 existing ones shown for context. Dotted edges are a seed copy and a Phase 4 link. <strong>Every new connect column is one-way</strong>: it is created without a reflection column, so no back-link columns appear on Opportunities, Projects or the Roster. That is why the release of allocations on Lost or Concluded is done by the app (FR-104, FR-105) and not by a connected-board automation. The app reads Holiday Requests by the Employee people column, so no cross-workspace connect column is needed.</p>
+<p class="footnote">Edges match connect-board columns one to one: 8 new connect columns, plus 3 existing ones shown for context. Dotted edges are a seed copy and a Phase 4 link. <strong>Every new connect column is one-way</strong>: it is created without a reflection column, so no back-link columns appear on Opportunities, Projects or the Roster. That is why the release of allocations on Lost or Concluded is done by the app (FR-104, FR-105) and not by a connected-board automation. The app reads Holiday Requests by the Employee people column, so no cross-workspace connect column is needed.</p>
 
 <h3>Hierarchy levels</h3>
 <div class="tbl compact"><table>
@@ -1970,7 +2004,7 @@ flowchart LR
 </div></section>
 <section class="chap" id="boards"><div class="wrap">
 <header><div class="eyebrow">Appendix C · Design <a class="backlink" href="#top">Back to main report ↑</a></div><h2><span class="num">C2</span>Board specifications</h2></header>
-<div class="brief"><span class="t">In brief</span><p>Every new board and every new column, with types, labels and who fills them in.</p></div>
+<div class="brief"><span class="t">In brief</span><p>Every new board (including Delivery Teams) and every new column, with types, labels and who fills them in.</p></div>
 <p class="intro">One entry per board, in the boost scope document format. Column ids are assigned by monday at creation. Prompt P-04 records them in <code>src/capacity/config/ids.js</code>, which is the single source the code uses (NFR-012). Colour rule: no red or orange on category labels. Red and orange are only for genuine state (over capacity, blocked, overdue).</p>
 
 <!-- DS-001 -->
@@ -2014,8 +2048,7 @@ flowchart LR
 <tr><td>Skill · Training and enablement</td><td>Status</td><td>0 to 3</td><td>Yes</td><td>Team lead</td></tr>
 <tr><td>Travel</td><td>Status</td><td>Will travel · Within region · No travel</td><td>Yes</td><td>Team lead</td></tr>
 <tr><td>Languages</td><td>Dropdown (multi)</td><td>English · Hebrew · Arabic · Spanish · French · German</td><td>No</td><td>Person, team lead</td></tr>
-<tr><td>Team</td><td>Status</td><td>Labels mirror the HR board's Team list (Ori's, Nadav's, Shaul's, Daniel's, Team UK, Team US, Team UAE, CSM)</td><td>Yes</td><td>Admin</td></tr>
-<tr><td>Team lead</td><td>People (max 1)</td><td>Their team lead. Used for notifications.</td><td>Yes</td><td>Admin</td></tr>
+<tr><td>Team</td><td>Connect boards (one-way, 1 item) → Delivery Teams</td><td>The named delivery team the person belongs to (DS-020). Any person can be in any team, whatever their region. Their team lead comes from the team, so it is never stored twice.</td><td>Yes</td><td>Admin, the team's lead</td></tr>
 <tr><td>New work</td><td>Status</td><td>Available · Limited · Not available</td><td>Yes (default Available)</td><td>Team lead</td></tr>
 <tr><td>Notes</td><td>Long text</td><td>Context, for example "Mondays reserved for internal AI work"</td><td>No</td><td>Team lead</td></tr>
 <tr><td>Slack user id</td><td>Text</td><td>Looked up once by email (C8.5)</td><td>Auto</td><td>App</td></tr>
@@ -2194,6 +2227,9 @@ flowchart LR
 <h3>DS-019 · Messages inbox store <span class="chip must">P1</span></h3>
 <p>Held in monday code server-side storage, not on a board and not in the shared snapshot. One key per person per month (<code>inbox:{userId}:{yyyymm}</code>, well under the 6 MB key limit) plus a small <code>inbox:{userId}:meta</code> key with the unread count, written with versioned writes. Each message: id, assistant, sent time, headline, body, links, buttons, Slack copy reference, read time, action taken. Endpoints: <code>GET /api/inbox</code>, <code>GET /api/inbox/count</code>, <code>POST /api/inbox/read</code>, <code>POST /api/inbox/action</code> and the signed <code>POST /api/inbox/ingest</code> for other routines. The nightly job removes months past <code>inbox.retention_months</code> (default 12).</p>
 
+<h3>DS-020 · Delivery Teams <span class="chip must">P1</span></h3>
+<p><strong>Entity:</strong> one named delivery team. <strong>Volume:</strong> 4 to 10 items. Edited only through the app (Settings › Teams) by admins; a team lead can rename their own team. Columns: Name (item name, for example "UK Delivery"), Team lead (People, 1), Deputy (People, optional), Focus (Text, for example "UK and Europe clients"), Regions served (Dropdown: UK · IL · US · UAE; used to route resource requests and to set a deal's home team, never to limit who can be in the team), Slack channel (Text, optional), Status (Active · Archived). Archiving keeps history: past snapshots still show the team name of the time. Starting set (Q-02): one team per region, renamed whenever you like.</p>
+
 <!-- DS-009 -->
 <h3>DS-009 · Capacity Snapshots <span class="chip">P4</span></h3>
 <p><strong>Entity:</strong> one person × one snapshot week × one horizon bucket. Buckets are weeks 1 to 4, 5 to 8 and 9 to 12. That gives ~180 rows a week, ~9.4k a year, well inside the 100k board limit (S-10). Columns: Snapshot week (Date), Person (connect → Roster), Bucket (Status), Capacity, Committed, Weighted, Best case, Full (Numbers), Lens version (Text). A sibling board, <em>Deal Probability Snapshots</em> (DS-014), holds one row per open services deal per week (deal, stage, probability, hours), ~120 a week, for calibration.</p>
@@ -2297,7 +2333,7 @@ flowchart TD
 <tbody>
 <tr><td>Monday, 30 min</td><td>Each team lead with their team</td><td>Team (4 weeks) · Planner</td><td>Overloads resolved or accepted. Requests answered. Unassigned list emptied.</td></tr>
 <tr><td>Tuesday, 20 min</td><td>Sales leader with reps</td><td>Data quality scorecard · Demand (pipeline)</td><td>Deals at Proposal or later fully filled in. Probabilities reviewed.</td></tr>
-<tr><td>Thursday, 15 min</td><td>Team leads together, cross-region</td><td>Overview (8 weeks) · Team grouped by region</td><td>Cross-region lending agreed (for example IL supporting UK offline work)</td></tr>
+<tr><td>Thursday, 15 min</td><td>Team leads together, across teams</td><td>Overview (8 weeks) · Team grouped by team, with lent and borrowed hours</td><td>Cross-team lending agreed (for example an IL-based person in one team supporting another team's offline work)</td></tr>
 <tr><td>First Monday of the month, 45 min</td><td>CEO and leadership</td><td>Overview (12 and 26 weeks, Weighted and Best case)</td><td>Hire, train, slow-sell or partner decisions, with owners (OBJ-04)</td></tr>
 <tr><td>Daily, 2 min</td><td>Each IC</td><td>My Schedule · My Missing Data</td><td>Own data correct. Sprint hours logged.</td></tr>
 </tbody></table></div>
@@ -2706,7 +2742,7 @@ flowchart LR
 <tbody>
 <tr><td colspan="7"><strong>Scheduled briefs</strong> (local time, working days only, quiet on IL Fridays and Saturdays)</td></tr>
 <tr><td class="id">AI-01</td><td>IC morning brief</td><td>08:30 local, daily</td><td>Each IC (DM)</td><td>This week's jobs and hours, anything starting or ending, leave, the top 3 fixes from My Missing Data, any overload</td><td>My Schedule · each item · [Fix now]</td><td>A</td></tr>
-<tr><td class="id">AI-02</td><td>Team lead Monday plan</td><td>Mon 08:00</td><td>Each team lead (DM)</td><td>Who is over or under in the next 4 weeks, unassigned work, open requests, the top 3 suggested moves</td><td>Team (filtered) · Planner · [Apply suggestion as tentative]</td><td>A</td></tr>
+<tr><td class="id">AI-02</td><td>Team lead Monday plan</td><td>Mon 08:00</td><td>Each team lead (DM)</td><td>Who in their own team is over or under in the next 4 weeks, which other teams have free hours, unassigned work, open requests, the top 3 suggested moves</td><td>Team (filtered) · Planner · [Apply suggestion as tentative]</td><td>A</td></tr>
 <tr><td class="id">AI-03</td><td>Rep delivery check</td><td>Tue 08:00</td><td>Each rep (DM)</td><td>Deals at Proposal or later missing delivery fields. Deals whose window has no suitable free person, with the earliest workable start date.</td><td>Deal panel → Delivery · [Request a resource]</td><td>A</td></tr>
 <tr><td class="id">AI-04</td><td>Sales leader scorecard</td><td>Tue 08:00</td><td>Sales leader (DM)</td><td>Data quality by rep, the change since last week, weighted services pipeline by month, the three deals most at risk of being unstaffable</td><td>Scorecard · Demand</td><td>A</td></tr>
 <tr><td class="id">AI-05</td><td>Weekly capacity headline</td><td>Mon 09:00</td><td>#delivery-capacity</td><td>Team-wide: peak FTE gap and its week, regions under pressure, the busiest category, the "Estimated" share</td><td>Overview</td><td>A</td></tr>
@@ -3278,6 +3314,21 @@ Do:
 Acceptance: DQ-21 (Sprint loggers not on roster) has only agreed exclusions. Report counts by region and role.</pre>
 <button class="copy" data-copy="p05">Copy prompt</button></div></details>
 
+<details class="prompt"><summary><span class="pid">P-05B</span><span class="pt">Delivery Teams and team views<small>DS-020 · FR-215 to 222 · D-33 · BR-035</small></span><span class="tog">Show</span></summary><div class="pb">
+<pre id="p05b">Goal: people are grouped into named teams, separate from region, and team leads see their own team first.
+Read: pack DS-001 (Team column), DS-020, 12.10, D-33.
+Do:
+1. Create the Delivery Teams board (DS-020) and the roster Team connect column. Seed teams from my Q-02 answer
+   (default: one per region). Add both to ids.js.
+2. Engine: aggregate by team as well as region (FR-218). Add lent and borrowed hours per team per week, using the
+   home-team rule in FR-219. Fixture F16: an IL-based person in the UK team.
+3. Team screen: My team / All teams toggle, own team expanded first, other teams collapsed with totals (12.10).
+   Team filter on every Delivery screen. Settings › Teams editor (FR-215).
+4. Routing: team lead = the lead on the person's team record (FR-221). Requests route by the team serving the
+   deal's region, with "Pass to another team". Edit rights per FR-222.
+Acceptance: TC-215 to TC-220.</pre>
+<button class="copy" data-copy="p05b">Copy prompt</button></div></details>
+
 <details class="prompt"><summary><span class="pid">P-06</span><span class="pt">Back-fill Engagement model, list missing timelines, propose Delivery project links<small>Seeding SD-4, SD-5, SD-10 · DS-006</small></span><span class="tog">Show</span></summary><div class="pb">
 <pre id="p06">Goal: ≥ 95% of live projects have an Engagement model; owners have lists of their undated projects;
 Won deals are matched to projects.
@@ -3827,6 +3878,12 @@ open issues, next. At the end of the phase, give me the go/no-go checklist from 
 <tr><td class="id">TC-212</td><td>FR-213</td><td>Call the inbox endpoint with user A's session and user B's id</td><td>Only A's messages return.</td></tr>
 <tr><td class="id">TC-213</td><td>FR-212, NFR-024</td><td>Load 500 messages, filter and search</td><td>Opens in under 1 s. Filters and search return the right messages.</td></tr>
 <tr><td class="id">TC-214</td><td>FR-214</td><td>Post to the ingest endpoint with a good and a bad signature</td><td>The good one appears with its sender. The bad one is rejected.</td></tr>
+<tr><td class="id">TC-215</td><td>FR-215</td><td>Create a team, rename it, then archive another</td><td>New name shows everywhere. The archived team keeps its name in past snapshots.</td></tr>
+<tr><td class="id">TC-216</td><td>FR-216</td><td>Put an Israel-based IC in the UK team</td><td>Shown under UK. Capacity uses Israeli holidays and a Sunday to Thursday week.</td></tr>
+<tr><td class="id">TC-217</td><td>FR-217, 218</td><td>Open Team as the UK lead; switch to All teams; filter Overview to one team</td><td>My team first, other teams collapsed with totals. Overview totals match the sum of that team's people.</td></tr>
+<tr><td class="id">TC-218</td><td>FR-219</td><td>Plan 6 h for a UK-team person on an IL-team project</td><td>UK shows 6 h lent; IL shows 6 h borrowed.</td></tr>
+<tr><td class="id">TC-219</td><td>FR-220, 221</td><td>Send a resource request on a US deal; hand it to the UK team; run Who's free</td><td>The US-serving lead gets it, can pass it on; Who's free lists people from every team with team chips.</td></tr>
+<tr><td class="id">TC-220</td><td>FR-222</td><td>As the IL lead, try to edit a UK-team person's skills</td><td>Read-only, with the reason shown.</td></tr>
 <tr><td class="id">TC-207</td><td>NFR-019</td><td>Time each Sales tab cold load before and after the auth change, median of 5</td><td>Each tab within 20% of its baseline</td></tr>
 <tr><td class="id">TC-208</td><td>NFR-013</td><td>Contract test: a frozen, anonymised snapshot of the source boards is run through the parsers and engine in CI</td><td>Totals equal the hand-calculated person-weeks from UAT-02</td></tr>
 </tbody></table></div>
@@ -3962,6 +4019,7 @@ open issues, next. At the end of the phase, give me the go/no-go checklist from 
 <tr><td class="id">D-30</td><td><strong>Confirmed 26 Oct:</strong> messages, briefs and nudges use Claude Sonnet 5.5. Meeting extraction and Ask the planner use Claude Opus 5.5. All use structured outputs, prompt caching and refusal fallback.</td><td>Opus 5.5 for everything</td><td>Messages are short and rule-driven, so Sonnet is enough. Extraction and Q&amp;A need the strongest model. About $165 a month at forecast volume.</td><td>Business</td></tr>
 <tr><td class="id">D-31</td><td>Meeting follow-up reads full transcripts from the monday AI Notetaker API, reusing the Sally Gecko integration, and matches meetings using the existing Meetings board and its links.</td><td>A third-party note taker, or a new integration</td><td>Sally Gecko already reads transcripts through the API with Claude. The Meetings board already links 8,527 meetings to deals and projects.</td><td>Technical</td></tr>
 <tr><td class="id">D-32</td><td>Every assistant message also goes to an in-app Messages inbox with an unread badge. The inbox is the full record; Slack is the nudge. It is stored per person in server-side app storage.</td><td>Slack only, or a Messages board in monday</td><td>People get one place for every message and its history. A board would hold about 60k items a year and be visible to everyone; server storage keeps each inbox private.</td><td>Business</td></tr>
+<tr><td class="id">D-33</td><td>Named delivery teams live on a small <strong>Delivery Teams</strong> board. Each roster person links to one team, separately from their region. The team lead comes from the team record.</td><td>A Team status label on the roster with a separate Team lead column, or team equal to region</td><td>Teams need names that can change, a lead and the regions they serve, and people can sit in a team outside their region. Labels can't hold a lead, and two columns drift apart.</td><td>Business</td></tr>
 </tbody></table></div>
 
 </div></section>
@@ -3973,7 +4031,7 @@ open issues, next. At the end of the phase, give me the go/no-go checklist from 
 <thead><tr><th class="id">ID</th><th>Question</th><th>Owner</th><th>Needed by</th><th>Default if no answer</th></tr></thead>
 <tbody>
 <tr><td class="id">Q-01</td><td>Are the stage default probabilities right (10, 20, 40, 60, 70, 85; On hold and Ghosting 5)?</td><td>Sales leadership</td><td>Before the build</td><td>Use them as listed. Adjustable on Settings.</td></tr>
-<tr><td class="id">Q-02</td><td>Who are the team lead per region (UK, IL, US, UAE) and the app admin?</td><td>Sam</td><td><strong>Before the build (blocking)</strong></td><td>Delivery Managers from Projects (Ori, Nadav, Shaul) for IL and global work, and Sam for UK. US and UAE: no default, so Q-02 blocks their roster seeding only. Sam as admin.</td></tr>
+<tr><td class="id">Q-02</td><td>What are the delivery teams: their names, team leads and members? Who is the app admin?</td><td>Sam</td><td><strong>Before the build (blocking)</strong></td><td>One team per region to start (Team UK, Team IL, Team US, Team UAE), renamed any time in the app. Delivery Managers from Projects (Ori, Nadav, Shaul) lead IL teams and Sam leads UK. US and UAE need a named lead, so Q-02 blocks only their seeding. Sam as admin.</td></tr>
 <tr><td class="id">Q-03</td><td>Can we retire the Vacation/OOO Planner and the Projects Holidays group once their entries are copied?</td><td>HR (tal negri)</td><td>Before the build</td><td>Copy entries, then add a "moved to Holiday Requests" notice. Do not delete anything.</td></tr>
 <tr><td class="id">Q-04</td><td>Should non-leads see other people's 0 to 3 skill numbers, or only "qualified ✓"?</td><td>Sam with team leads</td><td>Before go-live</td><td>Numbers visible to all, with the toggle available</td></tr>
 <tr><td class="id">Q-05</td><td>Should Win Probability % edits be restricted to the deal team?</td><td>Sales leader</td><td>Before go-live</td><td>No restriction</td></tr>
@@ -4029,14 +4087,15 @@ open issues, next. At the end of the phase, give me the go/no-go checklist from 
 <tr><td class="id">BR-032</td><td>03, 05, 06</td><td>190 to 198, 207 to 214</td><td>015, 018, 019</td><td>P-36, 37, 38, 38B, 39</td><td>TC-190 to 196, 209 to 214</td></tr>
 <tr><td class="id">BR-033</td><td>03, 04</td><td>190, 112, 055</td><td>015, 018</td><td>P-38, 41</td><td>TC-190</td></tr>
 <tr><td class="id">BR-034</td><td>05, 06</td><td>200 to 206</td><td>015, 017, 018</td><td>P-40, 41</td><td>TC-197 to 199</td></tr>
+<tr><td class="id">BR-035</td><td>01, 03, 07</td><td>215 to 222</td><td>001, 020</td><td>P-05B</td><td>TC-215 to 220</td></tr>
 <tr><td class="id">BR-031</td><td>01, 03</td><td>180 to 189</td><td>015, 016</td><td>P-14A, 14, 14C, 14D, 22B</td><td>TC-180 to 186</td></tr>
 <tr><td class="id">BR-030</td><td>All</td><td>170, 171</td><td>013</td><td>P-01, P-15</td><td>TC-200 to 207</td></tr>
 </tbody></table></div>
 <h3>Completeness check</h3>
 <div class="grid g4">
-<div class="stat"><div class="v">31 / 34</div><div class="l">BRs trace to a finding (BR-026 to 028 came from solution design) and 34/34 to an objective</div></div>
+<div class="stat"><div class="v">32 / 35</div><div class="l">BRs trace to a finding (BR-026 to 028 came from solution design) and 35/35 to an objective</div></div>
 <div class="stat"><div class="v">7 / 7</div><div class="l">Objectives have at least one BR</div></div>
-<div class="stat"><div class="v">34 / 34</div><div class="l">BRs have at least one FR and one test</div></div>
+<div class="stat"><div class="v">35 / 35</div><div class="l">BRs have at least one FR and one test</div></div>
 <div class="stat"><div class="v">0</div><div class="l">FRs without a parent BR</div></div>
 </div>
 <p class="small"><strong>Findings that deliberately produced no requirement:</strong> DL-025 (handover cover, Phase 4 enhancement only) and DL-028 (no reusable skills data). <strong>Every FR has at least one test case</strong>, after TC-004, 005, 025, 032, 041, 042, 121, 131 and 160 to 162 were added in review. <strong>Coverage walk:</strong> every process (WF-01 to WF-11) has a start trigger, an end state, its roles and its exceptions. Admin ownership is named (Settings, Holidays, Roster). Data at go-live is covered by the seeding plan. Permissions are covered in Appendix <a href="#roles">B5</a>. <strong>Readiness:</strong> ready for your review. One blocking question (Q-02).</p>
@@ -4090,7 +4149,7 @@ open issues, next. At the end of the phase, give me the go/no-go checklist from 
 </tbody></table></div>
 
 <hr>
-<p class="footnote">Prepared by boost. Version 1.7, 26 Oct 2026. Figures marked Example are illustrative only; real figures come from your boards once the engine is live. Every platform claim is cited above. Nothing in monday or the codebase has been changed by this document.</p>
+<p class="footnote">Prepared by boost. Version 1.8, 26 Oct 2026. Figures marked Example are illustrative only; real figures come from your boards once the engine is live. Every platform claim is cited above. Nothing in monday or the codebase has been changed by this document.</p>
 </div></section>
 </main>
 </div>
