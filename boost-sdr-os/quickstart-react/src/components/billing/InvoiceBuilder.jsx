@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { fetchOpportunityBillingSource, fetchProjectInvoices, createBookingInvoices } from '../../api/billing';
 import {
   buildDraft, defaultPaymentPlan, validateRow, findDuplicates, parseNum, round2, deriveValue,
-  formatAmount, applyExtraDefaults, sourceFromProject, groupInvoicesByProject, EXTRA_KINDS, MAX_PAYMENTS, FIELD_LABEL, NEW_STATUS,
+  formatAmount, applyExtraDefaults, sourceFromProject, groupInvoicesByProject, deriveClient, EXTRA_KINDS, MAX_PAYMENTS, FIELD_LABEL, NEW_STATUS,
 } from '../../utils/billing';
 import { sortAlpha } from '../../utils/sortOptions';
 
@@ -44,6 +44,7 @@ export default function InvoiceBuilder({ oppId, project, mode, user, meta, bille
   const [creating, setCreating] = useState(false);
   const [results, setResults] = useState(null);
   const [kind, setKind] = useState('expenses'); // extra mode only
+  const [client, setClient] = useState('');      // Client dropdown label, shared by every row
 
   // Existing lines on the board: for a board project this is the project's full invoice list (every rep).
   const [projectInvoices, setProjectInvoices] = useState(project?.invoices ?? null);
@@ -69,6 +70,7 @@ export default function InvoiceBuilder({ oppId, project, mode, user, meta, bille
       .then(src => {
         if (!live) return;
         setSource(src);
+        setClient(src.client || deriveClient(src, meta.clientOptions));
         const plan = defaultPaymentPlan(src);
         const c = mode === 'extra' ? 1 : plan.count;
         setCount(c);
@@ -128,7 +130,7 @@ export default function InvoiceBuilder({ oppId, project, mode, user, meta, bille
     setCreating(true);
     try {
       const res = await createBookingInvoices({
-        rows, bdUserIds: bdIds, project: source.name, email: source.email,
+        rows, bdUserIds: bdIds, project: source.name, email: source.email, client: client.trim(),
         accountIds: source.accountIds, contractAssets: source.contract.assets,
       });
       setResults(res);
@@ -182,6 +184,20 @@ export default function InvoiceBuilder({ oppId, project, mode, user, meta, bille
 
       {bdFallback && <Warn>This project has no BD owner, so the invoices will be assigned to you.</Warn>}
       {source.currency && !rows[0]?.currency && <Warn>The opportunity currency ({source.currency}) is not an option on the Booking board. Choose one on each invoice.</Warn>}
+
+      <div className="flex items-center gap-3 mb-3 flex-wrap">
+        <label className="text-[12.5px] font-semibold text-ink">Client</label>
+        <input
+          list="billing-client-options" value={client} onChange={e => setClient(e.target.value)}
+          placeholder="Client on the Booking board"
+          disabled={!!results}
+          className={`${cls(false)} max-w-[260px]`}
+        />
+        <datalist id="billing-client-options">{sortAlpha(meta.clientOptions).map(o => <option key={o} value={o} />)}</datalist>
+        {client.trim() && !meta.clientOptions.some(o => o.toLowerCase() === client.trim().toLowerCase())
+          ? <span className="text-[12px] text-amber-ink">Not an existing client, a new one will be added to the board.</span>
+          : !client.trim() && <span className="text-[12px] text-muted">Optional, but it groups the invoices by client on the board.</span>}
+      </div>
 
       {/* Payments */}
       <div className="flex items-center gap-3 mb-3 flex-wrap">

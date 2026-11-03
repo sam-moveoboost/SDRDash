@@ -29,6 +29,7 @@ export async function fetchBookingMeta() {
     termsOptions:     labelsOf(byId[BK.TERMS]),
     currencyOptions:  labelsOf(byId[BK.CURRENCY]),
     entityOptions:    labelsOf(byId[BK.ENTITY]),
+    clientOptions:    labelsOf(byId[BK.CLIENT]),
     statusOptions:    labelsOf(byId[BK.STATUS]),
   };
 }
@@ -110,7 +111,7 @@ const BOOKING_FIELDS = `
   group { id title }
   column_values(ids: ${JSON.stringify([
     BK.BD, BK.STATUS, BK.OPERATION, BK.MONTH, BK.YEAR, BK.PROJECT, BK.CURRENCY, BK.ENTITY, BK.DESCRIPTION,
-    BK.EMAIL, BK.DUE_DATE, BK.DEFAULT_DATE, BK.AMOUNT_ILS, BK.AMOUNT_USD, BK.AMOUNT_GBP, BK.AMOUNT_EUR, BK.AMOUNT_VAT,
+    BK.EMAIL, BK.CLIENT, BK.DUE_DATE, BK.DEFAULT_DATE, BK.AMOUNT_ILS, BK.AMOUNT_USD, BK.AMOUNT_GBP, BK.AMOUNT_EUR, BK.AMOUNT_VAT,
     BK.ACCOUNT_REL,
   ])}) { id text value ... on BoardRelationValue { linked_item_ids } }
 `;
@@ -137,6 +138,7 @@ function parseBookingItem(item) {
     project: text(BK.PROJECT),
     description: text(BK.DESCRIPTION),
     email: text(BK.EMAIL),
+    client: text(BK.CLIENT),
     currency,
     amount,
     amountIls: parseNum(text(BK.AMOUNT_ILS)),
@@ -248,7 +250,7 @@ async function attachContract(itemId, assets) {
 
 // Creates one Booking item per row, in order. A row that already has `createdId`
 // is skipped, so retrying after a partial failure never doubles anything up.
-export async function createBookingInvoices({ rows, bdUserIds, project, email, accountIds = [], contractAssets = [], onRow }) {
+export async function createBookingInvoices({ rows, bdUserIds, project, email, client, accountIds = [], contractAssets = [], onRow }) {
   const results = [];
   for (const row of rows) {
     if (row.createdId) { results.push({ rowId: row.id, ok: true, itemId: row.createdId, skipped: true, notes: [] }); continue; }
@@ -268,6 +270,13 @@ export async function createBookingInvoices({ rows, bdUserIds, project, email, a
       `);
       const itemId = data.create_item.id;
       const notes = [];
+      if (client) {
+        // Best effort, like the account link: a locked or restricted Client column must not lose the invoice.
+        try {
+          const value = JSON.stringify(JSON.stringify({ labels: [client] }));
+          await gql(`mutation { change_column_value(board_id: ${BOOKING_BOARD_ID}, item_id: ${itemId}, column_id: "${BK.CLIENT}", value: ${value}, create_labels_if_missing: true) { id } }`);
+        } catch (e) { notes.push(`Client not set (${String(e.message).slice(0, 60)})`); }
+      }
       if (accountIds.length) {
         try { await setRelation(BOOKING_BOARD_ID, itemId, BK.ACCOUNT_REL, accountIds); }
         catch (e) { notes.push(`Account link failed (${String(e.message).slice(0, 60)})`); }
