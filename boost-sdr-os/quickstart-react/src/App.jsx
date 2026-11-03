@@ -7,6 +7,9 @@ import Events from './pages/Events';
 import MissingData from './pages/MissingData';
 import OpportunityScoreboard from './pages/OpportunityScoreboard';
 import Revenue from './pages/Revenue';
+import Billing from './pages/Billing';
+import WonPrompt from './components/billing/WonPrompt';
+import { BillingProvider, useBilling } from './billing/BillingContext';
 import boostLockup from './assets/brand/boost-lockup-white.png';
 import './App.css';
 import { sortAlpha } from './utils/sortOptions';
@@ -30,8 +33,6 @@ function getMonthOptions() {
 
 export default function App() {
   const [tab, setTab] = useState('scoreboard');
-  const [region, setRegion] = useState('UK');
-  const [month, setMonth] = useState(getMonthOptions()[0].value);
   const [user, setUser] = useState(null);
 
   useEffect(() => {
@@ -39,6 +40,18 @@ export default function App() {
     fetchCurrentUser().then(setUser).catch(() => {});
   }, []);
 
+  return (
+    <BillingProvider user={user} onNavigate={setTab}>
+      <AppShell tab={tab} setTab={setTab} user={user} />
+      <WonPrompt />
+    </BillingProvider>
+  );
+}
+
+function AppShell({ tab, setTab, user }) {
+  const { pendingCount } = useBilling();
+  const [region, setRegion] = useState('UK');
+  const [month, setMonth] = useState(getMonthOptions()[0].value);
   const monthOptions = getMonthOptions();
 
   return (
@@ -58,6 +71,7 @@ export default function App() {
             { id: 'revenue',       label: 'Revenue' },
             { id: 'events',        label: 'Events' },
             { id: 'workflow',      label: 'My Work' },
+            { id: 'billing',       label: 'Billing' },
             { id: 'missing',       label: 'My Missing Data' },
           ].map(t => (
             <button
@@ -70,6 +84,9 @@ export default function App() {
               }`}
             >
               {t.label}
+              {t.id === 'billing' && pendingCount > 0 && (
+                <span title={`${pendingCount} won deal${pendingCount === 1 ? '' : 's'} awaiting billing`} className="ml-1.5 inline-grid place-items-center min-w-[18px] h-[18px] px-1 rounded-full bg-amber text-white text-[10.5px] font-bold align-middle">{pendingCount}</span>
+              )}
             </button>
           ))}
         </nav>
@@ -126,6 +143,7 @@ export default function App() {
         {tab === 'revenue'       && <Revenue region={region} />}
         {tab === 'events'        && <Events user={user} />}
         {tab === 'missing'       && <MissingData user={user} />}
+        {tab === 'billing'       && <Billing user={user} />}
       </main>
     </div>
   );

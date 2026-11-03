@@ -6,6 +6,7 @@ import {
 import { EventPicker } from '../events/EventPicker';
 import UpdatesButton from '../shared/UpdatesButton';
 import { sortAlpha } from '../../utils/sortOptions';
+import { useBilling } from '../../billing/BillingContext';
 
 // Puts the event link back onto column values returned by a mutation —
 // mutation responses carry no linked_item_ids, so without this the deal would
@@ -227,6 +228,7 @@ export default function OpportunityDetailPanel({ item, isNew, boardCols, wsUsers
   const [newName, setNewName]   = useState('');
   const [saving, setSaving]     = useState(false);
   const [savedMsg, setSavedMsg] = useState('');
+  const { showWonPrompt } = useBilling();
 
   // UK event link (one event per deal)
   const [events, setEvents]       = useState([]);
@@ -294,7 +296,10 @@ export default function OpportunityDetailPanel({ item, isNew, boardCols, wsUsers
         : { column_values: item.column_values, name: undefined };
       if (eventChanged) await setOpportunityEvent(item.id, eventEdit);
       const eventIds = eventChanged ? (eventEdit ? [eventEdit] : []) : relIds(item, REL.OPP_EVENT);
+      const wasWon = currentText(COL.STAGE) === 'Won';
       onUpdate(item.id, withEventLink(updated.column_values, eventIds), updated.name);
+      // Marking a deal Won is the trigger for billing: offer to draft its invoices straight away.
+      if (edits[COL.STAGE] === 'Won' && !wasWon) showWonPrompt({ id: item.id, name: updated.name ?? item.name });
       setEdits({});
       setEventEdit(undefined);
       setSavedMsg('Saved ✓');

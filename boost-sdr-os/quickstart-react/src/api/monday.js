@@ -125,7 +125,7 @@ async function paginateBoard(boardId, fields) {
 
 // Filtered variant of paginateBoard — same cursor walk, but with an
 // items_page query_params block (rules etc.) applied server-side.
-async function paginateQuery(boardId, fields, queryParams, maxPages = 10) {
+export async function paginateQuery(boardId, fields, queryParams, maxPages = 10) {
   const first = await gql(`
     query {
       boards(ids: ["${boardId}"]) {
@@ -1502,4 +1502,23 @@ export async function createUpdate(itemId, { text, mentions = [], accountSlug, a
     } catch { failed.push(m.name); }
   }
   return { ...result, notifyFailed: failed };
+}
+
+// ── File upload (multipart) ───────────────────────────────────────
+// add_file_to_column is the only way to attach a real file, and it needs a
+// multipart POST to /v2/file. That only works with the direct personal token;
+// through the SDK bridge it returns false so the caller can fall back to a link.
+export async function uploadFileToColumn(itemId, columnId, blob, filename) {
+  if (!DIRECT_TOKEN) return false;
+  const form = new FormData();
+  form.append('query', `mutation ($file: File!) { add_file_to_column(item_id: ${itemId}, column_id: "${columnId}", file: $file) { id } }`);
+  form.append('variables[file]', blob, filename);
+  const res = await fetch('https://api.monday.com/v2/file', {
+    method: 'POST',
+    headers: { Authorization: DIRECT_TOKEN, 'API-Version': DEFAULT_API_VERSION },
+    body: form,
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || json.errors?.length) throw new Error(JSON.stringify(json.errors ?? res.status).slice(0, 200));
+  return true;
 }
