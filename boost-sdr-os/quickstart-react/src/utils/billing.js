@@ -219,6 +219,36 @@ export function buildDraft(opp, meta, { count, startNumber = 1, existingCount = 
   });
 }
 
+// ── Later top-ups on an existing project ─────────────────────────
+export const EXTRA_KINDS = [
+  { id: 'expenses', label: 'Additional expenses' },
+  { id: 'payment',  label: 'Additional payment' },
+  { id: 'other',    label: 'Other' },
+];
+
+// Rows for an invoice added to a project after the original billing. The deal value is NOT
+// re-split (it was already billed), so amounts start blank; operation, entity, currency and terms
+// are copied from the project's latest invoice when there is one, so it lands in the same place.
+export function applyExtraDefaults(rows, { kind, base, startNumber, latest, now = new Date() }) {
+  return rows.map((r, i) => {
+    const label = EXTRA_KINDS.find(k => k.id === kind)?.label;
+    const name = kind === 'payment' ? `${base} - Payment ${startNumber + i}`
+      : kind === 'expenses' ? `${base} - ${label}`
+      : base;
+    return {
+      ...r,
+      name,
+      percent: 100,
+      amount: '',
+      month: MONTHS[now.getMonth()],
+      year: String(now.getFullYear()),
+      operation: latest?.operation || r.operation,
+      entity: latest?.entity || r.entity,
+      currency: latest?.currency || r.currency,
+    };
+  });
+}
+
 // ── Validation ───────────────────────────────────────────────────
 export function validateRow(row) {
   const errors = [];

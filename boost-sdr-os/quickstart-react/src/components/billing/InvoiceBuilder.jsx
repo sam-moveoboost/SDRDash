@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { fetchOpportunityBillingSource, createBookingInvoices } from '../../api/billing';
 import {
   buildDraft, defaultPaymentPlan, validateRow, findDuplicates, parseNum, round2, deriveValue,
-  formatAmount, MAX_PAYMENTS, FIELD_LABEL, NEW_STATUS,
+  formatAmount, applyExtraDefaults, EXTRA_KINDS, MAX_PAYMENTS, FIELD_LABEL, NEW_STATUS,
 } from '../../utils/billing';
 import { sortAlpha } from '../../utils/sortOptions';
 
@@ -43,6 +43,7 @@ export default function InvoiceBuilder({ oppId, mode, user, meta, billedCountFor
   const [attempted, setAttempted] = useState(false);
   const [creating, setCreating] = useState(false);
   const [results, setResults] = useState(null);
+  const [kind, setKind] = useState('expenses'); // extra mode only
 
   const existingCount = source ? billedCountFor(source.name) : 0;
   const startNumber = mode === 'extra' ? existingCount + 1 : 1;
@@ -58,17 +59,34 @@ export default function InvoiceBuilder({ oppId, mode, user, meta, billedCountFor
         const plan = defaultPaymentPlan(src);
         const c = mode === 'extra' ? 1 : plan.count;
         setCount(c);
-        setRows(buildDraft(src, meta, { count: c, startNumber: mode === 'extra' ? billedCountFor(src.name) + 1 : 1, existingCount: mode === 'extra' ? billedCountFor(src.name) : 0 }));
+        const sn = mode === 'extra' ? billedCountFor(src.name) + 1 : 1;
+        const draft = buildDraft(src, meta, { count: c, startNumber: sn, existingCount: mode === 'extra' ? billedCountFor(src.name) : 0 });
+        setRows(mode === 'extra' ? extraRows(draft, src, kind, sn) : draft);
       })
       .catch(e => live && setError(e.message));
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [oppId, mode]);
 
+  // Latest invoice already on the board for this project, used to copy operation, entity and currency.
+  function latestFor(src) {
+    const mine = existingInvoices.filter(i => i.project.trim().toLowerCase() === src.name.trim().toLowerCase());
+    return mine.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))[0];
+  }
+  function extraRows(draft, src, k, sn) {
+    return applyExtraDefaults(draft, { kind: k, base: src.name, startNumber: sn, latest: latestFor(src) });
+  }
+
+  function changeKind(k) {
+    setKind(k);
+    setRows(prev => prev.map((r, i) => (r.createdId ? r : { ...r, name: extraRows([r], source, k, startNumber + i)[0].name })));
+  }
+
   function changeCount(n) {
     if (!source) return;
     setCount(n);
-    const fresh = buildDraft(source, meta, { count: n, startNumber, existingCount: mode === 'extra' ? existingCount : 0 });
+    let fresh = buildDraft(source, meta, { count: n, startNumber, existingCount: mode === 'extra' ? existingCount : 0 });
+    if (mode === 'extra') fresh = extraRows(fresh, source, kind, startNumber);
     // Keep descriptions the rep has already written.
     setRows(fresh.map((r, i) => ({ ...r, description: rows[i]?.description ?? '' })));
   }
@@ -143,7 +161,7 @@ export default function InvoiceBuilder({ oppId, mode, user, meta, billedCountFor
 
       {/* Payments */}
       <div className="flex items-center gap-3 mb-3 flex-wrap">
-        <span className="text-[12.5px] font-semibold text-ink">{mode === 'extra' ? 'Invoices to add' : 'How many payments?'}</span>
+        <span className="text-[12.5px] font-semibold text-ink">{mode === 'extra' ? 'Add to this project' : 'How many payments?'}</span>
         <div className="flex gap-1.5">
           {Array.from({ length: MAX_PAYMENTS }, (_, i) => i + 1).map(n => (
             <button
@@ -156,7 +174,12 @@ export default function InvoiceBuilder({ oppId, mode, user, meta, billedCountFor
             >{n}</button>
           ))}
         </div>
-        {mode === 'extra' && <span className="text-[12px] text-muted">{existingCount} already on the board, numbering continues from {startNumber}</span>}
+        {mode === 'extra' && (
+          <select value={kind} onChange={e => changeKind(e.target.value)} disabled={!!results} className="border border-line rounded-full px-3 py-1.5 text-[12.5px] bg-white cursor-pointer">
+            {EXTRA_KINDS.map(k => <option key={k.id} value={k.id}>{k.label}</option>)}
+          </select>
+        )}
+        {mode === 'extra' && <span className="text-[12px] text-muted">{existingCount} invoice{existingCount === 1 ? '' : 's'} already on the board for this project. Amount starts blank.</span>}
         <span className="text-[12px] text-muted ml-auto">Status on every invoice starts as <span className="font-semibold text-ink">{NEW_STATUS}</span></span>
       </div>
 

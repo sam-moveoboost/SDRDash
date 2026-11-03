@@ -3,6 +3,7 @@ import { useBilling } from '../billing/BillingContext';
 import { fetchBookingMeta, fetchBookingInvoices } from '../api/billing';
 import { fetchWorkspaceUsers } from '../api/monday';
 import InvoiceBuilder from '../components/billing/InvoiceBuilder';
+import ProjectFinder from '../components/billing/ProjectFinder';
 import { formatAmount, daysOverdue, INVOICE_ORDER, todayISO } from '../utils/billing';
 import { sortAlpha } from '../utils/sortOptions';
 
@@ -126,6 +127,8 @@ export default function Billing({ user }) {
           </div>
         )}
       </section>
+
+      <ProjectFinder />
 
       {/* Tracker */}
       <section>

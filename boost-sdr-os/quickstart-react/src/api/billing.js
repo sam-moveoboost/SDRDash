@@ -1,5 +1,5 @@
 import {
-  gql, fetchBoardColumns, paginateQuery, setRelation, uploadFileToColumn,
+  gql, BOARDS, fetchBoardColumns, paginateQuery, setRelation, uploadFileToColumn,
 } from './monday';
 import {
   BOOKING_BOARD_ID, BK, OPP, CONTRACT_COLS, GROUP_BY_ENTITY, buildBookingColumnValues,
@@ -102,6 +102,22 @@ export async function fetchOpportunityBillingSource(oppId) {
     closedDate: text(OPP.CLOSED).slice(0, 10),
     contract,
   };
+}
+
+// ── Find a project to add a later invoice to ─────────────────────
+// Searches every opportunity by name, whatever its stage. Invoices are keyed to the
+// opportunity name (the Booking "Project" column), so an opportunity is the project.
+export async function searchBillingProjects(term) {
+  const t = String(term ?? '').trim();
+  if (t.length < 2) return [];
+  const items = await paginateQuery(BOARDS.OPPORTUNITIES, `
+    id name
+    column_values(ids: ["${OPP.STAGE}", "${OPP.REGION}", "${OPP.COMPANY}"]) { id text }
+  `, `{ rules: [{ column_id: "name", compare_value: [${JSON.stringify(t)}], operator: contains_text }] }`, 1);
+  return items.slice(0, 25).map(i => {
+    const text = id => i.column_values.find(c => c.id === id)?.text ?? '';
+    return { id: String(i.id), name: i.name, stage: text(OPP.STAGE), region: text(OPP.REGION), company: text(OPP.COMPANY) };
+  });
 }
 
 // ── Booking board items ───────────────────────────────────────────
