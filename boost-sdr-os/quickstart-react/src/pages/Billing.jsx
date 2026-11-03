@@ -7,9 +7,6 @@ import ProjectFinder from '../components/billing/ProjectFinder';
 import { formatAmount, daysOverdue, INVOICE_ORDER, todayISO } from '../utils/billing';
 import { sortAlpha } from '../utils/sortOptions';
 
-const DRY_KEY = 'billing:test-mode';
-function readDry() { try { return localStorage.getItem(DRY_KEY) !== 'off'; } catch { return true; } }
-
 const KIND_META = {
   overdue:     { label: 'Overdue',     cls: 'bg-red text-white' },
   outstanding: { label: 'Outstanding', cls: 'bg-pale text-navy' },
@@ -29,7 +26,6 @@ export default function Billing({ user }) {
   const { pending, invoices, loading, error, target, clearTarget, openBilling, reload, markHandled, billedCountFor, oppIdByName } = useBilling();
   const [meta, setMeta] = useState(null);
   const [metaError, setMetaError] = useState(null);
-  const [dryRun, setDryRun] = useState(readDry);
   const [users, setUsers] = useState([]);
   const [rep, setRep] = useState('me'); // 'me' | 'all' | user id
   const [otherInvoices, setOtherInvoices] = useState(null);
@@ -44,11 +40,6 @@ export default function Billing({ user }) {
     fetchBookingInvoices({ userId: rep === 'all' ? null : rep }).then(r => live && setOtherInvoices(r)).catch(() => live && setOtherInvoices([]));
     return () => { live = false; };
   }, [rep]);
-
-  function changeDry(v) {
-    setDryRun(v);
-    try { localStorage.setItem(DRY_KEY, v ? 'on' : 'off'); } catch { /* ignore */ }
-  }
 
   const all = rep === 'me' ? invoices : otherInvoices;
   const today = todayISO();
@@ -73,7 +64,6 @@ export default function Billing({ user }) {
       </div>
       <p className="text-[13.5px] text-muted mb-5">
         Draft the invoices for a won deal and send them to the finance Booking board, then track what is paid and what is late.
-        {dryRun && <span className="text-amber-ink font-semibold"> Test mode is on, so creating invoices writes nothing yet.</span>}
       </p>
 
       {metaError && <p className="text-[13px] text-red mb-4">Could not read the Booking board options: {metaError}</p>}
@@ -88,8 +78,6 @@ export default function Billing({ user }) {
           meta={meta}
           billedCountFor={billedCountFor}
           existingInvoices={existingForBuilder}
-          dryRun={dryRun}
-          onDryRunChange={changeDry}
           onClose={clearTarget}
           onCreated={src => { markHandled(src.id); reload({ force: true }); }}
         />

@@ -194,39 +194,34 @@ async function attachContract(itemId, assets) {
 
 // Creates one Booking item per row, in order. A row that already has `createdId`
 // is skipped, so retrying after a partial failure never doubles anything up.
-// dryRun builds the payloads and writes nothing.
-export async function createBookingInvoices({ rows, bdUserIds, project, email, accountIds = [], contractAssets = [], dryRun = false, onRow }) {
+export async function createBookingInvoices({ rows, bdUserIds, project, email, accountIds = [], contractAssets = [], onRow }) {
   const results = [];
   for (const row of rows) {
     if (row.createdId) { results.push({ rowId: row.id, ok: true, itemId: row.createdId, skipped: true, notes: [] }); continue; }
     const columnValues = buildBookingColumnValues(row, { bdUserIds, project, email });
     const groupId = GROUP_BY_ENTITY[row.entity];
     let result;
-    if (dryRun) {
-      result = { rowId: row.id, ok: true, itemId: null, dryRun: true, notes: [], payload: { name: row.name, group: groupId, columns: columnValues, accounts: accountIds, contract: contractAssets.map(a => a.name) } };
-    } else {
-      try {
-        const data = await gql(`
-          mutation {
-            create_item(
-              board_id: ${BOOKING_BOARD_ID},
-              ${groupId ? `group_id: "${groupId}",` : ''}
-              item_name: ${JSON.stringify(row.name.trim())},
-              column_values: ${JSON.stringify(JSON.stringify(columnValues))}
-            ) { id }
-          }
-        `);
-        const itemId = data.create_item.id;
-        const notes = [];
-        if (accountIds.length) {
-          try { await setRelation(BOOKING_BOARD_ID, itemId, BK.ACCOUNT_REL, accountIds); }
-          catch (e) { notes.push(`Account link failed (${String(e.message).slice(0, 60)})`); }
+    try {
+      const data = await gql(`
+        mutation {
+          create_item(
+            board_id: ${BOOKING_BOARD_ID},
+            ${groupId ? `group_id: "${groupId}",` : ''}
+            item_name: ${JSON.stringify(row.name.trim())},
+            column_values: ${JSON.stringify(JSON.stringify(columnValues))}
+          ) { id }
         }
-        if (contractAssets.length) notes.push(...await attachContract(itemId, contractAssets));
-        result = { rowId: row.id, ok: true, itemId, notes };
-      } catch (e) {
-        result = { rowId: row.id, ok: false, error: String(e.message).slice(0, 300), notes: [] };
+      `);
+      const itemId = data.create_item.id;
+      const notes = [];
+      if (accountIds.length) {
+        try { await setRelation(BOOKING_BOARD_ID, itemId, BK.ACCOUNT_REL, accountIds); }
+        catch (e) { notes.push(`Account link failed (${String(e.message).slice(0, 60)})`); }
       }
+      if (contractAssets.length) notes.push(...await attachContract(itemId, contractAssets));
+      result = { rowId: row.id, ok: true, itemId, notes };
+    } catch (e) {
+      result = { rowId: row.id, ok: false, error: String(e.message).slice(0, 300), notes: [] };
     }
     results.push(result);
     onRow?.(result);

@@ -35,7 +35,7 @@ function Select({ value, options, onChange, invalid, sort = true }) {
   );
 }
 
-export default function InvoiceBuilder({ oppId, mode, user, meta, billedCountFor, existingInvoices, dryRun, onDryRunChange, onClose, onCreated }) {
+export default function InvoiceBuilder({ oppId, mode, user, meta, billedCountFor, existingInvoices, onClose, onCreated }) {
   const [source, setSource] = useState(null);
   const [error, setError] = useState(null);
   const [count, setCount] = useState(1);
@@ -114,14 +114,14 @@ export default function InvoiceBuilder({ oppId, mode, user, meta, billedCountFor
     try {
       const res = await createBookingInvoices({
         rows, bdUserIds: bdIds, project: source.name, email: source.email,
-        accountIds: source.accountIds, contractAssets: source.contract.assets, dryRun,
+        accountIds: source.accountIds, contractAssets: source.contract.assets,
       });
       setResults(res);
       setRows(prev => prev.map(r => {
         const hit = res.find(x => x.rowId === r.id && x.ok && x.itemId);
         return hit ? { ...r, createdId: hit.itemId } : r;
       }));
-      if (res.every(r => r.ok) && !dryRun) onCreated?.(source);
+      if (res.every(r => r.ok)) onCreated?.(source);
     } finally {
       setCreating(false);
     }
@@ -138,11 +138,11 @@ export default function InvoiceBuilder({ oppId, mode, user, meta, billedCountFor
     return <Shell onClose={onClose} title="Billing"><p className="text-[13px] text-muted">Loading the opportunity and its SOW…</p></Shell>;
   }
 
-  const allDone = results && results.every(r => r.ok) && !dryRun;
+  const allDone = results && results.every(r => r.ok);
   const failed = results?.filter(r => !r.ok) ?? [];
 
   return (
-    <Shell onClose={onClose} title={mode === 'extra' ? `Add invoice · ${source.name}` : `Billing for ${source.name}`} dryRun={dryRun} onDryRunChange={onDryRunChange}>
+    <Shell onClose={onClose} title={mode === 'extra' ? `Add invoice · ${source.name}` : `Billing for ${source.name}`}>
       {/* What we know */}
       <div className="grid grid-cols-4 gap-3 max-[900px]:grid-cols-2 mb-4 text-[12.5px]">
         <Info label="Deal value" value={dealValue ? formatAmount(dealValue, dealCurrency) : 'Not on the opportunity'} sub={basis} warn={!dealValue} />
@@ -198,8 +198,7 @@ export default function InvoiceBuilder({ oppId, mode, user, meta, billedCountFor
                   disabled={!!r.createdId}
                   className={`${cls(bad('name'))} font-semibold`}
                 />
-                {res?.ok && !res.dryRun && <span className="text-[11px] font-bold text-emerald whitespace-nowrap">Created ✓</span>}
-                {res?.dryRun && <span className="text-[11px] font-bold text-amber-ink whitespace-nowrap">Test only</span>}
+                {res?.ok && <span className="text-[11px] font-bold text-emerald whitespace-nowrap">Created ✓</span>}
                 {res && !res.ok && <span className="text-[11px] font-bold text-red whitespace-nowrap">Failed</span>}
               </div>
 
@@ -286,9 +285,7 @@ export default function InvoiceBuilder({ oppId, mode, user, meta, billedCountFor
 
       <div className="flex items-center gap-3 mt-4 pt-4 border-t border-line">
         <p className="text-[12px] text-muted flex-1">
-          {dryRun
-            ? 'Test mode is on: nothing will be written to the finance board.'
-            : `This creates ${rows.filter(r => !r.createdId).length} item${rows.length === 1 ? '' : 's'} on the Booking board for finance to review.`}
+          {`This creates ${rows.filter(r => !r.createdId).length} item${rows.length === 1 ? '' : 's'} on the Booking board for finance to review.`}
         </p>
         {allDone ? (
           <button onClick={onClose} className="px-5 py-2.5 rounded-full text-[13px] font-semibold text-white bg-emerald border-0 cursor-pointer">Done</button>
@@ -297,17 +294,11 @@ export default function InvoiceBuilder({ oppId, mode, user, meta, billedCountFor
             onClick={handleCreate} disabled={creating}
             className="px-5 py-2.5 rounded-full text-[13px] font-semibold text-white bg-navy hover:bg-navy-700 border-0 cursor-pointer disabled:opacity-60"
           >
-            {creating ? 'Creating…' : failed.length ? `Retry ${failed.length} failed` : dryRun ? 'Test create (nothing is written)' : `Create ${rows.length} invoice${rows.length === 1 ? '' : 's'}`}
+            {creating ? 'Creating…' : failed.length ? `Retry ${failed.length} failed` : `Create ${rows.length} invoice${rows.length === 1 ? '' : 's'}`}
           </button>
         )}
       </div>
 
-      {results && dryRun && (
-        <details className="mt-3">
-          <summary className="text-[12px] font-semibold text-navy cursor-pointer">What would be written to the board</summary>
-          <pre className="text-[11px] bg-canvas rounded-lg p-3 mt-2 overflow-auto max-h-[320px]">{JSON.stringify(results.map(r => r.payload), null, 2)}</pre>
-        </details>
-      )}
       {allDone && (
         <p className="text-[12.5px] text-emerald font-semibold mt-3">
           {results.length} invoice{results.length === 1 ? '' : 's'} created. They will show under My Invoices below.
@@ -317,17 +308,11 @@ export default function InvoiceBuilder({ oppId, mode, user, meta, billedCountFor
   );
 }
 
-function Shell({ title, onClose, children, dryRun, onDryRunChange }) {
+function Shell({ title, onClose, children }) {
   return (
     <section className="bg-white border border-line rounded-2xl shadow-sm p-5 mb-6">
       <div className="flex items-center gap-3 mb-4">
         <h2 className="font-heading font-bold text-[16px] text-ink flex-1 truncate">{title}</h2>
-        {onDryRunChange && (
-          <label className="flex items-center gap-1.5 text-[12px] text-body cursor-pointer select-none">
-            <input type="checkbox" checked={!!dryRun} onChange={e => onDryRunChange(e.target.checked)} />
-            Test mode
-          </label>
-        )}
         <button onClick={onClose} className="w-8 h-8 rounded-lg hover:bg-line text-muted hover:text-ink bg-transparent border-0 cursor-pointer text-[18px] leading-none">×</button>
       </div>
       {children}
