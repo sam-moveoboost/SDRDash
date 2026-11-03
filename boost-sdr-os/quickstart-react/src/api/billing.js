@@ -3,7 +3,7 @@ import {
 } from './monday';
 import {
   BOOKING_BOARD_ID, BK, OPP, CONTRACT_COLS, GROUP_BY_ENTITY, buildBookingColumnValues,
-  parseNum, AMOUNT_COL_BY_CURRENCY, classifyInvoice,
+  parseNum, AMOUNT_COL_BY_CURRENCY, classifyInvoice, groupInvoicesByProject,
 } from '../utils/billing';
 
 // ── Booking board label options ───────────────────────────────────
@@ -104,29 +104,13 @@ export async function fetchOpportunityBillingSource(oppId) {
   };
 }
 
-// ── Find a project to add a later invoice to ─────────────────────
-// Searches every opportunity by name, whatever its stage. Invoices are keyed to the
-// opportunity name (the Booking "Project" column), so an opportunity is the project.
-export async function searchBillingProjects(term) {
-  const t = String(term ?? '').trim();
-  if (t.length < 2) return [];
-  const items = await paginateQuery(BOARDS.OPPORTUNITIES, `
-    id name
-    column_values(ids: ["${OPP.STAGE}", "${OPP.REGION}", "${OPP.COMPANY}"]) { id text }
-  `, `{ rules: [{ column_id: "name", compare_value: [${JSON.stringify(t)}], operator: contains_text }] }`, 1);
-  return items.slice(0, 25).map(i => {
-    const text = id => i.column_values.find(c => c.id === id)?.text ?? '';
-    return { id: String(i.id), name: i.name, stage: text(OPP.STAGE), region: text(OPP.REGION), company: text(OPP.COMPANY) };
-  });
-}
-
 // ── Booking board items ───────────────────────────────────────────
 const BOOKING_FIELDS = `
   id name created_at
   group { id title }
   column_values(ids: ${JSON.stringify([
     BK.BD, BK.STATUS, BK.OPERATION, BK.MONTH, BK.YEAR, BK.PROJECT, BK.CURRENCY, BK.ENTITY, BK.DESCRIPTION,
-    BK.DUE_DATE, BK.DEFAULT_DATE, BK.AMOUNT_ILS, BK.AMOUNT_USD, BK.AMOUNT_GBP, BK.AMOUNT_EUR, BK.AMOUNT_VAT,
+    BK.EMAIL, BK.DUE_DATE, BK.DEFAULT_DATE, BK.AMOUNT_ILS, BK.AMOUNT_USD, BK.AMOUNT_GBP, BK.AMOUNT_EUR, BK.AMOUNT_VAT,
     BK.ACCOUNT_REL,
   ])}) { id text value ... on BoardRelationValue { linked_item_ids } }
 `;
@@ -152,6 +136,7 @@ function parseBookingItem(item) {
     year: text(BK.YEAR),
     project: text(BK.PROJECT),
     description: text(BK.DESCRIPTION),
+    email: text(BK.EMAIL),
     currency,
     amount,
     amountIls: parseNum(text(BK.AMOUNT_ILS)),
@@ -161,6 +146,34 @@ function parseBookingItem(item) {
   };
   row.kind = classifyInvoice(row);
   return row;
+}
+
+// ── Find a project to add a later invoice to ─────────────────────
+// Searches the Booking board itself (every rep), by the Project column and by item name, and
+// groups the invoices it finds by project so outstanding ones are visible at a glance.
+// Run as two queries because mixing rules with `or` on text columns is unreliable.
+export async function searchBookingProjects(term) {
+  const t = String(term ?? '').trim();
+  if (t.length < 2) return [];
+  const q = col => `{ rules: [{ column_id: "${col}", compare_value: [${JSON.stringify(t)}], operator: contains_text }] }`;
+  const [byProject, byName] = await Promise.all([
+    paginateQuery(BOOKING_BOARD_ID, BOOKING_FIELDS, q(BK.PROJECT), 3),
+    paginateQuery(BOOKING_BOARD_ID, BOOKING_FIELDS, q('name'), 3),
+  ]);
+  const seen = new Map();
+  for (const i of [...byProject, ...byName]) seen.set(String(i.id), i);
+  const groups = groupInvoicesByProject([...seen.values()].map(parseBookingItem));
+  // A hit on one invoice name can miss the project's other invoices, so pull the full set for each project found.
+  return groups
+    .sort((a, b) => (b.overdue - a.overdue) || (b.outstanding - a.outstanding) || a.name.localeCompare(b.name))
+    .slice(0, 25);
+}
+
+// Every invoice on one project, so the numbering and outstanding counts are complete.
+export async function fetchProjectInvoices(projectName) {
+  const items = await paginateQuery(BOOKING_BOARD_ID, BOOKING_FIELDS,
+    `{ rules: [{ column_id: "${BK.PROJECT}", compare_value: [${JSON.stringify(projectName)}], operator: contains_text }] }`, 3);
+  return items.map(parseBookingItem).filter(i => i.project.trim().toLowerCase() === projectName.trim().toLowerCase());
 }
 
 // ── Invoice cache ─────────────────────────────────────────────────

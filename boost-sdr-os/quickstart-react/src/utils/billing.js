@@ -202,7 +202,7 @@ export function buildDraft(opp, meta, { count, startNumber = 1, existingCount = 
     // When topping up an existing plan, the name carries the running number only.
     const name = existingCount > 0 || startNumber > 1
       ? `${base} - Payment ${number}`
-      : paymentName(base, number, total, n > 1 ? pct : null);
+      : paymentName(base, number, total, n > 1 ? pct : null) + (n > 1 && amount ? ` (${formatAmount(amount, cur)})` : '');
     return {
       id: newRowId(),
       name,
@@ -380,4 +380,50 @@ export function invoicesCoverOpp(opp, invoices) {
     .filter(i => (i.accountIds ?? []).some(id => opp.accountIds.includes(id)))
     .map(i => i.amount);
   return amounts.length > 0 && subsetSumMatches(amounts, value, 0.01);
+}
+
+// ── Projects as they appear on the Booking board ─────────────────
+// A project is the Booking "Project" text (falling back to the item name), the same way the
+// board's client-grouped view reads it. Invoice items must carry project, kind, createdAt etc.
+export function projectKey(inv) {
+  return norm(inv.project) || norm(inv.name);
+}
+
+export function groupInvoicesByProject(invoices) {
+  const map = new Map();
+  for (const inv of invoices) {
+    const key = projectKey(inv);
+    if (!key) continue;
+    if (!map.has(key)) map.set(key, { key, name: inv.project?.trim() || inv.name, invoices: [] });
+    map.get(key).invoices.push(inv);
+  }
+  const groups = [...map.values()];
+  for (const g of groups) {
+    g.invoices.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    g.latest = g.invoices[0];
+    g.overdue = g.invoices.filter(i => i.kind === 'overdue').length;
+    g.outstanding = g.invoices.filter(i => i.kind === 'outstanding').length;
+  }
+  return groups;
+}
+
+// An opportunity-shaped source built from the project's own invoices, so a later line can be added
+// without going near the Opportunities board.
+export function sourceFromProject(project) {
+  const l = project.latest;
+  return {
+    id: null,
+    fromBoard: true,
+    name: project.name,
+    ownerIds: l.bdIds?.length ? l.bdIds : (project.invoices.find(i => i.bdIds?.length)?.bdIds ?? []),
+    company: '',
+    accountIds: l.accountIds ?? [],
+    email: project.invoices.find(i => i.email)?.email ?? '',
+    region: '', typeOfDeal: '', arrLength: '', products: [],
+    currency: l.currency, psValue: '', arrValue: '', terms: '',
+    expectedDate: '', closedDate: '',
+    contract: { label: '', assets: [] },
+    existingCount: project.invoices.length,
+    latestInvoice: l,
+  };
 }

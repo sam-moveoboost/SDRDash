@@ -24,7 +24,7 @@ function ownerIds(item) {
 const noop = () => {};
 const BillingContext = createContext({
   pending: [], pendingCount: 0, invoices: [], loading: false, error: null,
-  target: null, wonPrompt: null, showWonPrompt: noop, dismissWonPrompt: noop, reload: noop, openBilling: noop, clearTarget: noop, markHandled: noop, billedCountFor: () => 0, oppIdByName: () => null,
+  target: null, wonPrompt: null, showWonPrompt: noop, dismissWonPrompt: noop, reload: noop, openBilling: noop, openProject: noop, clearTarget: noop, markHandled: noop, billedCountFor: () => 0,
 });
 
 export const useBilling = () => useContext(BillingContext);
@@ -38,7 +38,7 @@ export function BillingProvider({ user, onNavigate, children }) {
   const [error, setError] = useState(null);
   const [handled, setHandled] = useState(() => readSet(STORE_KEY));
   const [flagged, setFlagged] = useState(() => readSet(FLAG_KEY)); // prompted at the moment of winning
-  const [target, setTarget] = useState(null); // { oppId, mode: 'new' | 'extra' }
+  const [target, setTarget] = useState(null); // { oppId, mode: 'new' } or { project, mode: 'extra' }
   const [wonPrompt, setWonPrompt] = useState(null); // { id, name } just marked Won
   const inFlight = useRef(null);
 
@@ -79,11 +79,6 @@ export function BillingProvider({ user, onNavigate, children }) {
   }, [invoices]);
 
   const billedCountFor = useCallback(name => billedProjects.get(String(name ?? '').trim().toLowerCase()) ?? 0, [billedProjects]);
-
-  const oppIdByName = useCallback(name => {
-    const k = String(name ?? '').trim().toLowerCase();
-    return opps.find(o => o.name.trim().toLowerCase() === k)?.id ?? null;
-  }, [opps]);
 
   const pending = useMemo(() => {
     if (!user?.id) return [];
@@ -133,11 +128,16 @@ export function BillingProvider({ user, onNavigate, children }) {
     reload();
   }, [reload]);
 
+  const openProject = useCallback(project => {
+    setTarget({ project, mode: 'extra' });
+    onNavigate?.('billing');
+  }, [onNavigate]);
+
   const value = useMemo(() => ({
     pending, pendingCount: pending.length, invoices, loading, error, target, wonPrompt,
     showWonPrompt, dismissWonPrompt: () => setWonPrompt(null),
-    reload, openBilling, clearTarget: () => setTarget(null), markHandled, billedCountFor, oppIdByName,
-  }), [pending, invoices, loading, error, target, wonPrompt, showWonPrompt, reload, openBilling, markHandled, billedCountFor, oppIdByName]);
+    reload, openBilling, openProject, clearTarget: () => setTarget(null), markHandled, billedCountFor,
+  }), [pending, invoices, loading, error, target, wonPrompt, showWonPrompt, reload, openBilling, openProject, markHandled, billedCountFor]);
 
   return <BillingContext.Provider value={value}>{children}</BillingContext.Provider>;
 }
