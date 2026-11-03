@@ -713,7 +713,7 @@ function idbOpen() {
   return _idb;
 }
 
-async function idbGet(key) {
+export async function idbGet(key) {
   try {
     const db = await idbOpen();
     if (!db) return null;
@@ -725,7 +725,7 @@ async function idbGet(key) {
   } catch { return null; }
 }
 
-async function idbSet(key, value) {
+export async function idbSet(key, value) {
   try {
     const db = await idbOpen();
     if (!db) return;

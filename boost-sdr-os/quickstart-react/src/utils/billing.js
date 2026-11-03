@@ -346,3 +346,38 @@ export function daysOverdue(dueDate, today = todayISO()) {
   if (!dueDate || dueDate >= today) return 0;
   return Math.round((new Date(`${today}T00:00:00`) - new Date(`${dueDate}T00:00:00`)) / 86400000);
 }
+
+// ── Which won deals still need billing ───────────────────────────
+// Billing is only set up for PS jobs.
+export function isPsJob({ typeOfDeal, arrSourceType }) {
+  return norm(typeOfDeal) === 'ps' || norm(arrSourceType) === 'ps';
+}
+
+// Deals closed before this date are treated as already invoiced (billing started with the app).
+// Anything the rep was prompted for and chose "Later" on stays flagged whatever its date.
+export const BILLING_START = '2026-11-03';
+
+function subsetSumMatches(amounts, target, tol) {
+  const a = amounts.slice(0, 16);
+  const n = a.length;
+  for (let mask = 1; mask < (1 << n); mask++) {
+    let sum = 0;
+    for (let i = 0; i < n; i++) if (mask & (1 << i)) sum += a[i];
+    if (Math.abs(sum - target) <= target * tol) return true;
+  }
+  return false;
+}
+
+// True when the board already holds invoices for this deal: same project name, or invoices on the
+// same account, in the deal's currency, whose amounts add up to the deal value (within 1%).
+export function invoicesCoverOpp(opp, invoices) {
+  const name = norm(opp.name);
+  if (invoices.some(i => norm(i.project) === name)) return true;
+  const value = parseNum(opp.value);
+  if (!value || !opp.currency || !opp.accountIds?.length) return false;
+  const amounts = invoices
+    .filter(i => i.kind !== 'cancelled' && i.currency === opp.currency && i.amount > 0)
+    .filter(i => (i.accountIds ?? []).some(id => opp.accountIds.includes(id)))
+    .map(i => i.amount);
+  return amounts.length > 0 && subsetSumMatches(amounts, value, 0.01);
+}

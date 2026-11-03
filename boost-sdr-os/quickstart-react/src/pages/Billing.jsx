@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useBilling } from '../billing/BillingContext';
-import { fetchBookingMeta, fetchBookingInvoices } from '../api/billing';
+import { fetchBookingMeta, fetchBookingInvoices, peekBookingInvoices } from '../api/billing';
 import { fetchWorkspaceUsers } from '../api/monday';
 import InvoiceBuilder from '../components/billing/InvoiceBuilder';
 import ProjectFinder from '../components/billing/ProjectFinder';
@@ -37,7 +37,9 @@ export default function Billing({ user }) {
     if (rep === 'me') { setOtherInvoices(null); return; }
     let live = true;
     setOtherInvoices(null);
-    fetchBookingInvoices({ userId: rep === 'all' ? null : rep }).then(r => live && setOtherInvoices(r)).catch(() => live && setOtherInvoices([]));
+    const userId = rep === 'all' ? null : rep;
+    peekBookingInvoices({ userId }).then(c => { if (live && c?.items) setOtherInvoices(c.items); });
+    fetchBookingInvoices({ userId }).then(r => live && setOtherInvoices(r)).catch(() => live && setOtherInvoices(prev => prev ?? []));
     return () => { live = false; };
   }, [rep]);
 
@@ -86,12 +88,12 @@ export default function Billing({ user }) {
       {/* Awaiting billing */}
       <section className="mb-7">
         <div className="flex items-center gap-2 mb-2.5">
-          <h2 className="font-heading font-bold text-[15px] text-ink">Won deals awaiting billing</h2>
+          <h2 className="font-heading font-bold text-[15px] text-ink">Won PS deals awaiting billing</h2>
           {pending.length > 0 && <span className="text-[11px] font-bold bg-amber text-white rounded-full px-2 py-0.5">{pending.length}</span>}
         </div>
         {pending.length === 0 ? (
           <p className="text-[13px] text-muted bg-white border border-line rounded-xl px-4 py-3">
-            {loading ? 'Checking your won deals…' : 'Nothing waiting. Deals you win in the last 120 days without invoices will appear here.'}
+            {loading ? 'Checking your won deals…' : 'Nothing waiting. PS deals you win without invoices on the board will appear here.'}
           </p>
         ) : (
           <div className="flex flex-col gap-2">

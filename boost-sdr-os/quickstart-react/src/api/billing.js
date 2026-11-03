@@ -1,5 +1,5 @@
 import {
-  gql, BOARDS, fetchBoardColumns, paginateQuery, setRelation, uploadFileToColumn,
+  gql, BOARDS, fetchBoardColumns, paginateQuery, setRelation, uploadFileToColumn, idbGet, idbSet,
 } from './monday';
 import {
   BOOKING_BOARD_ID, BK, OPP, CONTRACT_COLS, GROUP_BY_ENTITY, buildBookingColumnValues,
@@ -127,7 +127,8 @@ const BOOKING_FIELDS = `
   column_values(ids: ${JSON.stringify([
     BK.BD, BK.STATUS, BK.OPERATION, BK.MONTH, BK.YEAR, BK.PROJECT, BK.CURRENCY, BK.ENTITY, BK.DESCRIPTION,
     BK.DUE_DATE, BK.DEFAULT_DATE, BK.AMOUNT_ILS, BK.AMOUNT_USD, BK.AMOUNT_GBP, BK.AMOUNT_EUR, BK.AMOUNT_VAT,
-  ])}) { id text value }
+    BK.ACCOUNT_REL,
+  ])}) { id text value ... on BoardRelationValue { linked_item_ids } }
 `;
 
 function parseBookingItem(item) {
@@ -144,6 +145,7 @@ function parseBookingItem(item) {
     entity: item.group?.title ?? text(BK.ENTITY),
     bd: text(BK.BD),
     bdIds: personIds(bdValue),
+    accountIds: (item.column_values.find(c => c.id === BK.ACCOUNT_REL)?.linked_item_ids ?? []).map(String),
     status: text(BK.STATUS),
     operation: text(BK.OPERATION),
     month: text(BK.MONTH),
@@ -161,13 +163,52 @@ function parseBookingItem(item) {
   return row;
 }
 
+// ── Invoice cache ─────────────────────────────────────────────────
+// The Booking board is large and slow to read, so:
+//   - memory: reused while younger than INVOICE_TTL_MS; concurrent callers share one request
+//   - IndexedDB: the last snapshot survives a reload, so the screen paints it instantly
+//     and refreshes in the background (stale-while-revalidate).
+const INVOICE_TTL_MS = 2 * 60 * 1000;
+const INVOICE_SNAPSHOT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const memCache = new Map();   // key -> { items, fetchedAt, stale }
+const inFlight = new Map();   // key -> Promise
+const cacheKey = userId => `invoices:v2:${userId ?? 'all'}`;
+
+// Whatever is on hand without touching the network (memory, then IndexedDB), or null.
+export async function peekBookingInvoices({ userId } = {}) {
+  const key = cacheKey(userId);
+  if (memCache.has(key)) return memCache.get(key);
+  const stored = await idbGet(key);
+  if (!stored?.items || Date.now() - stored.fetchedAt > INVOICE_SNAPSHOT_MAX_AGE_MS) return null;
+  if (!memCache.has(key)) memCache.set(key, { ...stored, stale: true });
+  return memCache.get(key);
+}
+
+export function invalidateBookingInvoices() {
+  for (const [k, v] of memCache) memCache.set(k, { ...v, stale: true });
+}
+
 // userId null = every rep. The board is filtered server-side on the BD person column.
-export async function fetchBookingInvoices({ userId } = {}) {
+// maxAgeMs: 0 forces a network read.
+export async function fetchBookingInvoices({ userId, maxAgeMs = INVOICE_TTL_MS } = {}) {
+  const key = cacheKey(userId);
+  const hit = memCache.get(key);
+  if (hit && !hit.stale && Date.now() - hit.fetchedAt < maxAgeMs) return hit.items;
+  if (inFlight.has(key)) return inFlight.get(key);
   const params = userId
     ? `{ rules: [{ column_id: "${BK.BD}", compare_value: ["person-${userId}"], operator: any_of }] }`
     : `{ rules: [] }`;
-  const items = await paginateQuery(BOOKING_BOARD_ID, BOOKING_FIELDS, params, 10);
-  return items.map(parseBookingItem);
+  const p = paginateQuery(BOOKING_BOARD_ID, BOOKING_FIELDS, params, 10)
+    .then(items => {
+      const parsed = items.map(parseBookingItem);
+      const snap = { items: parsed, fetchedAt: Date.now(), stale: false };
+      memCache.set(key, snap);
+      idbSet(key, { items: parsed, fetchedAt: snap.fetchedAt });
+      return parsed;
+    })
+    .finally(() => inFlight.delete(key));
+  inFlight.set(key, p);
+  return p;
 }
 
 // ── Create invoices (one deal, all rows in one go) ───────────────
