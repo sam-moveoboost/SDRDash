@@ -12,6 +12,7 @@ export const BK = {
   TERMS:        'color_mkpsvr37',
   CURRENCY:     'color_mkq339tm',
   ENTITY:       'color_mkxzwse1',
+  CLIENT:       'dropdown_mkpv51y7', // "Client dropdown": what the board's client-grouped view uses
   PROJECT:      'text_mkps8996',
   EMAIL:        'text_mkpsh68t',
   DESCRIPTION:  'text_mm435pb0',
@@ -425,5 +426,18 @@ export function sourceFromProject(project) {
     contract: { label: '', assets: [] },
     existingCount: project.invoices.length,
     latestInvoice: l,
+    client: project.invoices.find(i => i.client)?.client ?? '',
   };
+}
+
+// Best guess at the Client dropdown label for a deal: an existing label that equals the company,
+// or the longest label (3+ characters) that appears in the deal or company name. Blank when unsure.
+export function deriveClient({ name, company }, options = []) {
+  const hay = [company, name].map(norm).filter(Boolean);
+  const exact = options.find(o => hay.includes(norm(o)));
+  if (exact) return exact;
+  const contained = options
+    .filter(o => norm(o).length >= 3 && hay.some(h => h.includes(norm(o))))
+    .sort((a, b) => b.length - a.length);
+  return contained[0] ?? '';
 }
