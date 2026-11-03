@@ -1,0 +1,220 @@
+import {
+  gql, fetchBoardColumns, paginateQuery, setRelation, uploadFileToColumn,
+} from './monday';
+import {
+  BOOKING_BOARD_ID, BK, OPP, CONTRACT_COLS, GROUP_BY_ENTITY, buildBookingColumnValues,
+  parseNum, AMOUNT_COL_BY_CURRENCY, classifyInvoice,
+} from '../utils/billing';
+
+// ── Booking board label options ───────────────────────────────────
+function labelsOf(column) {
+  if (!column?.settings_str) return [];
+  try {
+    const s = JSON.parse(column.settings_str);
+    const dead = new Set((s.deactivated_labels ?? []).map(String));
+    const entries = Array.isArray(s.labels)
+      ? s.labels.map(l => [String(l.id), l.label])
+      : Object.entries(s.labels ?? {}).map(([id, l]) => [id, typeof l === 'string' ? l : l?.label ?? l?.name]);
+    return entries.filter(([id, l]) => l && String(l).trim() && !dead.has(id)).map(([, l]) => l);
+  } catch { return []; }
+}
+
+export async function fetchBookingMeta() {
+  const cols = await fetchBoardColumns(BOOKING_BOARD_ID);
+  const byId = Object.fromEntries(cols.map(c => [c.id, c]));
+  return {
+    operationOptions: labelsOf(byId[BK.OPERATION]),
+    monthOptions:     labelsOf(byId[BK.MONTH]),
+    yearOptions:      labelsOf(byId[BK.YEAR]),
+    termsOptions:     labelsOf(byId[BK.TERMS]),
+    currencyOptions:  labelsOf(byId[BK.CURRENCY]),
+    entityOptions:    labelsOf(byId[BK.ENTITY]),
+    statusOptions:    labelsOf(byId[BK.STATUS]),
+  };
+}
+
+// ── Opportunity → billing source ─────────────────────────────────
+const SOURCE_COLS = [
+  OPP.STAGE, OPP.OWNER, OPP.COMPANY, OPP.ACCOUNT, OPP.EMAIL, OPP.REGION, OPP.TYPE_OF_DEAL,
+  OPP.ARR_LENGTH, OPP.PRODUCTS, OPP.CURRENCY, OPP.PS_VALUE, OPP.ARR_VALUE, OPP.TERMS,
+  OPP.EXPECTED, OPP.CLOSED, ...CONTRACT_COLS.map(c => c.id),
+];
+
+function personIds(value) {
+  try { return (JSON.parse(value ?? '{}').personsAndTeams ?? []).map(p => String(p.id)); }
+  catch { return []; }
+}
+
+function fileAssetIds(value) {
+  try { return (JSON.parse(value ?? '{}').files ?? []).filter(f => f.assetId).map(f => String(f.assetId)); }
+  catch { return []; }
+}
+
+// Everything the billing screen needs to know about one opportunity, read fresh from the board
+// (the shared Pipeline cache deliberately leaves out the contract and product columns).
+export async function fetchOpportunityBillingSource(oppId) {
+  const data = await gql(`
+    query {
+      items(ids: [${oppId}]) {
+        id name
+        column_values(ids: ${JSON.stringify(SOURCE_COLS)}) {
+          id text value
+          ... on BoardRelationValue { linked_item_ids }
+        }
+      }
+    }
+  `);
+  const item = data.items?.[0];
+  if (!item) throw new Error('Opportunity not found');
+  const col = id => item.column_values.find(c => c.id === id);
+  const text = id => col(id)?.text ?? '';
+
+  let contract = { label: '', assets: [] };
+  for (const c of CONTRACT_COLS) {
+    const ids = fileAssetIds(col(c.id)?.value);
+    if (ids.length) {
+      const a = await gql(`query { assets(ids: [${ids.join(',')}]) { id name url public_url } }`);
+      contract = {
+        label: c.label,
+        assets: (a.assets ?? []).map(x => ({ id: x.id, name: x.name, url: x.url, publicUrl: x.public_url })),
+      };
+      break;
+    }
+  }
+
+  return {
+    id: String(item.id),
+    name: item.name,
+    stage: text(OPP.STAGE),
+    ownerIds: personIds(col(OPP.OWNER)?.value),
+    company: text(OPP.COMPANY),
+    accountIds: (col(OPP.ACCOUNT)?.linked_item_ids ?? []).map(String),
+    email: text(OPP.EMAIL),
+    region: text(OPP.REGION),
+    typeOfDeal: text(OPP.TYPE_OF_DEAL),
+    arrLength: text(OPP.ARR_LENGTH),
+    products: text(OPP.PRODUCTS).split(',').map(s => s.trim()).filter(Boolean),
+    currency: text(OPP.CURRENCY),
+    psValue: text(OPP.PS_VALUE),
+    arrValue: text(OPP.ARR_VALUE),
+    terms: text(OPP.TERMS),
+    expectedDate: text(OPP.EXPECTED).slice(0, 10),
+    closedDate: text(OPP.CLOSED).slice(0, 10),
+    contract,
+  };
+}
+
+// ── Booking board items ───────────────────────────────────────────
+const BOOKING_FIELDS = `
+  id name created_at
+  group { id title }
+  column_values(ids: ${JSON.stringify([
+    BK.BD, BK.STATUS, BK.OPERATION, BK.MONTH, BK.YEAR, BK.PROJECT, BK.CURRENCY, BK.ENTITY, BK.DESCRIPTION,
+    BK.DUE_DATE, BK.DEFAULT_DATE, BK.AMOUNT_ILS, BK.AMOUNT_USD, BK.AMOUNT_GBP, BK.AMOUNT_EUR, BK.AMOUNT_VAT,
+  ])}) { id text value }
+`;
+
+function parseBookingItem(item) {
+  const text = id => item.column_values.find(c => c.id === id)?.text ?? '';
+  const bdValue = item.column_values.find(c => c.id === BK.BD)?.value;
+  const currency = text(BK.CURRENCY);
+  const own = AMOUNT_COL_BY_CURRENCY[currency];
+  const amount = parseNum(own ? text(own) : null)
+    ?? parseNum(text(BK.AMOUNT_USD)) ?? parseNum(text(BK.AMOUNT_GBP)) ?? parseNum(text(BK.AMOUNT_EUR));
+  const row = {
+    id: String(item.id),
+    name: item.name,
+    createdAt: item.created_at,
+    entity: item.group?.title ?? text(BK.ENTITY),
+    bd: text(BK.BD),
+    bdIds: personIds(bdValue),
+    status: text(BK.STATUS),
+    operation: text(BK.OPERATION),
+    month: text(BK.MONTH),
+    year: text(BK.YEAR),
+    project: text(BK.PROJECT),
+    description: text(BK.DESCRIPTION),
+    currency,
+    amount,
+    amountIls: parseNum(text(BK.AMOUNT_ILS)),
+    amountWithVat: parseNum(text(BK.AMOUNT_VAT)),
+    dueDate: (text(BK.DUE_DATE) || text(BK.DEFAULT_DATE)).slice(0, 10),
+    url: `https://deployboostai.monday.com/boards/${BOOKING_BOARD_ID}/pulses/${item.id}`,
+  };
+  row.kind = classifyInvoice(row);
+  return row;
+}
+
+// userId null = every rep. The board is filtered server-side on the BD person column.
+export async function fetchBookingInvoices({ userId } = {}) {
+  const params = userId
+    ? `{ rules: [{ column_id: "${BK.BD}", compare_value: ["person-${userId}"], operator: any_of }] }`
+    : `{ rules: [] }`;
+  const items = await paginateQuery(BOOKING_BOARD_ID, BOOKING_FIELDS, params, 10);
+  return items.map(parseBookingItem);
+}
+
+// ── Create invoices (one deal, all rows in one go) ───────────────
+async function attachContract(itemId, assets) {
+  const notes = [];
+  for (const a of assets) {
+    try {
+      let uploaded = false;
+      try {
+        const res = await fetch(a.publicUrl);
+        if (res.ok) uploaded = await uploadFileToColumn(itemId, BK.CONTRACT, await res.blob(), a.name || 'contract');
+      } catch { /* fall through to a link */ }
+      if (!uploaded) {
+        const value = JSON.stringify(JSON.stringify({ files: [{ url: a.url, name: a.name || 'Contract', fileType: 'LINK' }] }));
+        await gql(`mutation { change_column_value(board_id: ${BOOKING_BOARD_ID}, item_id: ${itemId}, column_id: "${BK.CONTRACT}", value: ${value}) { id } }`);
+        notes.push(`${a.name || 'Contract'} attached as a link`);
+      }
+    } catch (e) {
+      notes.push(`Contract not attached (${String(e.message).slice(0, 80)})`);
+    }
+  }
+  return notes;
+}
+
+// Creates one Booking item per row, in order. A row that already has `createdId`
+// is skipped, so retrying after a partial failure never doubles anything up.
+// dryRun builds the payloads and writes nothing.
+export async function createBookingInvoices({ rows, bdUserIds, project, email, accountIds = [], contractAssets = [], dryRun = false, onRow }) {
+  const results = [];
+  for (const row of rows) {
+    if (row.createdId) { results.push({ rowId: row.id, ok: true, itemId: row.createdId, skipped: true, notes: [] }); continue; }
+    const columnValues = buildBookingColumnValues(row, { bdUserIds, project, email });
+    const groupId = GROUP_BY_ENTITY[row.entity];
+    let result;
+    if (dryRun) {
+      result = { rowId: row.id, ok: true, itemId: null, dryRun: true, notes: [], payload: { name: row.name, group: groupId, columns: columnValues, accounts: accountIds, contract: contractAssets.map(a => a.name) } };
+    } else {
+      try {
+        const data = await gql(`
+          mutation {
+            create_item(
+              board_id: ${BOOKING_BOARD_ID},
+              ${groupId ? `group_id: "${groupId}",` : ''}
+              item_name: ${JSON.stringify(row.name.trim())},
+              column_values: ${JSON.stringify(JSON.stringify(columnValues))}
+            ) { id }
+          }
+        `);
+        const itemId = data.create_item.id;
+        const notes = [];
+        if (accountIds.length) {
+          try { await setRelation(BOOKING_BOARD_ID, itemId, BK.ACCOUNT_REL, accountIds); }
+          catch (e) { notes.push(`Account link failed (${String(e.message).slice(0, 60)})`); }
+        }
+        if (contractAssets.length) notes.push(...await attachContract(itemId, contractAssets));
+        result = { rowId: row.id, ok: true, itemId, notes };
+      } catch (e) {
+        result = { rowId: row.id, ok: false, error: String(e.message).slice(0, 300), notes: [] };
+      }
+    }
+    results.push(result);
+    onRow?.(result);
+  }
+  return results;
+}
+
