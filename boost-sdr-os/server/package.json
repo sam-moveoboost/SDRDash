@@ -1,0 +1,14 @@
+{
+  "name": "sdr-os-server",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Server-side code for the SDR dashboard, hosted on monday code",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "@mondaycom/apps-sdk": "^2.1.2",
+    "express": "^4.21.2"
+  }
+}
