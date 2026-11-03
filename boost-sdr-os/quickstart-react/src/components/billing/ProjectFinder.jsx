@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { searchBillingProjects } from '../../api/billing';
+import { searchBookingProjects } from '../../api/billing';
 import { useBilling } from '../../billing/BillingContext';
 
-// Find any opportunity by name and add a later invoice to it (extra expenses, a top-up payment and so on).
+// Find a project on the Booking board (the same projects finance groups by client) and add a later
+// invoice to it, such as additional expenses or a further payment.
 export default function ProjectFinder() {
-  const { openBilling, billedCountFor } = useBilling();
+  const { openProject } = useBilling();
   const [term, setTerm] = useState('');
   const [results, setResults] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -15,7 +16,7 @@ export default function ProjectFinder() {
     let live = true;
     setBusy(true);
     const t = setTimeout(() => {
-      searchBillingProjects(term)
+      searchBookingProjects(term)
         .then(r => { if (live) { setResults(r); setError(null); } })
         .catch(e => live && setError(e.message))
         .finally(() => live && setBusy(false));
@@ -29,30 +30,33 @@ export default function ProjectFinder() {
       <div className="bg-white border border-line rounded-2xl p-4">
         <input
           value={term} onChange={e => setTerm(e.target.value)}
-          placeholder="Search by project or client name, e.g. Innocent"
+          placeholder="Search the Booking board by project or client, e.g. Innocent"
           className="w-full border border-line rounded-xl px-3 py-2 text-[13px] focus:outline-none focus:ring-1 focus:ring-navy focus:border-navy"
         />
-        <p className="text-[11.5px] text-muted mt-1.5">For anything that comes up after the original billing, such as additional expenses or a further payment.</p>
+        <p className="text-[11.5px] text-muted mt-1.5">Projects come from the Booking board, with their outstanding invoices. Use this for anything that comes up after the original billing, such as additional expenses or a further payment.</p>
         {error && <p className="text-[12.5px] text-red mt-2">{error}</p>}
-        {busy && <p className="text-[12.5px] text-muted mt-2">Searching…</p>}
-        {results && !busy && results.length === 0 && <p className="text-[12.5px] text-muted mt-2">No opportunities match "{term}".</p>}
+        {busy && <p className="text-[12.5px] text-muted mt-2">Searching the Booking board…</p>}
+        {results && !busy && results.length === 0 && <p className="text-[12.5px] text-muted mt-2">No projects on the Booking board match "{term}".</p>}
         {results?.length > 0 && (
           <div className="mt-3 flex flex-col divide-y divide-line border border-line rounded-xl overflow-hidden">
-            {results.map(r => {
-              const n = billedCountFor(r.name);
-              return (
-                <div key={r.id} className="flex items-center gap-3 px-3.5 py-2.5">
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-[13px] text-ink truncate">{r.name}</div>
-                    <div className="text-[11.5px] text-muted">{[r.stage, r.region, n ? `${n} of your invoices on the board` : null].filter(Boolean).join(' · ')}</div>
+            {results.map(g => (
+              <div key={g.key} className="flex items-center gap-3 px-3.5 py-2.5">
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-[13px] text-ink truncate">{g.name}</div>
+                  <div className="text-[11.5px] text-muted">
+                    {g.invoices.length} invoice{g.invoices.length === 1 ? '' : 's'}
+                    {g.latest?.bd ? ` · BD ${g.latest.bd}` : ''}
+                    {g.latest?.entity ? ` · ${g.latest.entity}` : ''}
                   </div>
-                  <button
-                    onClick={() => openBilling(r.id, 'extra')}
-                    className="px-3.5 py-1.5 rounded-full text-[12px] font-semibold text-white bg-navy hover:bg-navy-700 border-0 cursor-pointer"
-                  >+ Add invoice</button>
                 </div>
-              );
-            })}
+                {g.overdue > 0 && <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-red text-white">{g.overdue} overdue</span>}
+                {g.outstanding > 0 && <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-pale text-navy">{g.outstanding} outstanding</span>}
+                <button
+                  onClick={() => openProject(g)}
+                  className="px-3.5 py-1.5 rounded-full text-[12px] font-semibold text-white bg-navy hover:bg-navy-700 border-0 cursor-pointer"
+                >+ Add invoice</button>
+              </div>
+            ))}
           </div>
         )}
       </div>

@@ -1,9 +1,9 @@
 import {
-  gql, BOARDS, fetchBoardColumns, paginateQuery, setRelation, uploadFileToColumn,
+  gql, BOARDS, fetchBoardColumns, paginateQuery, setRelation, uploadFileToColumn, idbGet, idbSet,
 } from './monday';
 import {
   BOOKING_BOARD_ID, BK, OPP, CONTRACT_COLS, GROUP_BY_ENTITY, buildBookingColumnValues,
-  parseNum, AMOUNT_COL_BY_CURRENCY, classifyInvoice,
+  parseNum, AMOUNT_COL_BY_CURRENCY, classifyInvoice, groupInvoicesByProject,
 } from '../utils/billing';
 
 // ── Booking board label options ───────────────────────────────────
@@ -104,30 +104,15 @@ export async function fetchOpportunityBillingSource(oppId) {
   };
 }
 
-// ── Find a project to add a later invoice to ─────────────────────
-// Searches every opportunity by name, whatever its stage. Invoices are keyed to the
-// opportunity name (the Booking "Project" column), so an opportunity is the project.
-export async function searchBillingProjects(term) {
-  const t = String(term ?? '').trim();
-  if (t.length < 2) return [];
-  const items = await paginateQuery(BOARDS.OPPORTUNITIES, `
-    id name
-    column_values(ids: ["${OPP.STAGE}", "${OPP.REGION}", "${OPP.COMPANY}"]) { id text }
-  `, `{ rules: [{ column_id: "name", compare_value: [${JSON.stringify(t)}], operator: contains_text }] }`, 1);
-  return items.slice(0, 25).map(i => {
-    const text = id => i.column_values.find(c => c.id === id)?.text ?? '';
-    return { id: String(i.id), name: i.name, stage: text(OPP.STAGE), region: text(OPP.REGION), company: text(OPP.COMPANY) };
-  });
-}
-
 // ── Booking board items ───────────────────────────────────────────
 const BOOKING_FIELDS = `
   id name created_at
   group { id title }
   column_values(ids: ${JSON.stringify([
     BK.BD, BK.STATUS, BK.OPERATION, BK.MONTH, BK.YEAR, BK.PROJECT, BK.CURRENCY, BK.ENTITY, BK.DESCRIPTION,
-    BK.DUE_DATE, BK.DEFAULT_DATE, BK.AMOUNT_ILS, BK.AMOUNT_USD, BK.AMOUNT_GBP, BK.AMOUNT_EUR, BK.AMOUNT_VAT,
-  ])}) { id text value }
+    BK.EMAIL, BK.DUE_DATE, BK.DEFAULT_DATE, BK.AMOUNT_ILS, BK.AMOUNT_USD, BK.AMOUNT_GBP, BK.AMOUNT_EUR, BK.AMOUNT_VAT,
+    BK.ACCOUNT_REL,
+  ])}) { id text value ... on BoardRelationValue { linked_item_ids } }
 `;
 
 function parseBookingItem(item) {
@@ -144,12 +129,14 @@ function parseBookingItem(item) {
     entity: item.group?.title ?? text(BK.ENTITY),
     bd: text(BK.BD),
     bdIds: personIds(bdValue),
+    accountIds: (item.column_values.find(c => c.id === BK.ACCOUNT_REL)?.linked_item_ids ?? []).map(String),
     status: text(BK.STATUS),
     operation: text(BK.OPERATION),
     month: text(BK.MONTH),
     year: text(BK.YEAR),
     project: text(BK.PROJECT),
     description: text(BK.DESCRIPTION),
+    email: text(BK.EMAIL),
     currency,
     amount,
     amountIls: parseNum(text(BK.AMOUNT_ILS)),
@@ -161,13 +148,80 @@ function parseBookingItem(item) {
   return row;
 }
 
+// ── Find a project to add a later invoice to ─────────────────────
+// Searches the Booking board itself (every rep), by the Project column and by item name, and
+// groups the invoices it finds by project so outstanding ones are visible at a glance.
+// Run as two queries because mixing rules with `or` on text columns is unreliable.
+export async function searchBookingProjects(term) {
+  const t = String(term ?? '').trim();
+  if (t.length < 2) return [];
+  const q = col => `{ rules: [{ column_id: "${col}", compare_value: [${JSON.stringify(t)}], operator: contains_text }] }`;
+  const [byProject, byName] = await Promise.all([
+    paginateQuery(BOOKING_BOARD_ID, BOOKING_FIELDS, q(BK.PROJECT), 3),
+    paginateQuery(BOOKING_BOARD_ID, BOOKING_FIELDS, q('name'), 3),
+  ]);
+  const seen = new Map();
+  for (const i of [...byProject, ...byName]) seen.set(String(i.id), i);
+  const groups = groupInvoicesByProject([...seen.values()].map(parseBookingItem));
+  // A hit on one invoice name can miss the project's other invoices, so pull the full set for each project found.
+  return groups
+    .sort((a, b) => (b.overdue - a.overdue) || (b.outstanding - a.outstanding) || a.name.localeCompare(b.name))
+    .slice(0, 25);
+}
+
+// Every invoice on one project, so the numbering and outstanding counts are complete.
+export async function fetchProjectInvoices(projectName) {
+  const items = await paginateQuery(BOOKING_BOARD_ID, BOOKING_FIELDS,
+    `{ rules: [{ column_id: "${BK.PROJECT}", compare_value: [${JSON.stringify(projectName)}], operator: contains_text }] }`, 3);
+  return items.map(parseBookingItem).filter(i => i.project.trim().toLowerCase() === projectName.trim().toLowerCase());
+}
+
+// ── Invoice cache ─────────────────────────────────────────────────
+// The Booking board is large and slow to read, so:
+//   - memory: reused while younger than INVOICE_TTL_MS; concurrent callers share one request
+//   - IndexedDB: the last snapshot survives a reload, so the screen paints it instantly
+//     and refreshes in the background (stale-while-revalidate).
+const INVOICE_TTL_MS = 2 * 60 * 1000;
+const INVOICE_SNAPSHOT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const memCache = new Map();   // key -> { items, fetchedAt, stale }
+const inFlight = new Map();   // key -> Promise
+const cacheKey = userId => `invoices:v2:${userId ?? 'all'}`;
+
+// Whatever is on hand without touching the network (memory, then IndexedDB), or null.
+export async function peekBookingInvoices({ userId } = {}) {
+  const key = cacheKey(userId);
+  if (memCache.has(key)) return memCache.get(key);
+  const stored = await idbGet(key);
+  if (!stored?.items || Date.now() - stored.fetchedAt > INVOICE_SNAPSHOT_MAX_AGE_MS) return null;
+  if (!memCache.has(key)) memCache.set(key, { ...stored, stale: true });
+  return memCache.get(key);
+}
+
+export function invalidateBookingInvoices() {
+  for (const [k, v] of memCache) memCache.set(k, { ...v, stale: true });
+}
+
 // userId null = every rep. The board is filtered server-side on the BD person column.
-export async function fetchBookingInvoices({ userId } = {}) {
+// maxAgeMs: 0 forces a network read.
+export async function fetchBookingInvoices({ userId, maxAgeMs = INVOICE_TTL_MS } = {}) {
+  const key = cacheKey(userId);
+  const hit = memCache.get(key);
+  if (hit && !hit.stale && Date.now() - hit.fetchedAt < maxAgeMs) return hit.items;
+  if (inFlight.has(key)) return inFlight.get(key);
   const params = userId
     ? `{ rules: [{ column_id: "${BK.BD}", compare_value: ["person-${userId}"], operator: any_of }] }`
     : `{ rules: [] }`;
-  const items = await paginateQuery(BOOKING_BOARD_ID, BOOKING_FIELDS, params, 10);
-  return items.map(parseBookingItem);
+  const p = paginateQuery(BOOKING_BOARD_ID, BOOKING_FIELDS, params, 10)
+    .then(items => {
+      const parsed = items.map(parseBookingItem);
+      const snap = { items: parsed, fetchedAt: Date.now(), stale: false };
+      memCache.set(key, snap);
+      idbSet(key, { items: parsed, fetchedAt: snap.fetchedAt });
+      return parsed;
+    })
+    .finally(() => inFlight.delete(key));
+  inFlight.set(key, p);
+  return p;
 }
 
 // ── Create invoices (one deal, all rows in one go) ───────────────

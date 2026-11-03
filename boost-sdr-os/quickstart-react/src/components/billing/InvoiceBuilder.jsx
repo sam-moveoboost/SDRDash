@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { fetchOpportunityBillingSource, createBookingInvoices } from '../../api/billing';
+import { fetchOpportunityBillingSource, fetchProjectInvoices, createBookingInvoices } from '../../api/billing';
 import {
   buildDraft, defaultPaymentPlan, validateRow, findDuplicates, parseNum, round2, deriveValue,
-  formatAmount, applyExtraDefaults, EXTRA_KINDS, MAX_PAYMENTS, FIELD_LABEL, NEW_STATUS,
+  formatAmount, applyExtraDefaults, sourceFromProject, groupInvoicesByProject, EXTRA_KINDS, MAX_PAYMENTS, FIELD_LABEL, NEW_STATUS,
 } from '../../utils/billing';
 import { sortAlpha } from '../../utils/sortOptions';
 
@@ -35,7 +35,7 @@ function Select({ value, options, onChange, invalid, sort = true }) {
   );
 }
 
-export default function InvoiceBuilder({ oppId, mode, user, meta, billedCountFor, existingInvoices, onClose, onCreated }) {
+export default function InvoiceBuilder({ oppId, project, mode, user, meta, billedCountFor, existingInvoices, onClose, onCreated }) {
   const [source, setSource] = useState(null);
   const [error, setError] = useState(null);
   const [count, setCount] = useState(1);
@@ -45,33 +45,48 @@ export default function InvoiceBuilder({ oppId, mode, user, meta, billedCountFor
   const [results, setResults] = useState(null);
   const [kind, setKind] = useState('expenses'); // extra mode only
 
-  const existingCount = source ? billedCountFor(source.name) : 0;
+  // Existing lines on the board: for a board project this is the project's full invoice list (every rep).
+  const [projectInvoices, setProjectInvoices] = useState(project?.invoices ?? null);
+  const dupePool = projectInvoices ?? existingInvoices;
+  const existingCount = source ? (source.existingCount ?? billedCountFor(source.name)) : 0;
   const startNumber = mode === 'extra' ? existingCount + 1 : 1;
 
-  // Load the opportunity fresh from the board and draft the first set of rows.
+  // Load the source and draft the first set of rows. A project picked from the Booking board needs no
+  // opportunity at all; a won deal is read fresh from the Opportunities board.
   useEffect(() => {
     let live = true;
     setSource(null); setError(null); setResults(null); setAttempted(false);
-    fetchOpportunityBillingSource(oppId)
+    const load = project
+      ? fetchProjectInvoices(project.name)
+          .then(all => {
+            const g = groupInvoicesByProject(all.length ? all : project.invoices)[0] ?? project;
+            if (live) setProjectInvoices(g.invoices);
+            return sourceFromProject(g);
+          })
+          .catch(() => sourceFromProject(project))
+      : fetchOpportunityBillingSource(oppId);
+    load
       .then(src => {
         if (!live) return;
         setSource(src);
         const plan = defaultPaymentPlan(src);
         const c = mode === 'extra' ? 1 : plan.count;
         setCount(c);
-        const sn = mode === 'extra' ? billedCountFor(src.name) + 1 : 1;
-        const draft = buildDraft(src, meta, { count: c, startNumber: sn, existingCount: mode === 'extra' ? billedCountFor(src.name) : 0 });
+        const n = src.existingCount ?? billedCountFor(src.name);
+        const sn = mode === 'extra' ? n + 1 : 1;
+        const draft = buildDraft(src, meta, { count: c, startNumber: sn, existingCount: mode === 'extra' ? n : 0 });
         setRows(mode === 'extra' ? extraRows(draft, src, kind, sn) : draft);
       })
       .catch(e => live && setError(e.message));
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [oppId, mode]);
+  }, [oppId, project?.key, mode]);
 
   // Latest invoice already on the board for this project, used to copy operation, entity and currency.
   function latestFor(src) {
-    const mine = existingInvoices.filter(i => i.project.trim().toLowerCase() === src.name.trim().toLowerCase());
-    return mine.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))[0];
+    if (src.latestInvoice) return src.latestInvoice;
+    const mine = (projectInvoices ?? existingInvoices).filter(i => i.project.trim().toLowerCase() === src.name.trim().toLowerCase());
+    return [...mine].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))[0];
   }
   function extraRows(draft, src, k, sn) {
     return applyExtraDefaults(draft, { kind: k, base: src.name, startNumber: sn, latest: latestFor(src) });
@@ -97,8 +112,8 @@ export default function InvoiceBuilder({ oppId, mode, user, meta, billedCountFor
 
   const { value: dealValue, currency: dealCurrency, basis } = useMemo(() => (source ? deriveValue(source) : {}), [source]);
   const dupes = useMemo(
-    () => findDuplicates(rows, existingInvoices, source?.name ?? ''),
-    [rows, existingInvoices, source],
+    () => findDuplicates(rows, dupePool, source?.name ?? ''),
+    [rows, dupePool, source],
   );
   const total = rows.reduce((s, r) => s + (parseNum(r.amount) ?? 0), 0);
   const totalMismatch = mode === 'new' && dealValue && Math.abs(total - dealValue) > 0.01;
@@ -144,6 +159,14 @@ export default function InvoiceBuilder({ oppId, mode, user, meta, billedCountFor
   return (
     <Shell onClose={onClose} title={mode === 'extra' ? `Add invoice · ${source.name}` : `Billing for ${source.name}`}>
       {/* What we know */}
+      {source.fromBoard ? (
+        <div className="grid grid-cols-4 gap-3 max-[900px]:grid-cols-2 mb-4 text-[12.5px]">
+          <Info label="Project" value={source.name} sub="from the Booking board" />
+          <Info label="On the board" value={`${existingCount} invoice${existingCount === 1 ? '' : 's'}`} sub={`${(projectInvoices ?? []).filter(i => i.kind === 'overdue').length} overdue · ${(projectInvoices ?? []).filter(i => i.kind === 'outstanding').length} outstanding`} />
+          <Info label="BD" value={(projectInvoices ?? [])[0]?.bd || '–'} />
+          <Info label="Latest invoice" value={(projectInvoices ?? [])[0]?.name || '–'} sub={(projectInvoices ?? [])[0] ? `${(projectInvoices ?? [])[0].month} ${(projectInvoices ?? [])[0].year}` : ''} />
+        </div>
+      ) : (
       <div className="grid grid-cols-4 gap-3 max-[900px]:grid-cols-2 mb-4 text-[12.5px]">
         <Info label="Deal value" value={dealValue ? formatAmount(dealValue, dealCurrency) : 'Not on the opportunity'} sub={basis} warn={!dealValue} />
         <Info label="Region / entity" value={`${source.region || '–'} → ${rows[0]?.entity || 'choose below'}`} />
@@ -155,8 +178,9 @@ export default function InvoiceBuilder({ oppId, mode, user, meta, billedCountFor
           warn={!source.contract.assets.length}
         />
       </div>
+      )}
 
-      {bdFallback && <Warn>This opportunity has no Bizdev owner, so the invoices will be assigned to you.</Warn>}
+      {bdFallback && <Warn>This project has no BD owner, so the invoices will be assigned to you.</Warn>}
       {source.currency && !rows[0]?.currency && <Warn>The opportunity currency ({source.currency}) is not an option on the Booking board. Choose one on each invoice.</Warn>}
 
       {/* Payments */}
@@ -179,7 +203,7 @@ export default function InvoiceBuilder({ oppId, mode, user, meta, billedCountFor
             {EXTRA_KINDS.map(k => <option key={k.id} value={k.id}>{k.label}</option>)}
           </select>
         )}
-        {mode === 'extra' && <span className="text-[12px] text-muted">{existingCount} invoice{existingCount === 1 ? '' : 's'} already on the board for this project. Amount starts blank.</span>}
+        {mode === 'extra' && <span className="text-[12px] text-muted">Amount starts blank.</span>}
         <span className="text-[12px] text-muted ml-auto">Status on every invoice starts as <span className="font-semibold text-ink">{NEW_STATUS}</span></span>
       </div>
 

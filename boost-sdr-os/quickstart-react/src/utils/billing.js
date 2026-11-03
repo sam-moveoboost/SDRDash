@@ -202,7 +202,7 @@ export function buildDraft(opp, meta, { count, startNumber = 1, existingCount = 
     // When topping up an existing plan, the name carries the running number only.
     const name = existingCount > 0 || startNumber > 1
       ? `${base} - Payment ${number}`
-      : paymentName(base, number, total, n > 1 ? pct : null);
+      : paymentName(base, number, total, n > 1 ? pct : null) + (n > 1 && amount ? ` (${formatAmount(amount, cur)})` : '');
     return {
       id: newRowId(),
       name,
@@ -345,4 +345,85 @@ export const INVOICE_ORDER = { overdue: 0, outstanding: 1, other: 2, paid: 3, ca
 export function daysOverdue(dueDate, today = todayISO()) {
   if (!dueDate || dueDate >= today) return 0;
   return Math.round((new Date(`${today}T00:00:00`) - new Date(`${dueDate}T00:00:00`)) / 86400000);
+}
+
+// ── Which won deals still need billing ───────────────────────────
+// Billing is only set up for PS jobs.
+export function isPsJob({ typeOfDeal, arrSourceType }) {
+  return norm(typeOfDeal) === 'ps' || norm(arrSourceType) === 'ps';
+}
+
+// Deals closed before this date are treated as already invoiced (billing started with the app).
+// Anything the rep was prompted for and chose "Later" on stays flagged whatever its date.
+export const BILLING_START = '2026-11-03';
+
+function subsetSumMatches(amounts, target, tol) {
+  const a = amounts.slice(0, 16);
+  const n = a.length;
+  for (let mask = 1; mask < (1 << n); mask++) {
+    let sum = 0;
+    for (let i = 0; i < n; i++) if (mask & (1 << i)) sum += a[i];
+    if (Math.abs(sum - target) <= target * tol) return true;
+  }
+  return false;
+}
+
+// True when the board already holds invoices for this deal: same project name, or invoices on the
+// same account, in the deal's currency, whose amounts add up to the deal value (within 1%).
+export function invoicesCoverOpp(opp, invoices) {
+  const name = norm(opp.name);
+  if (invoices.some(i => norm(i.project) === name)) return true;
+  const value = parseNum(opp.value);
+  if (!value || !opp.currency || !opp.accountIds?.length) return false;
+  const amounts = invoices
+    .filter(i => i.kind !== 'cancelled' && i.currency === opp.currency && i.amount > 0)
+    .filter(i => (i.accountIds ?? []).some(id => opp.accountIds.includes(id)))
+    .map(i => i.amount);
+  return amounts.length > 0 && subsetSumMatches(amounts, value, 0.01);
+}
+
+// ── Projects as they appear on the Booking board ─────────────────
+// A project is the Booking "Project" text (falling back to the item name), the same way the
+// board's client-grouped view reads it. Invoice items must carry project, kind, createdAt etc.
+export function projectKey(inv) {
+  return norm(inv.project) || norm(inv.name);
+}
+
+export function groupInvoicesByProject(invoices) {
+  const map = new Map();
+  for (const inv of invoices) {
+    const key = projectKey(inv);
+    if (!key) continue;
+    if (!map.has(key)) map.set(key, { key, name: inv.project?.trim() || inv.name, invoices: [] });
+    map.get(key).invoices.push(inv);
+  }
+  const groups = [...map.values()];
+  for (const g of groups) {
+    g.invoices.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+    g.latest = g.invoices[0];
+    g.overdue = g.invoices.filter(i => i.kind === 'overdue').length;
+    g.outstanding = g.invoices.filter(i => i.kind === 'outstanding').length;
+  }
+  return groups;
+}
+
+// An opportunity-shaped source built from the project's own invoices, so a later line can be added
+// without going near the Opportunities board.
+export function sourceFromProject(project) {
+  const l = project.latest;
+  return {
+    id: null,
+    fromBoard: true,
+    name: project.name,
+    ownerIds: l.bdIds?.length ? l.bdIds : (project.invoices.find(i => i.bdIds?.length)?.bdIds ?? []),
+    company: '',
+    accountIds: l.accountIds ?? [],
+    email: project.invoices.find(i => i.email)?.email ?? '',
+    region: '', typeOfDeal: '', arrLength: '', products: [],
+    currency: l.currency, psValue: '', arrValue: '', terms: '',
+    expectedDate: '', closedDate: '',
+    contract: { label: '', assets: [] },
+    existingCount: project.invoices.length,
+    latestInvoice: l,
+  };
 }

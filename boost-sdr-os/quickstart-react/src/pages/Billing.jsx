@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useBilling } from '../billing/BillingContext';
-import { fetchBookingMeta, fetchBookingInvoices } from '../api/billing';
+import { fetchBookingMeta, fetchBookingInvoices, peekBookingInvoices } from '../api/billing';
 import { fetchWorkspaceUsers } from '../api/monday';
 import InvoiceBuilder from '../components/billing/InvoiceBuilder';
 import ProjectFinder from '../components/billing/ProjectFinder';
-import { formatAmount, daysOverdue, INVOICE_ORDER, todayISO } from '../utils/billing';
+import { formatAmount, daysOverdue, INVOICE_ORDER, todayISO, groupInvoicesByProject, projectKey } from '../utils/billing';
 import { sortAlpha } from '../utils/sortOptions';
 
 const KIND_META = {
@@ -23,7 +23,7 @@ function totalsByCurrency(list) {
 }
 
 export default function Billing({ user }) {
-  const { pending, invoices, loading, error, target, clearTarget, openBilling, reload, markHandled, billedCountFor, oppIdByName } = useBilling();
+  const { pending, invoices, loading, error, target, clearTarget, openBilling, openProject, reload, markHandled, billedCountFor } = useBilling();
   const [meta, setMeta] = useState(null);
   const [metaError, setMetaError] = useState(null);
   const [users, setUsers] = useState([]);
@@ -37,7 +37,9 @@ export default function Billing({ user }) {
     if (rep === 'me') { setOtherInvoices(null); return; }
     let live = true;
     setOtherInvoices(null);
-    fetchBookingInvoices({ userId: rep === 'all' ? null : rep }).then(r => live && setOtherInvoices(r)).catch(() => live && setOtherInvoices([]));
+    const userId = rep === 'all' ? null : rep;
+    peekBookingInvoices({ userId }).then(c => { if (live && c?.items) setOtherInvoices(c.items); });
+    fetchBookingInvoices({ userId }).then(r => live && setOtherInvoices(r)).catch(() => live && setOtherInvoices(prev => prev ?? []));
     return () => { live = false; };
   }, [rep]);
 
@@ -48,6 +50,7 @@ export default function Billing({ user }) {
     .sort((a, b) => (INVOICE_ORDER[a.kind] - INVOICE_ORDER[b.kind])
       || (a.dueDate || '9999').localeCompare(b.dueDate || '9999')), [all, kinds]);
 
+  const projects = useMemo(() => new Map(groupInvoicesByProject(all ?? []).map(g => [g.key, g])), [all]);
   const overdue = (all ?? []).filter(i => i.kind === 'overdue');
   const outstanding = (all ?? []).filter(i => i.kind === 'outstanding');
 
@@ -71,27 +74,28 @@ export default function Billing({ user }) {
       {/* Builder */}
       {target && meta && (
         <InvoiceBuilder
-          key={`${target.oppId}-${target.mode}`}
+          key={`${target.oppId ?? target.project?.key}-${target.mode}`}
           oppId={target.oppId}
+          project={target.project}
           mode={target.mode}
           user={user}
           meta={meta}
           billedCountFor={billedCountFor}
           existingInvoices={existingForBuilder}
           onClose={clearTarget}
-          onCreated={src => { markHandled(src.id); reload({ force: true }); }}
+          onCreated={src => { if (src.id) markHandled(src.id); reload({ force: true }); }}
         />
       )}
 
       {/* Awaiting billing */}
       <section className="mb-7">
         <div className="flex items-center gap-2 mb-2.5">
-          <h2 className="font-heading font-bold text-[15px] text-ink">Won deals awaiting billing</h2>
+          <h2 className="font-heading font-bold text-[15px] text-ink">Won PS deals awaiting billing</h2>
           {pending.length > 0 && <span className="text-[11px] font-bold bg-amber text-white rounded-full px-2 py-0.5">{pending.length}</span>}
         </div>
         {pending.length === 0 ? (
           <p className="text-[13px] text-muted bg-white border border-line rounded-xl px-4 py-3">
-            {loading ? 'Checking your won deals…' : 'Nothing waiting. Deals you win in the last 120 days without invoices will appear here.'}
+            {loading ? 'Checking your won deals…' : 'Nothing waiting. PS deals you win without invoices on the board will appear here.'}
           </p>
         ) : (
           <div className="flex flex-col gap-2">
@@ -172,7 +176,7 @@ export default function Billing({ user }) {
                   <tr><td colSpan={9} className="px-4 py-6 text-muted">No invoices match the filters.</td></tr>
                 ) : list.map(i => {
                   const late = daysOverdue(i.dueDate, today);
-                  const oppId = oppIdByName(i.project);
+                  const proj = projects.get(projectKey(i));
                   return (
                     <tr key={i.id} className="border-b border-line last:border-0 hover:bg-canvas/60">
                       <td className="px-4 py-2.5">
@@ -190,9 +194,9 @@ export default function Billing({ user }) {
                       <td className="px-3 py-2.5 text-muted whitespace-nowrap">{i.status || '–'}</td>
                       {rep !== 'me' && <td className="px-3 py-2.5 whitespace-nowrap">{i.bd || '–'}</td>}
                       <td className="px-3 py-2.5 text-right whitespace-nowrap">
-                        {oppId && (
+                        {proj && (
                           <button
-                            onClick={() => openBilling(oppId, 'extra')}
+                            onClick={() => openProject(proj)}
                             title="Add a later invoice for this deal"
                             className="text-[11.5px] font-semibold text-navy bg-transparent border border-line rounded-full px-2.5 py-1 cursor-pointer hover:bg-canvas"
                           >+ Invoice</button>

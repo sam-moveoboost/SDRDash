@@ -298,8 +298,11 @@ export default function OpportunityDetailPanel({ item, isNew, boardCols, wsUsers
       const eventIds = eventChanged ? (eventEdit ? [eventEdit] : []) : relIds(item, REL.OPP_EVENT);
       const wasWon = currentText(COL.STAGE) === 'Won';
       onUpdate(item.id, withEventLink(updated.column_values, eventIds), updated.name);
-      // Marking a deal Won is the trigger for billing: offer to draft its invoices straight away.
-      if (edits[COL.STAGE] === 'Won' && !wasWon) showWonPrompt({ id: item.id, name: updated.name ?? item.name });
+      // Marking a PS deal Won is the trigger for billing: offer to draft its invoices straight away.
+      const liveType = edits[COL.TYPE_OF_DEAL] ?? currentText(COL.TYPE_OF_DEAL);
+      const liveSource = edits[COL.ARR_SOURCE_TYPE] ?? currentText(COL.ARR_SOURCE_TYPE);
+      const isPs = liveType === 'PS' || liveSource === 'PS';
+      if (edits[COL.STAGE] === 'Won' && !wasWon && isPs) showWonPrompt({ id: item.id, name: updated.name ?? item.name });
       setEdits({});
       setEventEdit(undefined);
       setSavedMsg('Saved ✓');
