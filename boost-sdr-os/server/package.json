@@ -5,10 +5,12 @@
   "description": "Server-side code for the SDR dashboard, hosted on monday code",
   "main": "src/index.js",
   "scripts": {
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "test": "node --test test/coaching.test.js"
   },
   "dependencies": {
-    "@mondaycom/apps-sdk": "^2.1.2",
-    "express": "^4.21.2"
+    "@mondaycom/apps-sdk": "^3.3.2",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2"
   }
 }
