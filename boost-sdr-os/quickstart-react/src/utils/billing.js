@@ -327,20 +327,33 @@ export function buildBookingColumnValues(row, { bdUserIds = [], project, email }
 }
 
 // ── Invoice tracking ─────────────────────────────────────────────
-// 'overdue' | 'outstanding' | 'paid' | 'cancelled' | 'other'
-// A payment is only overdue once the invoice is out: either finance flagged it Late!,
-// or it is Awaiting Payment and its due date has passed. New!/Issue invoice rows are still outstanding.
+// 'overdue' | 'awaiting' | 'issue' | 'outstanding' | 'other' | 'paid' | 'cancelled'
+//   awaiting    New! / Awaiting Invoice: not yet ready to bill, the rep decides when
+//   issue       Issue invoice: the rep has released it, finance raises the invoice
+//   outstanding Awaiting Payment and not yet due
+//   overdue     finance flagged Late!, or Awaiting Payment past its due date
 export function classifyInvoice({ status, dueDate }, today = todayISO()) {
   const s = norm(status);
   if (s === 'paid!' || s === 'paid') return 'paid';
   if (s === 'cancelled') return 'cancelled';
   if (s === 'late!' || s === 'late') return 'overdue';
   if (s === 'on hold') return 'other';
+  if (s === 'issue invoice') return 'issue';
+  if (s === 'new!' || s === 'new' || s === 'awaiting invoice' || s === '') return 'awaiting';
   if (s === 'awaiting payment' && dueDate && dueDate < today) return 'overdue';
   return 'outstanding';
 }
 
-export const INVOICE_ORDER = { overdue: 0, outstanding: 1, other: 2, paid: 3, cancelled: 4 };
+export const INVOICE_ORDER = { overdue: 0, issue: 1, awaiting: 2, outstanding: 3, other: 4, paid: 5, cancelled: 6 };
+
+// Statuses a rep may set from the tracker. Awaiting Payment, Late! and Paid! belong to finance.
+export const REP_STATUSES = ['New!', 'Awaiting Invoice', 'Issue invoice', 'On Hold', 'Cancelled'];
+
+// Board colours for the status labels, so the tracker reads like the board.
+export const STATUS_COLOR = {
+  'new!': '#4eccc6', 'awaiting invoice': '#bca58a', 'issue invoice': '#9cd326', 'awaiting payment': '#e484bd',
+  'late!': '#df2f4a', 'paid!': '#579bfc', 'cancelled': '#7f5347', 'on hold': '#ff6d3b',
+};
 
 // Months late as a short human label for the table.
 export function daysOverdue(dueDate, today = todayISO()) {
@@ -404,6 +417,7 @@ export function groupInvoicesByProject(invoices) {
     g.latest = g.invoices[0];
     g.overdue = g.invoices.filter(i => i.kind === 'overdue').length;
     g.outstanding = g.invoices.filter(i => i.kind === 'outstanding').length;
+    g.toInvoice = g.invoices.filter(i => i.kind === 'awaiting' || i.kind === 'issue').length;
   }
   return groups;
 }

@@ -199,6 +199,19 @@ export async function peekBookingInvoices({ userId } = {}) {
   return memCache.get(key);
 }
 
+// Sets the Payment Status of one invoice on the Booking board and patches every cached copy,
+// so the tracker updates at once and a reload does not bring the old value back.
+export async function setInvoiceStatus(itemId, label) {
+  const value = JSON.stringify(JSON.stringify({ label }));
+  await gql(`mutation { change_column_value(board_id: ${BOOKING_BOARD_ID}, item_id: ${itemId}, column_id: "${BK.STATUS}", value: ${value}) { id } }`);
+  const patch = i => (i.id === String(itemId) ? { ...i, status: label, kind: classifyInvoice({ status: label, dueDate: i.dueDate }) } : i);
+  for (const [key, snap] of memCache) {
+    const items = snap.items.map(patch);
+    memCache.set(key, { ...snap, items });
+    idbSet(key, { items, fetchedAt: snap.fetchedAt });
+  }
+}
+
 export function invalidateBookingInvoices() {
   for (const [k, v] of memCache) memCache.set(k, { ...v, stale: true });
 }

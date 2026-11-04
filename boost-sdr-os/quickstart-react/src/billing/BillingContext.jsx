@@ -24,7 +24,7 @@ function ownerIds(item) {
 const noop = () => {};
 const BillingContext = createContext({
   pending: [], pendingCount: 0, invoices: [], loading: false, error: null,
-  target: null, wonPrompt: null, showWonPrompt: noop, dismissWonPrompt: noop, reload: noop, openBilling: noop, openProject: noop, clearTarget: noop, markHandled: noop, billedCountFor: () => 0,
+  target: null, wonPrompt: null, showWonPrompt: noop, dismissWonPrompt: noop, reload: noop, openBilling: noop, openProject: noop, patchInvoice: noop, clearTarget: noop, markHandled: noop, billedCountFor: () => 0,
 });
 
 export const useBilling = () => useContext(BillingContext);
@@ -133,11 +133,15 @@ export function BillingProvider({ user, onNavigate, children }) {
     onNavigate?.('billing');
   }, [onNavigate]);
 
+  const patchInvoice = useCallback((id, patch) => {
+    setInvoices(prev => prev.map(i => (i.id === String(id) ? { ...i, ...patch } : i)));
+  }, []);
+
   const value = useMemo(() => ({
     pending, pendingCount: pending.length, invoices, loading, error, target, wonPrompt,
     showWonPrompt, dismissWonPrompt: () => setWonPrompt(null),
-    reload, openBilling, openProject, clearTarget: () => setTarget(null), markHandled, billedCountFor,
-  }), [pending, invoices, loading, error, target, wonPrompt, showWonPrompt, reload, openBilling, openProject, markHandled, billedCountFor]);
+    reload, openBilling, openProject, patchInvoice, clearTarget: () => setTarget(null), markHandled, billedCountFor,
+  }), [pending, invoices, loading, error, target, wonPrompt, showWonPrompt, reload, openBilling, openProject, patchInvoice, markHandled, billedCountFor]);
 
   return <BillingContext.Provider value={value}>{children}</BillingContext.Provider>;
 }

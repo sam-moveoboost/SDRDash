@@ -1,19 +1,22 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useBilling } from '../billing/BillingContext';
-import { fetchBookingMeta, fetchBookingInvoices, peekBookingInvoices } from '../api/billing';
+import { fetchBookingMeta, fetchBookingInvoices, peekBookingInvoices, setInvoiceStatus } from '../api/billing';
 import { fetchWorkspaceUsers } from '../api/monday';
 import InvoiceBuilder from '../components/billing/InvoiceBuilder';
 import ProjectFinder from '../components/billing/ProjectFinder';
-import { formatAmount, daysOverdue, INVOICE_ORDER, todayISO, groupInvoicesByProject, projectKey } from '../utils/billing';
+import { formatAmount, daysOverdue, INVOICE_ORDER, todayISO, groupInvoicesByProject, projectKey, REP_STATUSES, STATUS_COLOR, classifyInvoice } from '../utils/billing';
 import { sortAlpha } from '../utils/sortOptions';
 
 const KIND_META = {
-  overdue:     { label: 'Overdue',     cls: 'bg-red text-white' },
-  outstanding: { label: 'Outstanding', cls: 'bg-pale text-navy' },
-  other:       { label: 'On hold',     cls: 'bg-amber-soft text-amber-ink' },
-  paid:        { label: 'Paid',        cls: 'bg-mint text-green-deep' },
-  cancelled:   { label: 'Cancelled',   cls: 'bg-line text-muted' },
+  overdue:     { label: 'Overdue' },
+  awaiting:    { label: 'To invoice' },
+  issue:       { label: 'Issue invoice' },
+  outstanding: { label: 'Awaiting payment' },
+  other:       { label: 'On hold' },
+  paid:        { label: 'Paid' },
+  cancelled:   { label: 'Cancelled' },
 };
+const KIND_ORDER = ['overdue', 'awaiting', 'issue', 'outstanding', 'other', 'paid', 'cancelled'];
 
 function totalsByCurrency(list) {
   const t = {};
@@ -23,13 +26,15 @@ function totalsByCurrency(list) {
 }
 
 export default function Billing({ user }) {
-  const { pending, invoices, loading, error, target, clearTarget, openBilling, openProject, reload, markHandled, billedCountFor } = useBilling();
+  const { pending, invoices, loading, error, target, clearTarget, openBilling, openProject, patchInvoice, reload, markHandled, billedCountFor } = useBilling();
   const [meta, setMeta] = useState(null);
   const [metaError, setMetaError] = useState(null);
   const [users, setUsers] = useState([]);
   const [rep, setRep] = useState('me'); // 'me' | 'all' | user id
   const [otherInvoices, setOtherInvoices] = useState(null);
-  const [kinds, setKinds] = useState(['overdue', 'outstanding']); // paid and cancelled are hidden by default
+  const [kinds, setKinds] = useState(['overdue', 'awaiting', 'issue', 'outstanding']); // paid, cancelled and on hold are hidden by default
+  const [saving, setSaving] = useState({}); // invoice id -> true while its status is being written
+  const [saveError, setSaveError] = useState(null);
 
   useEffect(() => { reload(); fetchBookingMeta().then(setMeta).catch(e => setMetaError(e.message)); fetchWorkspaceUsers().then(setUsers).catch(() => {}); }, [reload]);
 
@@ -52,7 +57,23 @@ export default function Billing({ user }) {
 
   const projects = useMemo(() => new Map(groupInvoicesByProject(all ?? []).map(g => [g.key, g])), [all]);
   const overdue = (all ?? []).filter(i => i.kind === 'overdue');
+  const toInvoice = (all ?? []).filter(i => i.kind === 'awaiting' || i.kind === 'issue');
   const outstanding = (all ?? []).filter(i => i.kind === 'outstanding');
+
+  async function changeStatus(inv, label) {
+    if (label === inv.status) return;
+    setSaving(p => ({ ...p, [inv.id]: true })); setSaveError(null);
+    try {
+      await setInvoiceStatus(inv.id, label);
+      const patch = { status: label, kind: classifyInvoice({ status: label, dueDate: inv.dueDate }) };
+      patchInvoice(inv.id, patch);
+      setOtherInvoices(prev => (prev ? prev.map(i => (i.id === inv.id ? { ...i, ...patch } : i)) : prev));
+    } catch (e) {
+      setSaveError(`Could not update "${inv.name}": ${String(e.message).slice(0, 120)}`);
+    } finally {
+      setSaving(p => { const n = { ...p }; delete n[inv.id]; return n; });
+    }
+  }
 
   function toggle(k) { setKinds(prev => (prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k])); }
 
@@ -135,7 +156,7 @@ export default function Billing({ user }) {
             {sortAlpha(users, u => u.name).map(u => <option key={u.id} value={String(u.id)}>{u.name}</option>)}
           </select>
           <div className="flex gap-1.5 ml-auto flex-wrap">
-            {['overdue', 'outstanding', 'other', 'paid', 'cancelled'].map(k => (
+            {KIND_ORDER.map(k => (
               <button
                 key={k} onClick={() => toggle(k)}
                 className={`px-3 py-1.5 rounded-full text-[12px] font-semibold border cursor-pointer ${
@@ -148,11 +169,12 @@ export default function Billing({ user }) {
 
         <div className="grid grid-cols-3 gap-3 mb-3 max-[800px]:grid-cols-1">
           <Stat label="Overdue" value={overdue.length} sub={totalsByCurrency(overdue)} tone="red" />
-          <Stat label="Outstanding, not yet due" value={outstanding.length} sub={totalsByCurrency(outstanding)} />
-          <Stat label="Showing" value={list.length} sub={kinds.includes('paid') ? 'including paid' : 'paid hidden by default'} />
+          <Stat label="To invoice" value={toInvoice.length} sub={totalsByCurrency(toInvoice)} tone="amber" />
+          <Stat label="Awaiting payment" value={outstanding.length} sub={totalsByCurrency(outstanding)} />
         </div>
 
         {error && <p className="text-[13px] text-red mb-2">{error}</p>}
+        {saveError && <p className="text-[13px] text-red mb-2">{saveError}</p>}
         <div className="bg-white border border-line rounded-2xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-[12.5px]">
@@ -163,8 +185,7 @@ export default function Billing({ user }) {
                   <th className="px-3 py-2.5 font-bold">Work month</th>
                   <th className="px-3 py-2.5 font-bold text-right">Amount</th>
                   <th className="px-3 py-2.5 font-bold">Due</th>
-                  <th className="px-3 py-2.5 font-bold">Status</th>
-                  <th className="px-3 py-2.5 font-bold">Finance status</th>
+                  <th className="px-3 py-2.5 font-bold">Payment status</th>
                   {rep !== 'me' && <th className="px-3 py-2.5 font-bold">BD</th>}
                   <th className="px-3 py-2.5" />
                 </tr>
@@ -178,7 +199,7 @@ export default function Billing({ user }) {
                   const late = daysOverdue(i.dueDate, today);
                   const proj = projects.get(projectKey(i));
                   return (
-                    <tr key={i.id} className="border-b border-line last:border-0 hover:bg-canvas/60">
+                    <tr key={i.id} className={`border-b border-line last:border-0 hover:bg-canvas/60 ${i.kind === 'overdue' ? 'bg-red-soft/40' : ''}`}>
                       <td className="px-4 py-2.5">
                         <a href={i.url} target="_blank" rel="noreferrer" className="font-semibold text-navy hover:underline">{i.name}</a>
                         {i.description && <div className="text-[11.5px] text-muted truncate max-w-[320px]">{i.description}</div>}
@@ -190,8 +211,9 @@ export default function Billing({ user }) {
                         {i.dueDate || '–'}
                         {i.kind === 'overdue' && late > 0 && <div className="text-[11px] text-red font-semibold">{late} day{late === 1 ? '' : 's'} late</div>}
                       </td>
-                      <td className="px-3 py-2.5"><span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${KIND_META[i.kind].cls}`}>{KIND_META[i.kind].label}</span></td>
-                      <td className="px-3 py-2.5 text-muted whitespace-nowrap">{i.status || '–'}</td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <StatusCell inv={i} busy={!!saving[i.id]} onChange={label => changeStatus(i, label)} />
+                      </td>
                       {rep !== 'me' && <td className="px-3 py-2.5 whitespace-nowrap">{i.bd || '–'}</td>}
                       <td className="px-3 py-2.5 text-right whitespace-nowrap">
                         {proj && (
@@ -210,9 +232,39 @@ export default function Billing({ user }) {
           </div>
         </div>
         <p className="text-[11.5px] text-muted mt-2">
-          Overdue means finance has marked it Late!, or it is Awaiting Payment and past its due date (falls back to the default expected date when there is no due date).
+          New! and Awaiting Invoice are waiting for you to decide; set a line to Issue invoice when finance should raise it. Awaiting Payment, Late! and Paid! are set by finance. Overdue means finance marked it Late!, or it is Awaiting Payment and past its due date (the default expected date is used when there is no due date).
         </p>
       </section>
+    </div>
+  );
+}
+
+// Reps can move a line between the pre-invoice statuses; once finance has taken it over the
+// status is shown read-only, in the board's colour.
+function StatusCell({ inv, busy, onChange }) {
+  const color = STATUS_COLOR[String(inv.status).trim().toLowerCase()] ?? '#757c77';
+  const editable = REP_STATUSES.some(s => s.toLowerCase() === String(inv.status).trim().toLowerCase()) || !inv.status;
+  if (!editable) {
+    return <span className="inline-block text-[11.5px] font-bold text-white px-2.5 py-1 rounded-md" style={{ background: color }}>{inv.status}</span>;
+  }
+  const current = REP_STATUSES.find(s => s.toLowerCase() === String(inv.status).trim().toLowerCase()) ?? '';
+  return (
+    <div className="flex items-center gap-1.5">
+      <select
+        value={current} disabled={busy} onChange={e => onChange(e.target.value)}
+        className="text-[11.5px] font-bold text-white px-2 py-1 rounded-md border-0 cursor-pointer disabled:opacity-60 appearance-auto"
+        style={{ background: color }}
+      >
+        {!current && <option value="">Choose…</option>}
+        {REP_STATUSES.map(s => <option key={s} value={s} className="text-ink bg-white">{s}</option>)}
+      </select>
+      {(inv.kind === 'awaiting') && !busy && (
+        <button
+          onClick={() => onChange('Issue invoice')}
+          className="text-[11px] font-semibold text-navy bg-white border border-line rounded-full px-2.5 py-1 cursor-pointer hover:bg-canvas whitespace-nowrap"
+        >Issue invoice</button>
+      )}
+      {busy && <span className="text-[11px] text-muted">Saving…</span>}
     </div>
   );
 }
@@ -221,7 +273,7 @@ function Stat({ label, value, sub, tone }) {
   return (
     <div className="bg-white border border-line rounded-xl px-4 py-3">
       <div className="text-[10.5px] font-bold uppercase tracking-wider text-muted">{label}</div>
-      <div className={`font-heading font-bold text-[22px] ${tone === 'red' && value > 0 ? 'text-red' : 'text-ink'}`}>{value}</div>
+      <div className={`font-heading font-bold text-[22px] ${tone === 'red' && value > 0 ? 'text-red' : tone === 'amber' && value > 0 ? 'text-amber-ink' : 'text-ink'}`}>{value}</div>
       <div className="text-[12px] text-muted truncate">{sub}</div>
     </div>
   );
