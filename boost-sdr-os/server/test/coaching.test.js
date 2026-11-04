@@ -77,7 +77,7 @@ function makeDeps({ persist = true, claudeFails = false, claudePingFails = false
         getAnalysis: async (id) => saved.get(id) ?? null,
         saveAnalysis: async (id, a) => { if (persist) saved.set(id, a); return persist; },
         mapLimit: async (items, _l, fn) => Promise.all(items.map(fn)),
-        selfTest: async () => { if (!persist) throw new Error('Storage write failed: nope'); },
+        selfTest: async () => [{ name: 'Saving analyses: fake', ok: persist, ms: 1, ...(persist ? {} : { error: 'the read gave back nothing' }) }],
       },
     },
   };
@@ -395,7 +395,7 @@ test('the connection check is for managers and reports each part', async () => {
     assert.equal((await call('/selftest', LUKE)).status, 403);
     const ok = await json('/selftest', SAM);
     assert.equal(ok.ok, true);
-    assert.equal(ok.checks.length, 3);
+    assert.equal(ok.checks.length, 3); // Claude, one store (fake), monday
   });
   await withServer({ claudePingFails: true, persist: false }, async ({ json }) => {
     const bad = await json('/selftest', SAM);
@@ -403,7 +403,55 @@ test('the connection check is for managers and reports each part', async () => {
     const byName = Object.fromEntries(bad.checks.map((c) => [c.name.split(' ')[0], c]));
     assert.equal(byName.Claude.ok, false);
     assert.match(byName.Claude.error, /15 seconds/);
-    assert.equal(byName.Storage.ok, false);
+    assert.equal(byName.Saving.ok, false);
     assert.equal(byName.monday.ok, true);
   });
+});
+
+// ---- the real store module, with fake backends ----
+const realStore = require('../src/lib/store');
+const fakeBackend = (name, { readBack = true, asText = false, setOk = true } = {}) => {
+  const data = new Map();
+  return {
+    name,
+    set: async (k, v) => { if (!setOk) return false; data.set(k, asText ? JSON.stringify(v) : v); return true; },
+    get: async (k) => (readBack ? (data.has(k) ? (asText ? JSON.parse(data.get(k)) : data.get(k)) : null) : null),
+  };
+};
+
+test('the store skips a backend that writes but cannot read back, and uses the next one', async () => {
+  realStore._setBackends([fakeBackend('broken', { readBack: false }), fakeBackend('good')]);
+  const analysis = { callType: 'conversation', summary: 'x' };
+  assert.equal(await realStore.saveAnalysis('1', analysis), true);
+  assert.deepEqual(await realStore.getAnalysis('1'), analysis);
+});
+
+test('the store says not saved, and so nothing gets marked, when no backend works', async () => {
+  realStore._setBackends([fakeBackend('broken', { readBack: false }), fakeBackend('refuses', { setOk: false })]);
+  assert.equal(await realStore.saveAnalysis('2', { callType: 'conversation' }), false);
+  assert.equal(await realStore.getAnalysis('2'), null);
+});
+
+test('values a store hands back as text are turned back into objects', async () => {
+  realStore._setBackends([fakeBackend('texty', { asText: true })]);
+  const analysis = { callType: 'early_hangup', openerResult: 'hung_up' };
+  assert.equal(await realStore.saveAnalysis('3', analysis), true);
+  assert.deepEqual(await realStore.getAnalysis('3'), analysis);
+});
+
+test('the connection check reports each store separately, with the reason it failed', async () => {
+  realStore._setBackends([fakeBackend('broken', { readBack: false }), fakeBackend('good')]);
+  const results = await realStore.selfTest();
+  assert.equal(results.length, 2);
+  assert.equal(results[0].ok, false);
+  assert.match(results[0].error, /gave back nothing/);
+  assert.equal(results[1].ok, true);
+});
+
+test('Claude\'s own explanation of a refusal is shown, not just the status', async () => {
+  const { ping } = require('../src/lib/analysis');
+  process.env.ANTHROPIC_API_KEY = 'sk-test-key';
+  const fetchImpl = async () => ({ ok: false, status: 400, text: async () => JSON.stringify({ type: 'error', error: { type: 'invalid_request_error', message: 'Your credit balance is too low to access the Anthropic API.' } }) });
+  await assert.rejects(() => ping({ fetchImpl }), /HTTP 400: Your credit balance is too low/);
+  delete process.env.ANTHROPIC_API_KEY;
 });

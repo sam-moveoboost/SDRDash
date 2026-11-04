@@ -76,6 +76,19 @@ Reply with a single JSON object and nothing else, in exactly this shape:
   "try_next_time": ["...", "..."]
 }`;
 
+// Anthropic says why a request was refused (for example a model name or the account balance).
+// That text is safe to show; it never contains the key.
+async function describeFailure(res) {
+  let detail = '';
+  try {
+    const body = JSON.parse(await res.text());
+    detail = body?.error?.message ? `: ${String(body.error.message).slice(0, 220)}` : '';
+  } catch (_err) {
+    // no readable explanation
+  }
+  return `Claude API HTTP ${res.status}${detail}`;
+}
+
 const norm = (s) => String(s || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 
 function quoteIsReal(transcriptNorm, quote) {
@@ -180,7 +193,7 @@ async function analyseCall({ turns, call }, { fetchImpl = fetch } = {}) {
         messages: [{ role: 'user', content: user }],
       }),
     });
-    if (!res.ok) throw new Error(`Claude API HTTP ${res.status}`);
+    if (!res.ok) throw new Error(await describeFailure(res));
     const json = await res.json();
     const text = (json.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
     return validate(extractJson(text), turns);
@@ -202,7 +215,7 @@ async function ping({ fetchImpl = fetch } = {}) {
       headers: { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({ model: CLAUDE_MODEL, max_tokens: 8, messages: [{ role: 'user', content: 'Reply with the single word OK.' }] }),
     });
-    if (!res.ok) throw new Error(`Claude API HTTP ${res.status}`);
+    if (!res.ok) throw new Error(await describeFailure(res));
   } catch (err) {
     throw new Error(err.name === 'AbortError' ? 'Claude did not answer within 15 seconds' : err.message);
   } finally {

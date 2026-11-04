@@ -302,11 +302,12 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
         return { name, ok: false, ms: Date.now() - t0, error: err.message };
       }
     };
-    const checks = await Promise.all([
+    const [claude, saving, monday] = await Promise.all([
       run('Claude (the analysis)', () => analysis.ping()),
-      run('Storage (where analyses are saved)', () => store.selfTest()),
+      store.selfTest(),
       run('monday (reading the board)', () => mondayApi.ping()),
     ]);
+    const checks = [claude, ...saving, monday];
     return res.json({ ok: checks.every((c) => c.ok), checks });
   }));
 
