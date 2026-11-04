@@ -63,7 +63,9 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
   }
 
   const inScope = (calls, sdrId) => (sdrId == null ? calls : calls.filter((c) => c.sdrId === sdrId));
-  const isCandidate = (c) => c.answered && Date.parse(c.createdAt) >= cfg.COACHING_FROM_MS;
+  // Answered and not tagged as no answer, busy or voicemail. Untagged calls stay in,
+  // because a fresh call may not be tagged yet and its transcript will show what it was.
+  const isCandidate = (c) => c.answered && !c.noConnectionTag && Date.parse(c.createdAt) >= cfg.COACHING_FROM_MS;
   const isAnalysed = (c) => c.coachingStatus === cfg.STATUS_ANALYSED;
   const parseDays = (q) => Math.min(cfg.MAX_DAYS, Math.max(7, parseInt(q, 10) || 30));
   const usable = (parsed) => !!parsed && parsed.stats.chars >= cfg.MIN_TRANSCRIPT_CHARS;
@@ -102,7 +104,17 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
     const calls = inScope(all, scope.sdrId);
 
     const analysedCalls = calls.filter(isCandidate).filter(isAnalysed);
-    const analyses = (await loadAnalyses(analysedCalls)).map((p) => p.analysis).filter(Boolean);
+    const pairs = (await loadAnalyses(analysedCalls)).filter((p) => p.analysis);
+    const analyses = pairs.map((p) => p.analysis);
+
+    // Cross-check of the tags against what the transcripts show: calls tagged as a real
+    // connection whose transcript turned out to be a voicemail or phone menu.
+    const voicemailLike = (a) => a.callType === 'voicemail' || a.callType === 'automated_menu';
+    const connectionCheck = {
+      analysed: pairs.length,
+      taggedConnectedButVoicemail: pairs.filter((p) => p.call.connected && voicemailLike(p.analysis)).length,
+      untaggedButVoicemail: pairs.filter((p) => !p.call.connected && voicemailLike(p.analysis)).length,
+    };
 
     res.json({
       scope: { sdrId: scope.sdrId, isAdmin: req.viewer.isAdmin, days },
@@ -113,6 +125,7 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
       sdrs: req.viewer.isAdmin ? bySdr(all).map(({ id, name, calls: n }) => ({ id, name, calls: n })).filter((s) => s.id) : [],
       coaching: summarise(analyses),
       analysedCount: analysedCalls.length,
+      connectionCheck,
     });
   }));
 

@@ -28,10 +28,17 @@ const convo = (agent) => `Call ID: CA1\n\nCall Transcription:\n${Array.from({ le
 const SHORT = 'Call ID: CA2\n\nCall Transcription:\nLuke Birchley: Hi, is that Jo? It is Luke calling from boost, we help companies get more out of monday.com and I was hoping to grab a quick minute of your time.\n+447000000002 Aircall new contact: We do not take sales calls, please take us off your list.\nLuke Birchley: Of course, sorry to bother you, have a good day.\n+447000000002 Aircall new contact: Bye.';
 const TINY = 'Call ID: CA3\n\nCall Transcription:\nLuke Birchley: Hello?\n+447000000003 Aircall new contact: Hi.';
 
-const mkCall = (o) => ({
-  callId: null, sdrId: LUKE, sdrName: 'Luke Birchley', agentName: 'Luke Birchley', direction: 'outbound',
-  outcome: 'Outbound answered', answered: true, tags: [], durationMin: 3, recordingUrl: null, coachingStatus: null, ...o,
-});
+const NOT_CONNECTED = ['1.NoAnswer', '3.Busy', 'LeftVoicemail', 'BadData'];
+const mkCall = (o) => {
+  const c = {
+    callId: null, sdrId: LUKE, sdrName: 'Luke Birchley', agentName: 'Luke Birchley', direction: 'outbound',
+    outcome: 'Outbound answered', answered: true, tags: [], durationMin: 3, recordingUrl: null, coachingStatus: null, ...o,
+  };
+  // The same rules the real parser applies.
+  c.noConnectionTag = c.tags.some((t) => NOT_CONNECTED.includes(t));
+  c.connected = c.answered && c.tags.length > 0 && !c.noConnectionTag;
+  return c;
+};
 const fixtures = () => [
   mkCall({ id: '1', createdAt: '2026-11-02T14:00:00Z', startedAt: '2026-11-02 14:00', tags: ['MeetingBooked'], durationMin: 5 }),
   mkCall({ id: '2', createdAt: '2026-11-02T15:00:00Z', startedAt: '2026-11-02 15:00', sdrId: EMAD, sdrName: 'Emad Mahamid', agentName: 'Emad Mahamid', durationMin: 4 }),
@@ -39,8 +46,9 @@ const fixtures = () => [
   mkCall({ id: '4', createdAt: '2026-11-02T17:00:00Z', startedAt: '2026-11-02 17:00', outcome: 'Outbound unanswered', answered: false, durationMin: null }),
   mkCall({ id: '5', createdAt: '2026-10-30T10:00:00Z', startedAt: '2026-10-30 10:00' }), // before the 1 November line
   mkCall({ id: '6', createdAt: '2026-11-03T09:00:00Z', startedAt: '2026-11-03 09:00', durationMin: 0 }), // transcript too short
+  mkCall({ id: '7', createdAt: '2026-11-03T10:00:00Z', startedAt: '2026-11-03 10:00', tags: ['1.NoAnswer'], durationMin: 0 }), // answered per Aircall, but a voicemail
 ];
-const RAW = { 1: convo('Luke Birchley'), 2: convo('Emad Mahamid'), 3: SHORT, 4: SHORT, 5: convo('Luke Birchley'), 6: TINY };
+const RAW = { 7: SHORT, 1: convo('Luke Birchley'), 2: convo('Emad Mahamid'), 3: SHORT, 4: SHORT, 5: convo('Luke Birchley'), 6: TINY };
 
 function makeDeps({ persist = true } = {}) {
   const calls = fixtures();
@@ -99,7 +107,7 @@ test('no token, a bad token and a token signed with the wrong secret are all ref
 test('an SDR only ever sees their own calls and cannot ask for anyone else', async () => {
   await withServer(async ({ call, json }) => {
     const mine = await json('/overview', LUKE);
-    assert.equal(mine.stats.calls, 5); // Luke's five calls, not Emad's
+    assert.equal(mine.stats.calls, 6); // Luke's six calls, not Emad's
     assert.deepEqual(mine.team, []);
     assert.deepEqual(mine.sdrs, []);
 
@@ -116,7 +124,7 @@ test('an SDR only ever sees their own calls and cannot ask for anyone else', asy
 test('admins see the whole team and can pick one SDR', async () => {
   await withServer(async ({ json }) => {
     const all = await json('/overview', SAM);
-    assert.equal(all.stats.calls, 6);
+    assert.equal(all.stats.calls, 7);
     assert.equal(all.team.length, 2);
     assert.equal(all.sdrs.length, 2);
     assert.equal((await json(`/overview?userId=${EMAD}`, SAM)).stats.calls, 1);
@@ -126,8 +134,19 @@ test('admins see the whole team and can pick one SDR', async () => {
 test('unanswered calls do not count as answered', async () => {
   await withServer(async ({ json }) => {
     const mine = await json('/overview', LUKE);
-    assert.equal(mine.stats.outbound, 5);
-    assert.equal(mine.stats.answered, 4); // the unanswered call is not counted
+    assert.equal(mine.stats.outbound, 6);
+    assert.equal(mine.stats.answered, 5); // the unanswered call is not counted
+  });
+});
+
+test('a voicemail pick-up is answered per Aircall but is not a real connection', async () => {
+  await withServer(async ({ json }) => {
+    const { stats } = await json('/overview', LUKE);
+    assert.equal(stats.answered, 5);
+    // Only call 1 is tagged as a real outcome. Call 7 is tagged 1.NoAnswer, and calls 3, 5 and 6 are untagged.
+    assert.equal(stats.connected, 1);
+    assert.equal(stats.untaggedAnswered, 3);
+    assert.ok(stats.connectRate < stats.answeredRate);
   });
 });
 
@@ -136,7 +155,7 @@ test('the list is answered calls since 1 November with a transcript of 250+ char
     const list = await json('/calls', LUKE);
     const ids = list.calls.map((c) => c.id).sort();
     // 1 = conversation, 3 = short hang-up (0 minutes, still included).
-    // 4 unanswered, 5 before 1 Nov and 6 under 250 characters are all left out.
+    // 4 unanswered, 5 before 1 Nov, 6 under 250 characters and 7 tagged 1.NoAnswer are all left out.
     assert.deepEqual(ids, ['1', '3']);
     assert.equal(list.waitingCount, 2);
     assert.equal(list.rules.minChars, 250);
@@ -183,12 +202,13 @@ test('a call is not marked as analysed if its analysis could not be saved perman
 
 test('only eligible calls can be analysed, and never someone else\'s', async () => {
   await withServer(async ({ json, log }) => {
-    const res = await json('/analyse', LUKE, { method: 'POST', body: JSON.stringify({ ids: ['2', '4', '5', '6'] }) });
+    const res = await json('/analyse', LUKE, { method: 'POST', body: JSON.stringify({ ids: ['2', '4', '5', '6', '7'] }) });
     const by = Object.fromEntries(res.results.map((r) => [r.id, r.error]));
     assert.equal(by['2'], 'not_found'); // Emad's call
     assert.equal(by['4'], 'not_found'); // unanswered
     assert.equal(by['5'], 'not_found'); // before 1 November
     assert.equal(by['6'], 'too_short'); // under 250 characters
+    assert.equal(by['7'], 'not_found'); // tagged 1.NoAnswer, so a voicemail
     assert.deepEqual(log.analysed, []); // nothing was spent
   });
 });
@@ -252,7 +272,7 @@ test('quotes the model made up are dropped, real ones kept, and short-call field
 test('metrics count conversations and meetings booked', () => {
   const s = statsFor(fixtures());
   assert.equal(s.meetingsBooked, 1);
-  assert.equal(s.conversations, 3); // calls 1, 2 and 5 are over a minute
+  assert.equal(s.conversations, 1); // only call 1 is both connected (tagged) and over a minute
 });
 
 test('focus areas need enough coachable calls, and short calls do not count against anyone', () => {
@@ -310,6 +330,15 @@ test('parses a call exactly as the monday API returns it, including the new stat
 
   const missed = parseCall({ id: '1', created_at: '2026-11-02T14:57:03Z', column_values: [{ id: 'text_mm19p3gx', text: 'Outbound unanswered' }] });
   assert.equal(missed.answered, false);
+  assert.equal(call.connected, true); // answered and tagged with a real outcome
+
+  const row = (tags, outcome = 'Outbound answered') => parseCall({ id: '9', created_at: '2026-11-02T14:57:03Z', column_values: [{ id: 'text_mm19p3gx', text: outcome }, { id: 'tag_mm193gqc', text: tags }] });
+  assert.equal(row('1.NoAnswer').connected, false); // a voicemail Aircall calls answered
+  assert.equal(row('1.NoAnswer').noConnectionTag, true);
+  assert.equal(row('LeftVoicemail').connected, false);
+  assert.equal(row('Gatekeeper').connected, true); // a human picked up
+  assert.equal(row('').connected, false); // answered but not tagged yet
+  assert.equal(row('').noConnectionTag, false);
   assert.equal(missed.coachingStatus, null);
 });
 

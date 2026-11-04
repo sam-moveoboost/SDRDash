@@ -2,7 +2,7 @@
 // depends on (or exposes) a token in the browser.
 
 const { getSecret } = require('./secrets');
-const { CALLS_BOARD, COLS, STATUS_ANALYSED } = require('./config');
+const { CALLS_BOARD, COLS, STATUS_ANALYSED, NOT_CONNECTED_TAGS } = require('./config');
 
 const API_VERSION = '2024-01';
 
@@ -44,6 +44,10 @@ function parseCall(item) {
     durationMin = Number.isFinite(f) ? f : null;
   }
 
+  const tags = text(COLS.tags).split(',').map((t) => t.trim()).filter(Boolean);
+  const answered = /\banswered\b/i.test(text(COLS.outcome)); // \b so that "Outbound unanswered" does not count
+  const noConnectionTag = tags.some((t) => NOT_CONNECTED_TAGS.includes(t));
+
   const recording = text(COLS.recording).match(/https?:\/\/\S+/)?.[0] ?? null;
   return {
     id: String(item.id),
@@ -54,11 +58,14 @@ function parseCall(item) {
     sdrName: text(COLS.bizdev) || text(COLS.agentName) || 'Unassigned',
     agentName: text(COLS.agentName) || text(COLS.bizdev) || '',
     outcome: text(COLS.outcome),
-    // \b so that "Outbound unanswered" does not count as answered.
-    answered: /\banswered\b/i.test(text(COLS.outcome)),
+    // What Aircall says. A voicemail pick-up counts as answered here.
+    answered,
+    noConnectionTag,
+    // A real connection: answered, tagged by the SDR, and not tagged as no answer, busy or voicemail.
+    connected: answered && tags.length > 0 && !noConnectionTag,
     coachingStatus: text(COLS.coachingStatus) || null,
     direction: text(COLS.direction).toLowerCase(),
-    tags: text(COLS.tags).split(',').map((t) => t.trim()).filter(Boolean),
+    tags,
     durationMin,
     recordingUrl: recording,
   };

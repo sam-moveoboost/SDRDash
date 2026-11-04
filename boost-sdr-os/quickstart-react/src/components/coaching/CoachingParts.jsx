@@ -104,7 +104,7 @@ export function TeamTable({ team, onPick }) {
       <table className="w-full text-[13px]">
         <thead>
           <tr className="text-left text-muted text-[11.5px]">
-            {['SDR', 'Calls', 'Conversations', 'Conversation rate', 'Meetings booked', 'Booked per conversation', 'Avg conversation'].map((h) => (
+            {['SDR', 'Calls', 'Connected', 'Connect rate', 'Conversations', 'Meetings booked', 'Booked per conversation', 'Avg conversation'].map((h) => (
               <th key={h} className="font-medium pb-2 pr-4 whitespace-nowrap">{h}</th>
             ))}
           </tr>
@@ -118,8 +118,9 @@ export function TeamTable({ team, onPick }) {
             >
               <td className="py-2.5 pr-4 font-medium text-ink">{r.name}</td>
               <td className="py-2.5 pr-4">{r.calls}</td>
-              <td className="py-2.5 pr-4">{r.conversations}</td>
-              <td className="py-2.5 pr-4">{pct(r.conversationRate)}</td>
+              <td className="py-2.5 pr-4">{r.connected}</td>
+              <td className="py-2.5 pr-4">{pct(r.connectRate)}</td>
+              <td className="py-2.5 pr-4">{r.conversations} ({pct(r.conversationRate)})</td>
               <td className="py-2.5 pr-4">{r.meetingsBooked}</td>
               <td className="py-2.5 pr-4">{pct(r.bookingRate)}</td>
               <td className="py-2.5 pr-4">{r.avgConversationMin == null ? 'n/a' : `${num(r.avgConversationMin)} min`}</td>

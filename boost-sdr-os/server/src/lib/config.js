@@ -22,6 +22,10 @@ module.exports = {
     coachingStatus: 'color_mm8sjkwt', // "Coaching analysis" status column, set to Analysed by the app
   },
 
+  // Aircall counts a voicemail pick-up as "answered". SDRs tag those calls with one of
+  // these, so a call only counts as a real connection if it carries none of them.
+  NOT_CONNECTED_TAGS: ['1.NoAnswer', '3.Busy', 'LeftVoicemail', 'BadData'],
+
   STATUS_ANALYSED: 'Analysed',
   COACHING_FROM_MS: Date.parse('2026-11-01T00:00:00Z'), // nothing before this is analysed
   MIN_TRANSCRIPT_CHARS: 250, // shorter transcripts are ignored; short hang-ups still count above this

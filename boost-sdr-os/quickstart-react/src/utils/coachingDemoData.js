@@ -9,15 +9,15 @@ const weekly = [
 ];
 
 const stats = {
-  calls: 598, outbound: 590, answered: 118, conversations: 96, meetingsBooked: 15,
-  connectRate: 0.2, conversationRate: 0.163, bookingRate: 0.156, avgConversationMin: 3.4, talkMinutes: 326,
+  calls: 598, outbound: 590, answered: 295, connected: 118, untaggedAnswered: 6, conversations: 96, meetingsBooked: 15,
+  answeredRate: 0.5, connectRate: 0.2, conversationRate: 0.163, bookingRate: 0.156, avgConversationMin: 3.4, talkMinutes: 326,
   tags: { MeetingBooked: 15, '1.NoAnswer': 220, LeftVoicemail: 80 }, outcomes: {}, weekly,
 };
 
 const team = [
-  { id: '1', name: 'Luke Birchley', calls: 210, conversations: 38, meetingsBooked: 7, conversationRate: 0.18, bookingRate: 0.18, connectRate: 0.22, avgConversationMin: 3.9 },
-  { id: '2', name: 'Emad Mahamid', calls: 190, conversations: 31, meetingsBooked: 5, conversationRate: 0.16, bookingRate: 0.16, connectRate: 0.2, avgConversationMin: 3.1 },
-  { id: '3', name: 'Sam Fessey', calls: 198, conversations: 27, meetingsBooked: 3, conversationRate: 0.14, bookingRate: 0.11, connectRate: 0.17, avgConversationMin: 3.2 },
+  { id: '1', name: 'Luke Birchley', calls: 210, connected: 44, connectRate: 0.21, conversations: 38, meetingsBooked: 7, conversationRate: 0.18, bookingRate: 0.18, connectRate: 0.22, avgConversationMin: 3.9 },
+  { id: '2', name: 'Emad Mahamid', calls: 190, connected: 39, connectRate: 0.2, conversations: 31, meetingsBooked: 5, conversationRate: 0.16, bookingRate: 0.16, connectRate: 0.2, avgConversationMin: 3.1 },
+  { id: '3', name: 'Sam Fessey', calls: 198, connected: 35, connectRate: 0.18, conversations: 27, meetingsBooked: 3, conversationRate: 0.14, bookingRate: 0.11, connectRate: 0.17, avgConversationMin: 3.2 },
 ];
 
 const meddpicc = (vals) => Object.fromEntries(Object.entries(vals).map(([k, [label, avg, touchedShare]]) => [k, { label, avg, touchedShare }]));
@@ -29,6 +29,7 @@ export const demoOverview = {
   sdrs: team.map(({ id, name, calls }) => ({ id, name, calls })),
   analysedCount: 12,
   coachingFrom: '2026-11-01',
+  connectionCheck: { analysed: 12, taggedConnectedButVoicemail: 1, untaggedButVoicemail: 2 },
   coaching: {
     analysedCalls: 12,
     enoughForFocus: true,

@@ -178,16 +178,21 @@ export default function Coaching({ user }) {
 
       {stats && !problem && (
         <>
-          <div className="grid gap-4 grid-cols-2 lg:grid-cols-5 mb-10">
-            <StatCard feature label="Calls" value={stats.calls} meta={`${stats.outbound} outbound, ${pct(stats.connectRate)} answered`} />
-            <StatCard label="Conversations" value={stats.conversations} meta={`${pct(stats.conversationRate)} of outbound calls`} />
+          <div className="grid gap-4 grid-cols-2 lg:grid-cols-6 mb-10">
+            <StatCard feature label="Calls" value={stats.calls} meta={`${stats.outbound} outbound dials`} />
+            <StatCard
+              label="Connected"
+              value={stats.connected}
+              meta={`${pct(stats.connectRate)} of dials. Aircall says ${stats.answered} answered, which includes voicemails.${stats.untaggedAnswered ? ` ${stats.untaggedAnswered} answered calls have no tag yet.` : ''}`}
+            />
+            <StatCard label="Conversations" value={stats.conversations} meta={`${pct(stats.conversationRate)} of dials, connected and over a minute`} />
             <StatCard label="Meetings booked" value={stats.meetingsBooked} meta={`${pct(stats.bookingRate)} of conversations`} />
             <StatCard label="Average conversation" value={stats.avgConversationMin == null ? 'n/a' : `${num(stats.avgConversationMin)} min`} meta={`${stats.talkMinutes} minutes talking`} />
-            <StatCard label="Calls analysed" value={overview.analysedCount} meta={`answered calls since ${fmtDay(overview.coachingFrom)}`} />
+            <StatCard label="Calls analysed" value={overview.analysedCount} meta={`connected calls since ${fmtDay(overview.coachingFrom)}`} />
           </div>
 
           {isAdmin && sdrId === 'all' && (
-            <Section title="The team" sub="Numbers cover every call in the period, including those before transcripts were switched on.">
+            <Section title="The team" sub="Numbers cover every call in the period, including those before transcripts were switched on. A call counts as connected when it was answered and the SDR has not tagged it 1.NoAnswer, 3.Busy, LeftVoicemail or BadData.">
               <Card><TeamTable team={overview.team} onPick={(id) => { setSdrId(id); setOpenId(null); }} /></Card>
             </Section>
           )}
@@ -214,7 +219,14 @@ export default function Coaching({ user }) {
 
           {isAdmin && sdrId === 'all' && meta.coverage.length > 0 && (
             <Section title="Transcript coverage" sub="Answered calls that have a transcript to coach from. A gap here usually means call recording or transcription is not switched on for that person in Aircall.">
-              <Card><CoverageTable coverage={meta.coverage} /></Card>
+              <Card>
+                <CoverageTable coverage={meta.coverage} />
+                {overview.connectionCheck?.analysed > 0 && (
+                  <div className="text-[12px] text-muted mt-3 pt-3 border-t border-line">
+                    Cross-check against the transcripts: of {overview.connectionCheck.analysed} analysed calls, {overview.connectionCheck.taggedConnectedButVoicemail} tagged as a real connection turned out to be a voicemail or phone menu, and {overview.connectionCheck.untaggedButVoicemail} untagged or no-answer calls did too.
+                  </div>
+                )}
+              </Card>
             </Section>
           )}
 
