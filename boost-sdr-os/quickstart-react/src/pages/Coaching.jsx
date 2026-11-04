@@ -90,21 +90,43 @@ export default function Coaching({ user }) {
     [calls],
   );
 
+  // One call per request: each analysis takes 20 to 40 seconds, and a single long
+  // request for five calls can be cut off by the hosting before it answers.
   const analyseNext = async () => {
     if (demo) { setAnalysing({ busy: false, message: 'This is sample data, so nothing was analysed.' }); return; }
     const ids = waiting.slice(0, BATCH).map((c) => c.id);
     if (!ids.length) return;
-    setAnalysing({ busy: true, message: `Analysing ${ids.length} call${ids.length === 1 ? '' : 's'}. This can take a minute.` });
-    try {
-      const { results } = await coachingApi.analyse(ids);
-      const byId = Object.fromEntries(results.map((r) => [r.id, r]));
-      setCalls((prev) => prev.map((c) => (byId[c.id]?.analysis ? { ...c, analysis: byId[c.id].analysis } : c)));
-      const failed = results.filter((r) => r.error).length;
-      setAnalysing({ busy: false, message: failed ? `${results.length - failed} analysed, ${failed} could not be.` : `${results.length} analysed.` });
-      refreshSummaries();
-    } catch (e) {
-      setAnalysing({ busy: false, message: explain(e).text });
+
+    let done = 0;
+    let failed = 0;
+    let cutOff = false;
+    let lastError = null;
+    for (const id of ids) {
+      setAnalysing({ busy: true, message: `Analysing call ${done + failed + 1} of ${ids.length}. Each takes about 30 seconds.` });
+      try {
+        const { results } = await coachingApi.analyse([id]);
+        const r = results?.[0];
+        if (r?.analysis) {
+          setCalls((prev) => prev.map((c) => (c.id === id ? { ...c, analysis: r.analysis } : c)));
+          done += 1;
+        } else {
+          failed += 1;
+        }
+      } catch (e) {
+        failed += 1;
+        lastError = e;
+        if (e instanceof TypeError) { cutOff = true; break; } // connection dropped; stop rather than repeat it
+      }
     }
+
+    let message = failed ? `${done} analysed, ${failed} could not be.` : `${done} analysed.`;
+    if (cutOff) message = `${done} analysed. The server stopped answering part way, so try again. Anything that finished is saved.`;
+    else if (lastError && !done) message = explain(lastError).text;
+    setAnalysing({ busy: false, message });
+
+    // The server may have finished a call after the connection dropped, so re-read the list.
+    if (cutOff) coachingApi.calls(userIdParam, days).then((cl) => setCalls(cl.calls)).catch(() => {});
+    if (done) refreshSummaries();
   };
 
   const stats = overview?.stats;

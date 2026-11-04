@@ -38,5 +38,9 @@ app.get('/briefing/status', (_req, res) => {
 
 app.use('/coaching', createRouter());
 
+// Log (never swallow) anything unexpected so it shows in the monday code Logs tab.
+process.on('unhandledRejection', (err) => console.error('[unhandledRejection]', err?.message));
+process.on('uncaughtException', (err) => console.error('[uncaughtException]', err?.message));
+
 const port = process.env.PORT || 8080;
 app.listen(port, () => console.log(`sdr-os-server listening on ${port}`));
