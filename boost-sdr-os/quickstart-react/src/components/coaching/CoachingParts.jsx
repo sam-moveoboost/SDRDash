@@ -10,6 +10,15 @@ export const CRAFT_ORDER = [
   ['next_step_ask', 'Asking for the next step'], ['tone_and_control', 'Tone and call control'],
 ];
 
+export const CALL_TYPE_LABELS = {
+  conversation: 'Conversation', early_hangup: 'Early hang-up', gatekeeper: 'Gatekeeper', voicemail: 'Voicemail',
+  automated_menu: 'Phone menu', wrong_person: 'Wrong person', other: 'Other',
+};
+const OPENER_RESULT_LABELS = {
+  stayed_engaged: 'Prospect stayed', brushed_off: 'Brushed off', hung_up: 'Prospect hung up', blocked_by_gatekeeper: 'Blocked by gatekeeper', unclear: 'Unclear',
+};
+const openerTone = (r) => (r === 'stayed_engaged' ? 'good' : r === 'hung_up' || r === 'brushed_off' ? 'bad' : 'muted');
+
 export const pct = (v, dp = 0) => (v == null ? 'n/a' : `${(v * 100).toFixed(dp)}%`);
 export const num = (v, dp = 1) => (v == null ? 'n/a' : Number(v).toFixed(dp));
 
@@ -95,7 +104,7 @@ export function TeamTable({ team, onPick }) {
       <table className="w-full text-[13px]">
         <thead>
           <tr className="text-left text-muted text-[11.5px]">
-            {['SDR', 'Calls', 'Conversations', 'Conversation rate', 'Meetings booked', 'Booked per conversation', 'Avg conversation'].map((h) => (
+            {['SDR', 'Calls', 'Connected', 'Connect rate', 'Conversations', 'Meetings booked', 'Booked per conversation', 'Avg conversation'].map((h) => (
               <th key={h} className="font-medium pb-2 pr-4 whitespace-nowrap">{h}</th>
             ))}
           </tr>
@@ -109,8 +118,9 @@ export function TeamTable({ team, onPick }) {
             >
               <td className="py-2.5 pr-4 font-medium text-ink">{r.name}</td>
               <td className="py-2.5 pr-4">{r.calls}</td>
-              <td className="py-2.5 pr-4">{r.conversations}</td>
-              <td className="py-2.5 pr-4">{pct(r.conversationRate)}</td>
+              <td className="py-2.5 pr-4">{r.connected}</td>
+              <td className="py-2.5 pr-4">{pct(r.connectRate)}</td>
+              <td className="py-2.5 pr-4">{r.conversations} ({pct(r.conversationRate)})</td>
               <td className="py-2.5 pr-4">{r.meetingsBooked}</td>
               <td className="py-2.5 pr-4">{pct(r.bookingRate)}</td>
               <td className="py-2.5 pr-4">{r.avgConversationMin == null ? 'n/a' : `${num(r.avgConversationMin)} min`}</td>
@@ -119,6 +129,30 @@ export function TeamTable({ team, onPick }) {
         </tbody>
       </table>
       <div className="text-[11.5px] text-muted mt-2">Select a row to coach that SDR.</div>
+    </div>
+  );
+}
+
+export function CoverageTable({ coverage }) {
+  if (!coverage?.length) return <Empty>No answered calls in this period.</Empty>;
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-[13px]">
+        <thead><tr className="text-left text-muted text-[11.5px]">{['SDR', 'Answered calls', 'With a transcript', 'Coverage'].map((h) => <th key={h} className="font-medium pb-2 pr-4 whitespace-nowrap">{h}</th>)}</tr></thead>
+        <tbody>
+          {coverage.map((c) => {
+            const share = c.answered ? c.withTranscript / c.answered : null;
+            return (
+              <tr key={c.sdrId || c.sdrName} className="border-t border-line">
+                <td className="py-2.5 pr-4 font-medium text-ink">{c.sdrName}</td>
+                <td className="py-2.5 pr-4">{c.answered}</td>
+                <td className="py-2.5 pr-4">{c.withTranscript}</td>
+                <td className="py-2.5 pr-4 w-[240px]"><div className="flex items-center gap-3"><div className="flex-1"><Bar value={share} tone={share == null ? 'navy' : share >= 0.5 ? 'good' : share > 0 ? 'warn' : 'bad'} /></div><span className="text-muted w-10 text-right">{pct(share)}</span></div></td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -203,49 +237,62 @@ export function CallDetail({ call, demo }) {
   if (!a) {
     return <div className="text-[13px] text-muted">Not analysed yet. {call.transcript?.available ? 'Use "Analyse new calls" to analyse it.' : 'There is no transcript on this call yet.'}</div>;
   }
-  if (a.callType === 'not_a_conversation') {
-    return <div className="text-[13px] text-muted">{a.summary}</div>;
-  }
-
   return (
     <div className="space-y-5">
       <p className="text-[13.5px] text-ink">{a.summary}</p>
-
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="flex gap-1.5 flex-wrap">
+        <Chip>{CALL_TYPE_LABELS[a.callType] || a.callType}</Chip>
+        {a.openerResult && <Chip tone={openerTone(a.openerResult)}>{OPENER_RESULT_LABELS[a.openerResult] || a.openerResult}</Chip>}
+        {a.endedBy && a.endedBy !== 'unclear' && <Chip>Ended by the {a.endedBy === 'sdr' ? 'SDR' : 'prospect'}</Chip>}
+        {a.opener?.style && <Chip tone="info">Opener: {a.opener.style.replace(/_/g, ' ')}</Chip>}
+      </div>
+      {a.opener?.quote && (
         <div>
-          <div className="font-heading font-bold text-[12.5px] mb-2">MEDDPICC</div>
-          <div className="grid grid-cols-2 gap-2">
-            {MEDDPICC_ORDER.map(([k, label]) => {
-              const m = a.meddpicc?.[k];
-              const s = m?.score ?? 0;
-              return (
-                <div key={k} className="rounded-xl border border-line p-2.5" title={m?.evidence || ''}>
-                  <div className="flex items-center justify-between text-[12px]">
-                    <span className="text-body">{label}</span>
-                    <span className="flex gap-0.5">{[0, 1].map((i) => <span key={i} className={`w-2 h-2 rounded-full ${s > i ? 'bg-emerald' : 'bg-sunken'}`} />)}</span>
+          <div className="font-heading font-bold text-[12.5px] mb-1.5">How the call opened</div>
+          <Quote>"{a.opener.quote}"</Quote>
+          {a.opener.note && <div className="text-[12px] text-muted mt-1.5">{a.opener.note}</div>}
+        </div>
+      )}
+
+      {a.coachable ? (
+        <div className="grid gap-5 lg:grid-cols-2">
+          <div>
+            <div className="font-heading font-bold text-[12.5px] mb-2">MEDDPICC</div>
+            <div className="grid grid-cols-2 gap-2">
+              {MEDDPICC_ORDER.map(([k, label]) => {
+                const m = a.meddpicc?.[k];
+                const sc = m?.score ?? 0;
+                return (
+                  <div key={k} className="rounded-xl border border-line p-2.5" title={m?.evidence || ''}>
+                    <div className="flex items-center justify-between text-[12px]">
+                      <span className="text-body">{label}</span>
+                      <span className="flex gap-0.5">{[0, 1].map((i) => <span key={i} className={`w-2 h-2 rounded-full ${sc > i ? 'bg-emerald' : 'bg-sunken'}`} />)}</span>
+                    </div>
+                    {m?.evidence && <div className="text-[11px] text-muted mt-1 italic line-clamp-2">"{m.evidence}"</div>}
                   </div>
-                  {m?.evidence && <div className="text-[11px] text-muted mt-1 italic line-clamp-2">"{m.evidence}"</div>}
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
+          </div>
+          <div>
+            <div className="font-heading font-bold text-[12.5px] mb-2">Call craft</div>
+            <ul className="space-y-2">
+              {CRAFT_ORDER.map(([k, label]) => {
+                const c = a.craft?.[k];
+                return (
+                  <li key={k}>
+                    <div className="flex justify-between text-[12.5px]"><span className="text-body">{label}</span><span className="text-muted">{c?.score == null ? 'did not come up' : `${c.score}/5`}</span></div>
+                    {c?.score != null && <Bar value={(c.score - 1) / 4} tone={c.score >= 4 ? 'good' : c.score >= 3 ? 'warn' : 'bad'} />}
+                    {c?.note && <div className="text-[11.5px] text-muted mt-0.5">{c.note}</div>}
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         </div>
-        <div>
-          <div className="font-heading font-bold text-[12.5px] mb-2">Call craft</div>
-          <ul className="space-y-2">
-            {CRAFT_ORDER.map(([k, label]) => {
-              const c = a.craft?.[k];
-              return (
-                <li key={k}>
-                  <div className="flex justify-between text-[12.5px]"><span className="text-body">{label}</span><span className="text-muted">{c?.score == null ? 'did not come up' : `${c.score}/5`}</span></div>
-                  {c?.score != null && <Bar value={(c.score - 1) / 4} tone={c.score >= 4 ? 'good' : c.score >= 3 ? 'warn' : 'bad'} />}
-                  {c?.note && <div className="text-[11.5px] text-muted mt-0.5">{c.note}</div>}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      </div>
+      ) : (
+        <div className="text-[12.5px] text-muted">This call was too short or one-sided to score on MEDDPICC, so it does not count against anyone. It still feeds the opener and objection trends.</div>
+      )}
 
       {a.objections?.length > 0 && (
         <div>
@@ -253,7 +300,7 @@ export function CallDetail({ call, demo }) {
           <div className="space-y-3">
             {a.objections.map((o, i) => (
               <div key={i} className="rounded-xl border border-line p-3">
-                <div className="flex items-center gap-2 mb-2"><Chip tone="info">{o.category.replace(/_/g, ' ')}</Chip><Chip tone={o.handled === 'well' ? 'good' : o.handled === 'poorly' ? 'bad' : 'warn'}>handled {o.handled}</Chip></div>
+                <div className="flex items-center gap-2 mb-2"><Chip tone="info">{o.category.replace(/_/g, ' ')}</Chip>{o.stage && <Chip>{o.stage === 'opener' ? 'in the opener' : o.stage === 'close' ? 'at the close' : 'mid-call'}</Chip>}<Chip tone={o.handled === 'well' ? 'good' : o.handled === 'poorly' ? 'bad' : 'warn'}>handled {o.handled}</Chip></div>
                 <Quote>Prospect: "{o.quote}"</Quote>
                 {o.responseQuote && <div className="mt-1.5"><Quote>SDR: "{o.responseQuote}"</Quote></div>}
                 {o.why && <div className="text-[12px] text-muted mt-1.5">{o.why}</div>}
@@ -309,31 +356,76 @@ export function CallDetail({ call, demo }) {
 export function TrendsPanel({ data }) {
   const t = data?.trends;
   if (!t || t.analysedCalls === 0) {
-    return (
-      <Empty>
-        Trends appear once calls have been analysed. {data?.transcribedCalls ?? 0} transcribed calls in this period are waiting. Use "Analyse new calls" below to start.
-      </Empty>
-    );
+    return <Empty>Trends appear once calls have been analysed. Use "Analyse next calls" below to start.</Empty>;
   }
   const maxCount = Math.max(...t.topObjections.map((o) => o.count), 1);
   return (
     <div className="space-y-4">
-      <div className="text-[12.5px] text-muted">Based on {t.analysedCalls} analysed calls, {t.bookedCalls} of which booked a meeting, and {t.objectionCount} objections.</div>
+      <div className="text-[12.5px] text-muted">
+        Based on {t.analysedCalls} analysed calls ({t.coachableCalls} full conversations, {t.hangups.count} early hang-ups), {t.bookedCalls} of which booked a meeting, and {t.objectionCount} objections.
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card title="Top objections" note="how often, and how well they were handled">
+        <Card title="How calls open" note="who stays and who hangs up">
+          {t.openers.length === 0 ? <Empty>No openers recorded yet.</Empty> : (
+            <ul className="space-y-4">
+              {t.openers.map((o) => (
+                <li key={o.style}>
+                  <div className="flex justify-between text-[13px] mb-1.5"><span className="font-medium text-ink">{o.label}</span><span className="text-muted">{o.calls} call{o.calls === 1 ? "" : "s"}, {o.booked} booked</span></div>
+                  <div className="flex items-center gap-2 text-[11.5px] text-muted mb-1"><span className="w-[72px]">Stayed</span><div className="flex-1"><Bar value={o.stayedRate} tone="good" /></div><span className="w-9 text-right">{pct(o.stayedRate)}</span></div>
+                  <div className="flex items-center gap-2 text-[11.5px] text-muted"><span className="w-[72px]">Hung up</span><div className="flex-1"><Bar value={o.hungUpRate} tone="bad" /></div><span className="w-9 text-right">{pct(o.hungUpRate)}</span></div>
+                  {o.stayExamples[0] && <div className="text-[12px] text-body italic mt-1.5">Kept them on: "{o.stayExamples[0].quote}" ({o.stayExamples[0].sdrName})</div>}
+                  {o.hangUpExamples[0] && <div className="text-[12px] text-body italic mt-1">Lost them: "{o.hangUpExamples[0].quote}" ({o.hangUpExamples[0].sdrName})</div>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card title="Early hang-ups" note={`${t.hangups.count} calls, ${pct(t.hangups.share)} of analysed`}>
+          {t.hangups.count === 0 ? <Empty>No early hang-ups in the analysed calls.</Empty> : (
+            <ul className="space-y-3">
+              {t.hangups.reasons.map((r) => (
+                <li key={r.category}>
+                  <div className="flex justify-between text-[13px] mb-1"><span className="font-medium text-ink">{r.label}</span><span className="text-muted">{r.count}</span></div>
+                  <Bar value={r.count / t.hangups.count} tone="bad" />
+                  {r.examples[0] && <div className="text-[12px] text-body italic mt-1">"{r.examples[0].quote}" ({r.examples[0].sdrName})</div>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      </div>
+
+      <Card title="Getting past objections in the first few seconds" note="their words, the reply that worked">
+        {t.earlyObjections.length === 0 ? <Empty>No early objections recorded yet.</Empty> : (
+          <div className="grid gap-4 lg:grid-cols-2">
+            {t.earlyObjections.map((o) => (
+              <div key={o.category} className="rounded-xl border border-line p-3">
+                <div className="flex justify-between text-[13px] mb-1"><span className="font-medium text-ink">{o.label}</span><span className="text-muted">{o.count} times</span></div>
+                <div className="text-[11.5px] text-muted mb-2 flex gap-3 flex-wrap"><span>{o.stayedAfter} stayed on the line</span><span>{o.hungUpAfter} hung up</span><span>{o.handledWell} handled well</span></div>
+                {o.examples.length === 0 ? <div className="text-[12px] text-muted">No well-handled example yet.</div> : o.examples.map((e, i) => (
+                  <div key={i} className="mb-2 space-y-1">
+                    <Quote>Prospect: "{e.quote}"</Quote>
+                    <Quote>{e.sdrName}: "{e.response}"</Quote>
+                    <div className="text-[11.5px] text-muted flex gap-2 items-center flex-wrap">{e.stayed && <Chip tone="good">they stayed</Chip>}{e.booked && <Chip tone="good">meeting booked</Chip>}<span>{e.why}</span></div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card title="Top objections, whenever they came up" note="how often, and how well they were handled">
           {t.topObjections.length === 0 ? <Empty>No objections recorded yet.</Empty> : (
             <ul className="space-y-3">
               {t.topObjections.map((o) => (
                 <li key={o.category}>
-                  <div className="flex justify-between text-[13px] mb-1">
-                    <span className="font-medium text-ink">{o.label}</span>
-                    <span className="text-muted">{o.count} ({pct(o.share)})</span>
-                  </div>
+                  <div className="flex justify-between text-[13px] mb-1"><span className="font-medium text-ink">{o.label}</span><span className="text-muted">{o.count} ({pct(o.share)})</span></div>
                   <Bar value={o.count / maxCount} />
-                  <div className="text-[11.5px] text-muted mt-1 flex gap-3 flex-wrap">
-                    <span>{o.handledWell} handled well</span><span>{o.handledPoorly} handled poorly</span><span>{o.bookedAfter} still booked</span>
-                  </div>
+                  <div className="text-[11.5px] text-muted mt-1 flex gap-3 flex-wrap"><span>{o.handledWell} handled well</span><span>{o.handledPoorly} handled poorly</span><span>{o.bookedAfter} still booked</span></div>
                   {o.examples[0] && <div className="text-[12px] text-body italic mt-1">"{o.examples[0].quote}"</div>}
                 </li>
               ))}
@@ -351,7 +443,7 @@ export function TrendsPanel({ data }) {
                     <div key={i} className="mb-2 rounded-xl border border-line p-2.5 space-y-1">
                       <Quote>Prospect: "{e.quote}"</Quote>
                       <Quote>{e.sdrName}: "{e.response}"</Quote>
-                      <div className="text-[11.5px] text-muted flex gap-2 items-center flex-wrap">{e.booked && <Chip tone="good">meeting booked</Chip>}<span>{e.why}</span></div>
+                      <div className="text-[11.5px] text-muted flex gap-2 items-center flex-wrap">{e.booked && <Chip tone="good">meeting booked</Chip>}{e.stayed && !e.booked && <Chip tone="good">they stayed</Chip>}<span>{e.why}</span></div>
                     </div>
                   ))}
                 </li>
@@ -371,47 +463,32 @@ export function TrendsPanel({ data }) {
         </Card>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card title="How calls open" note="and which openers book">
-          {t.openers.length === 0 ? <Empty>No openers recorded yet.</Empty> : (
-            <ul className="space-y-3">
-              {t.openers.map((o) => (
-                <li key={o.style}>
-                  <div className="flex justify-between text-[13px] mb-1"><span className="font-medium text-ink">{o.label}</span><span className="text-muted">{o.calls} calls, {o.booked} booked ({pct(o.bookedRate)})</span></div>
-                  <Bar value={o.bookedRate} tone="good" />
-                  {o.examples[0] && <div className="text-[12px] text-body italic mt-1">"{o.examples[0].quote}" ({o.examples[0].sdrName})</div>}
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-        <Card title="How booked calls sound different" note="booked versus not booked">
-          <table className="w-full text-[12.5px]">
-            <thead><tr className="text-left text-muted text-[11.5px]"><th className="font-medium pb-2" /><th className="font-medium pb-2">Booked</th><th className="font-medium pb-2">Not booked</th></tr></thead>
-            <tbody>
-              {[
-                ['Calls', (x) => x.calls],
-                ['SDR share of the talking', (x) => pct(x.avgSdrShare)],
-                ['Questions asked', (x) => num(x.avgQuestions)],
-                ['Longest SDR monologue (words)', (x) => num(x.avgLongestSdrTurnWords, 0)],
-                ['Call length (min)', (x) => num(x.avgDurationMin)],
-              ].map(([label, fn]) => (
-                <tr key={label} className="border-t border-line"><td className="py-2 text-body">{label}</td><td className="py-2 font-medium text-ink">{fn(t.talk.booked)}</td><td className="py-2">{fn(t.talk.notBooked)}</td></tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
-      </div>
+      <Card title="How booked calls sound different" note="booked versus not booked">
+        <table className="w-full text-[12.5px]">
+          <thead><tr className="text-left text-muted text-[11.5px]"><th className="font-medium pb-2" /><th className="font-medium pb-2">Booked</th><th className="font-medium pb-2">Not booked</th></tr></thead>
+          <tbody>
+            {[
+              ['Calls', (x) => x.calls],
+              ['SDR share of the talking', (x) => pct(x.avgSdrShare)],
+              ['Questions asked', (x) => num(x.avgQuestions)],
+              ['Longest SDR monologue (words)', (x) => num(x.avgLongestSdrTurnWords, 0)],
+              ['Call length (min)', (x) => num(x.avgDurationMin)],
+            ].map(([label, fn]) => (
+              <tr key={label} className="border-t border-line"><td className="py-2 text-body">{label}</td><td className="py-2 font-medium text-ink">{fn(t.talk.booked)}</td><td className="py-2">{fn(t.talk.notBooked)}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      </Card>
 
       <Card title="SDR comparison" note="analysed calls only">
         <div className="overflow-x-auto">
           <table className="w-full text-[13px]">
-            <thead><tr className="text-left text-muted text-[11.5px]">{['SDR', 'Analysed', 'Booked', 'Next step secured', 'Objections handled well', 'Average craft'].map((h) => <th key={h} className="font-medium pb-2 pr-4 whitespace-nowrap">{h}</th>)}</tr></thead>
+            <thead><tr className="text-left text-muted text-[11.5px]">{['SDR', 'Analysed', 'Booked', 'Prospect stayed', 'Next step secured', 'Objections handled well', 'Average craft'].map((h) => <th key={h} className="font-medium pb-2 pr-4 whitespace-nowrap">{h}</th>)}</tr></thead>
             <tbody>
-              {t.sdrs.map((s) => (
-                <tr key={s.id || s.name} className="border-t border-line">
-                  <td className="py-2.5 pr-4 font-medium text-ink">{s.name}</td><td className="py-2.5 pr-4">{s.analysedCalls}</td><td className="py-2.5 pr-4">{s.booked}</td>
-                  <td className="py-2.5 pr-4">{pct(s.nextStepRate)}</td><td className="py-2.5 pr-4">{pct(s.objectionsHandledWellRate)}</td><td className="py-2.5 pr-4">{s.avgCraft == null ? 'n/a' : `${num(s.avgCraft)}/5`}</td>
+              {t.sdrs.map((r) => (
+                <tr key={r.id || r.name} className="border-t border-line">
+                  <td className="py-2.5 pr-4 font-medium text-ink">{r.name}</td><td className="py-2.5 pr-4">{r.analysedCalls}</td><td className="py-2.5 pr-4">{r.booked}</td>
+                  <td className="py-2.5 pr-4">{pct(r.stayedRate)}</td><td className="py-2.5 pr-4">{pct(r.nextStepRate)}</td><td className="py-2.5 pr-4">{pct(r.objectionsHandledWellRate)}</td><td className="py-2.5 pr-4">{r.avgCraft == null ? 'n/a' : `${num(r.avgCraft)}/5`}</td>
                 </tr>
               ))}
             </tbody>

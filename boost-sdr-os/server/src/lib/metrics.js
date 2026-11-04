@@ -16,8 +16,10 @@ function weekStart(iso) {
 
 function statsFor(calls) {
   const outbound = calls.filter((c) => c.direction === 'outbound');
-  const answered = outbound.filter((c) => /answered/i.test(c.outcome));
-  const conversations = outbound.filter((c) => (c.durationMin ?? 0) > CONVERSATION_MINUTES);
+  const answered = outbound.filter((c) => c.answered); // what Aircall says, voicemail included
+  const connected = outbound.filter((c) => c.connected);
+  const untaggedAnswered = answered.filter((c) => c.tags.length === 0);
+  const conversations = connected.filter((c) => (c.durationMin ?? 0) > CONVERSATION_MINUTES);
   const booked = calls.filter((c) => c.tags.includes('MeetingBooked'));
   const convMinutes = conversations.reduce((s, c) => s + c.durationMin, 0);
 
@@ -35,7 +37,7 @@ function statsFor(calls) {
     if (!w) continue;
     const row = weeks.get(w) || { week: w, calls: 0, conversations: 0, booked: 0 };
     row.calls += 1;
-    if (c.direction === 'outbound' && (c.durationMin ?? 0) > CONVERSATION_MINUTES) row.conversations += 1;
+    if (c.direction === 'outbound' && c.connected && (c.durationMin ?? 0) > CONVERSATION_MINUTES) row.conversations += 1;
     if (c.tags.includes('MeetingBooked')) row.booked += 1;
     weeks.set(w, row);
   }
@@ -44,9 +46,12 @@ function statsFor(calls) {
     calls: calls.length,
     outbound: outbound.length,
     answered: answered.length,
+    connected: connected.length,
+    untaggedAnswered: untaggedAnswered.length,
     conversations: conversations.length,
     meetingsBooked: booked.length,
-    connectRate: round(pct(answered.length, outbound.length), 3),
+    answeredRate: round(pct(answered.length, outbound.length), 3),
+    connectRate: round(pct(connected.length, outbound.length), 3),
     conversationRate: round(pct(conversations.length, outbound.length), 3),
     bookingRate: round(pct(booked.length, conversations.length), 3),
     avgConversationMin: round(conversations.length ? convMinutes / conversations.length : null),

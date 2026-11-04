@@ -39,16 +39,18 @@ async function getAnalysis(itemId) {
   return null;
 }
 
+// Returns true only if the analysis was saved permanently. The memory copy is not
+// enough to mark a call as analysed, because a restart would lose it.
 async function saveAnalysis(itemId, analysis) {
   const key = keyFor(itemId);
   memory.set(key, analysis);
   const s = getStorage();
-  if (s) {
-    try {
-      await s.set(key, analysis);
-    } catch (_err) {
-      // memory copy still serves this process
-    }
+  if (!s) return false;
+  try {
+    const res = await s.set(key, analysis);
+    return res?.success === true;
+  } catch (_err) {
+    return false;
   }
 }
 
