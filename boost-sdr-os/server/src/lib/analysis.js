@@ -76,6 +76,15 @@ Reply with a single JSON object and nothing else, in exactly this shape:
   "try_next_time": ["...", "..."]
 }`;
 
+// Keys that are not tied to a single workspace must say which workspace to use. The ID is
+// not secret, but it lives with the other settings so it can be changed without code.
+function anthropicHeaders(apiKey) {
+  const headers = { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' };
+  const workspace = getSecret('ANTHROPIC_WORKSPACE_ID');
+  if (workspace) headers['anthropic-workspace-id'] = String(workspace).trim();
+  return headers;
+}
+
 // Anthropic says why a request was refused (for example a model name or the account balance).
 // That text is safe to show; it never contains the key.
 async function describeFailure(res) {
@@ -86,7 +95,10 @@ async function describeFailure(res) {
   } catch (_err) {
     // no readable explanation
   }
-  return `Claude API HTTP ${res.status}${detail}`;
+  const hint = /workspace/i.test(detail) && !getSecret('ANTHROPIC_WORKSPACE_ID')
+    ? ' (Save the workspace ID as a secret named ANTHROPIC_WORKSPACE_ID.)'
+    : '';
+  return `Claude API HTTP ${res.status}${detail}${hint}`;
 }
 
 const norm = (s) => String(s || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
@@ -185,7 +197,7 @@ async function analyseCall({ turns, call }, { fetchImpl = fetch } = {}) {
     const res = await fetchImpl('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       signal: ctrl.signal,
-      headers: { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      headers: anthropicHeaders(apiKey),
       body: JSON.stringify({
         model: CLAUDE_MODEL,
         max_tokens: 2000,
@@ -212,7 +224,7 @@ async function ping({ fetchImpl = fetch } = {}) {
     const res = await fetchImpl('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       signal: ctrl.signal,
-      headers: { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      headers: anthropicHeaders(apiKey),
       body: JSON.stringify({ model: CLAUDE_MODEL, max_tokens: 8, messages: [{ role: 'user', content: 'Reply with the single word OK.' }] }),
     });
     if (!res.ok) throw new Error(await describeFailure(res));

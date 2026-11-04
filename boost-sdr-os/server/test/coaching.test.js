@@ -455,3 +455,34 @@ test('Claude\'s own explanation of a refusal is shown, not just the status', asy
   await assert.rejects(() => ping({ fetchImpl }), /HTTP 400: Your credit balance is too low/);
   delete process.env.ANTHROPIC_API_KEY;
 });
+
+test('the workspace ID is sent to Anthropic only when it has been set', async () => {
+  const { analyseCall, ping } = require('../src/lib/analysis');
+  process.env.ANTHROPIC_API_KEY = 'sk-test-key';
+  const turns = [{ who: 'sdr', text: 'Hi is that Jo, quick minute of your time.' }, { who: 'prospect', text: 'Not now, thanks, bye.' }];
+  const reply = { call_type: 'early_hangup', coachable: false, opener_result: 'brushed_off', meddpicc: {}, craft: {}, objections: [] };
+  let headers;
+  const fetchImpl = async (_url, init) => { headers = init.headers; return { ok: true, json: async () => ({ content: [{ type: 'text', text: JSON.stringify(reply) }] }) }; };
+
+  delete process.env.ANTHROPIC_WORKSPACE_ID;
+  await analyseCall({ turns, call: { durationMin: 0 } }, { fetchImpl });
+  assert.equal(headers['anthropic-workspace-id'], undefined);
+
+  process.env.ANTHROPIC_WORKSPACE_ID = ' wrkspc_test123 ';
+  await analyseCall({ turns, call: { durationMin: 0 } }, { fetchImpl });
+  assert.equal(headers['anthropic-workspace-id'], 'wrkspc_test123'); // trimmed
+  await ping({ fetchImpl });
+  assert.equal(headers['anthropic-workspace-id'], 'wrkspc_test123'); // the connection check sends it too
+
+  delete process.env.ANTHROPIC_WORKSPACE_ID;
+  delete process.env.ANTHROPIC_API_KEY;
+});
+
+test('a workspace error tells you which secret to add', async () => {
+  const { ping } = require('../src/lib/analysis');
+  process.env.ANTHROPIC_API_KEY = 'sk-test-key';
+  delete process.env.ANTHROPIC_WORKSPACE_ID;
+  const fetchImpl = async () => ({ ok: false, status: 400, text: async () => JSON.stringify({ error: { message: 'This API key is not scoped to a workspace, so this request must include the anthropic-workspace-id header.' } }) });
+  await assert.rejects(() => ping({ fetchImpl }), /ANTHROPIC_WORKSPACE_ID/);
+  delete process.env.ANTHROPIC_API_KEY;
+});

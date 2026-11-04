@@ -54,7 +54,9 @@ function defaultBackends() {
         const token = getSecret('MONDAY_API_TOKEN');
         if (!token) throw new Error('the monday API token secret is missing');
         app = app || new Storage(token);
-        const res = await app.set(key, value);
+        // This store keeps text, so objects must be turned into JSON first (otherwise they
+        // are saved as the words "[object Object]").
+        const res = await app.set(key, JSON.stringify(value));
         if (res?.success !== true) throw new Error(`write refused: ${res?.error || 'unknown error'}`);
         return true;
       },

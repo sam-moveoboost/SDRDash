@@ -31,6 +31,7 @@ app.get('/briefing/status', (_req, res) => {
   res.json({
     ok: true,
     anthropicKeyConfigured: Boolean(getSecret('ANTHROPIC_API_KEY')),
+    anthropicWorkspaceConfigured: Boolean(getSecret('ANTHROPIC_WORKSPACE_ID')),
     mondayTokenConfigured: Boolean(getSecret('MONDAY_API_TOKEN')),
     mondayClientSecretConfigured: Boolean(getSecret('MONDAY_CLIENT_SECRET')),
   });
