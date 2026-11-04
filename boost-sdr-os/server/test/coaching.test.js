@@ -50,21 +50,25 @@ const fixtures = () => [
 ];
 const RAW = { 7: SHORT, 1: convo('Luke Birchley'), 2: convo('Emad Mahamid'), 3: SHORT, 4: SHORT, 5: convo('Luke Birchley'), 6: TINY };
 
-function makeDeps({ persist = true } = {}) {
+function makeDeps({ persist = true, claudeFails = false, claudePingFails = false } = {}) {
   const calls = fixtures();
   const saved = new Map();
-  const log = { analysed: [], marked: [] };
+  const log = { analysed: [], marked: [], windows: [] };
   return {
     log,
     calls,
     deps: {
       mondayApi: {
-        fetchCalls: async () => calls,
+        fetchCalls: async (since) => { log.windows.push(since); return calls; },
+        fetchCall: async (id) => calls.find((c) => c.id === id) ?? null,
+        ping: async () => {},
         fetchTranscripts: async (ids) => Object.fromEntries(ids.filter((id) => RAW[id]).map((id) => [id, RAW[id]])),
         markAnalysed: async (id) => { log.marked.push(id); calls.find((c) => c.id === id).coachingStatus = 'Analysed'; },
       },
       analysis: {
+        ping: async () => { if (claudePingFails) throw new Error('Claude did not answer within 15 seconds'); },
         analyseCall: async ({ call }) => {
+          if (claudeFails) throw new Error('Claude API HTTP 529');
           log.analysed.push(call.id);
           return { callType: 'conversation', coachable: true, openerResult: 'stayed_engaged', nextStepSecured: true, meddpicc: {}, craft: {}, objections: [] };
         },
@@ -73,6 +77,7 @@ function makeDeps({ persist = true } = {}) {
         getAnalysis: async (id) => saved.get(id) ?? null,
         saveAnalysis: async (id, a) => { if (persist) saved.set(id, a); return persist; },
         mapLimit: async (items, _l, fn) => Promise.all(items.map(fn)),
+        selfTest: async () => { if (!persist) throw new Error('Storage write failed: nope'); },
       },
     },
   };
@@ -363,4 +368,42 @@ test('the Claude call sends the right request and copes with fenced JSON', async
   assert.equal(out.objections[0].category, 'send_email');
   assert.ok(!JSON.stringify(out).includes('sk-test-key'));
   delete process.env.ANTHROPIC_API_KEY;
+});
+
+test('analysing one call looks up just that call and does not load weeks of the board', async () => {
+  await withServer(async ({ json, log }) => {
+    const res = await json('/analyse', LUKE, { method: 'POST', body: JSON.stringify({ ids: ['3'] }) });
+    assert.equal(res.results[0].saved, true);
+    assert.deepEqual(log.windows, []); // fetchCalls (the big load) was never used
+  });
+});
+
+test('a failure names the step it happened at, returns normally, and marks nothing', async () => {
+  await withServer({ claudeFails: true }, async ({ call, log }) => {
+    const res = await call('/analyse', LUKE, { method: 'POST', body: JSON.stringify({ ids: ['3'] }) });
+    assert.equal(res.status, 200); // a readable answer, not a dropped connection
+    const out = (await res.json()).results[0];
+    assert.equal(out.error, 'failed');
+    assert.equal(out.step, 'analyse with Claude');
+    assert.match(out.message, /Claude API HTTP 529/);
+    assert.deepEqual(log.marked, []);
+  });
+});
+
+test('the connection check is for managers and reports each part', async () => {
+  await withServer(async ({ call, json }) => {
+    assert.equal((await call('/selftest', LUKE)).status, 403);
+    const ok = await json('/selftest', SAM);
+    assert.equal(ok.ok, true);
+    assert.equal(ok.checks.length, 3);
+  });
+  await withServer({ claudePingFails: true, persist: false }, async ({ json }) => {
+    const bad = await json('/selftest', SAM);
+    assert.equal(bad.ok, false);
+    const byName = Object.fromEntries(bad.checks.map((c) => [c.name.split(' ')[0], c]));
+    assert.equal(byName.Claude.ok, false);
+    assert.match(byName.Claude.error, /15 seconds/);
+    assert.equal(byName.Storage.ok, false);
+    assert.equal(byName.monday.ok, true);
+  });
 });

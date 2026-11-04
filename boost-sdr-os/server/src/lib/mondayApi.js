@@ -91,6 +91,18 @@ async function fetchCalls(sinceMs, { maxPages = 12 } = {}) {
   return calls;
 }
 
+// One call by item ID. Much cheaper than loading weeks of calls to find a single one.
+async function fetchCall(id) {
+  const data = await gql(`query($ids: [ID!]) { items(ids: $ids) { board { id } ${ITEM_FIELDS} } }`, { ids: [String(id)] });
+  const item = data.items?.[0];
+  return item && String(item.board?.id) === String(CALLS_BOARD) ? parseCall(item) : null;
+}
+
+// Cheap check that the token works.
+async function ping() {
+  await gql('query { me { id } }');
+}
+
 // Returns { [itemId]: rawTranscriptText } for items that have a transcript update.
 async function fetchTranscripts(itemIds) {
   const out = {};
@@ -116,4 +128,4 @@ async function markAnalysed(itemId) {
   );
 }
 
-module.exports = { fetchCalls, fetchTranscripts, parseCall, markAnalysed };
+module.exports = { fetchCalls, fetchCall, fetchTranscripts, parseCall, markAnalysed, ping };

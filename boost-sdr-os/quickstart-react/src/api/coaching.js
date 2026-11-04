@@ -41,5 +41,6 @@ export const coachingApi = {
   calls: (userId, days) => request(`/calls${qs({ userId, days })}`),
   trends: (userId, days) => request(`/trends${qs({ userId, days })}`),
   transcript: (id) => request(`/calls/${encodeURIComponent(id)}/transcript`),
+  selftest: () => request('/selftest'),
   analyse: (ids) => request('/analyse', { method: 'POST', body: { ids } }),
 };

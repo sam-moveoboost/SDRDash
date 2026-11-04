@@ -62,6 +62,15 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
     return Object.fromEntries(calls.map((c) => [c.id, transcriptCache.get(c.id)?.raw ?? null]));
   }
 
+  // Finds one call without loading weeks of them: the cached lists first, then a direct lookup.
+  async function getCall(id) {
+    for (const { calls } of callsCache.values()) {
+      const hit = calls.find((c) => c.id === id);
+      if (hit) return hit;
+    }
+    return mondayApi.fetchCall(id);
+  }
+
   const inScope = (calls, sdrId) => (sdrId == null ? calls : calls.filter((c) => c.sdrId === sdrId));
   // Answered and not tagged as no answer, busy or voicemail. Untagged calls stay in,
   // because a fresh call may not be tagged yet and its transcript will show what it was.
@@ -200,8 +209,7 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
   }));
 
   router.get('/calls/:id/transcript', handle(async (req, res) => {
-    const all = await loadCalls(cfg.MAX_DAYS);
-    const call = all.find((c) => c.id === String(req.params.id));
+    const call = await getCall(String(req.params.id));
     if (!call || (!req.viewer.isAdmin && call.sdrId !== req.viewer.userId)) {
       return res.status(404).json({ error: 'not_found', message: 'Call not found.' });
     }
@@ -219,47 +227,87 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
     const ids = [...new Set((req.body?.ids || []).map(String))].slice(0, cfg.MAX_ANALYSE_PER_REQUEST);
     if (!ids.length) return res.status(400).json({ error: 'bad_request', message: 'No calls given.' });
 
-    const all = await loadCalls(cfg.MAX_DAYS);
     const results = [];
     for (const id of ids) {
-      const call = all.find((c) => c.id === id);
-      // Same rule as everywhere else: SDRs can only analyse their own calls.
-      if (!call || (!req.viewer.isAdmin && call.sdrId !== req.viewer.userId) || !isCandidate(call)) {
-        results.push({ id, error: 'not_found' });
-        continue;
-      }
-      if (isAnalysed(call)) {
-        const existing = await store.getAnalysis(id);
-        if (existing) {
-          results.push({ id, analysis: existing, saved: true, marked: true });
+      // Time each step and name the one that fails, so a problem is easy to find in the logs.
+      let stepName = 'start';
+      const t0 = Date.now();
+      const step = async (name, fn) => {
+        stepName = name;
+        const s0 = Date.now();
+        const out = await fn();
+        console.log(`[analyse] ${id} ${name} ${Date.now() - s0}ms`);
+        return out;
+      };
+      try {
+        const call = await step('find call', () => getCall(id));
+        // Same rule as everywhere else: SDRs can only analyse their own calls.
+        if (!call || (!req.viewer.isAdmin && call.sdrId !== req.viewer.userId) || !isCandidate(call)) {
+          results.push({ id, error: 'not_found' });
           continue;
         }
-        // Marked done but the saved analysis is missing: fall through and redo it.
-      }
-      const parsed = parseTranscript((await loadTranscripts([call]))[id], call.agentName);
-      if (!usable(parsed)) {
-        results.push({ id, error: parsed ? 'too_short' : 'no_transcript' });
-        continue;
-      }
-
-      const result = await analysis.analyseCall({ turns: parsed.turns, call });
-      const { sdrShare, sdrQuestions, longestSdrTurnWords, chars } = parsed.stats;
-      result.stats = { sdrShare, sdrQuestions, longestSdrTurnWords, chars };
-
-      const saved = await store.saveAnalysis(id, result);
-      let marked = false;
-      if (saved) {
-        try {
-          await mondayApi.markAnalysed(id);
-          marked = true;
-          call.coachingStatus = cfg.STATUS_ANALYSED; // keep the cached list in step
-        } catch (err) {
-          console.error('[coaching] could not mark call as analysed:', err.message);
+        if (isAnalysed(call)) {
+          const existing = await step('read saved analysis', () => store.getAnalysis(id));
+          if (existing) {
+            results.push({ id, analysis: existing, saved: true, marked: true });
+            continue;
+          }
+          // Marked done but the saved analysis is missing: fall through and redo it.
         }
+        const raw = await step('read transcript', async () => (await loadTranscripts([call]))[id]);
+        const parsed = parseTranscript(raw, call.agentName);
+        if (!usable(parsed)) {
+          results.push({ id, error: parsed ? 'too_short' : 'no_transcript' });
+          continue;
+        }
+
+        const result = await step('analyse with Claude', () => analysis.analyseCall({ turns: parsed.turns, call }));
+        const { sdrShare, sdrQuestions, longestSdrTurnWords, chars } = parsed.stats;
+        result.stats = { sdrShare, sdrQuestions, longestSdrTurnWords, chars };
+
+        // The board is only marked once the analysis is confirmed saved permanently.
+        const saved = await step('save analysis', () => store.saveAnalysis(id, result));
+        let marked = false;
+        if (saved) {
+          try {
+            await step('mark as analysed on the board', () => mondayApi.markAnalysed(id));
+            marked = true;
+            call.coachingStatus = cfg.STATUS_ANALYSED; // keep the cached list in step
+          } catch (err) {
+            console.error(`[analyse] ${id} could not mark the board: ${err.message}`);
+          }
+        }
+        console.log(`[analyse] ${id} done in ${Date.now() - t0}ms (saved ${saved}, marked ${marked})`);
+        results.push({ id, analysis: result, saved, marked });
+      } catch (err) {
+        if (err.code === 'not_configured') throw err;
+        console.error(`[analyse] ${id} failed at "${stepName}" after ${Date.now() - t0}ms: ${err.message}`);
+        results.push({ id, error: 'failed', step: stepName, message: `${stepName}: ${err.message}` });
       }
-      results.push({ id, analysis: result, saved, marked });
     }
     return res.json({ results });
+  }));
+
+  // Managers only: proves Claude, storage and monday can each be reached from the server.
+  router.get('/selftest', handle(async (req, res) => {
+    if (!req.viewer.isAdmin) {
+      return res.status(403).json({ error: 'forbidden', message: 'This check is for managers.' });
+    }
+    const run = async (name, fn) => {
+      const t0 = Date.now();
+      try {
+        await fn();
+        return { name, ok: true, ms: Date.now() - t0 };
+      } catch (err) {
+        return { name, ok: false, ms: Date.now() - t0, error: err.message };
+      }
+    };
+    const checks = await Promise.all([
+      run('Claude (the analysis)', () => analysis.ping()),
+      run('Storage (where analyses are saved)', () => store.selfTest()),
+      run('monday (reading the board)', () => mondayApi.ping()),
+    ]);
+    return res.json({ ok: checks.every((c) => c.ok), checks });
   }));
 
   return router;

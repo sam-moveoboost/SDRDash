@@ -37,6 +37,7 @@ export default function Coaching({ user }) {
   const [trends, setTrends] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [analysing, setAnalysing] = useState({ busy: false, message: null });
+  const [check, setCheck] = useState(null); // { busy, checks, error }
 
   const isAdmin = !!overview?.scope?.isAdmin;
   const userIdParam = sdrId === 'all' ? undefined : sdrId;
@@ -101,6 +102,7 @@ export default function Coaching({ user }) {
     let failed = 0;
     let cutOff = false;
     let lastError = null;
+    let lastMessage = null;
     for (const id of ids) {
       setAnalysing({ busy: true, message: `Analysing call ${done + failed + 1} of ${ids.length}. Each takes about 30 seconds.` });
       try {
@@ -113,6 +115,7 @@ export default function Coaching({ user }) {
           if (r.saved) done += 1; else unsaved += 1;
         } else {
           failed += 1;
+          if (r?.message) lastMessage = r.message;
         }
       } catch (e) {
         failed += 1;
@@ -125,6 +128,7 @@ export default function Coaching({ user }) {
     if (unsaved) message += ` ${unsaved} could not be saved permanently, so ${unsaved === 1 ? 'it' : 'they'} will be offered again.`;
     if (cutOff) message = `${done} analysed. The server stopped answering part way, so try again. Anything that finished is saved.`;
     else if (lastError && !done) message = explain(lastError).text;
+    else if (lastMessage && !done) message = `Could not analyse. ${lastMessage}`;
     setAnalysing({ busy: false, message });
 
     // The server may have finished a call after the connection dropped, so re-read the list.
@@ -132,6 +136,16 @@ export default function Coaching({ user }) {
     if (done) {
       setMeta((m) => ({ ...m, waitingCount: Math.max(0, m.waitingCount - done) }));
       refreshSummaries();
+    }
+  };
+
+  const runCheck = async () => {
+    setCheck({ busy: true, checks: [], error: null });
+    try {
+      const res = await coachingApi.selftest();
+      setCheck({ busy: false, checks: res.checks, error: null });
+    } catch (e) {
+      setCheck({ busy: false, checks: [], error: explain(e).text });
     }
   };
 
@@ -161,11 +175,36 @@ export default function Coaching({ user }) {
             {DAY_OPTIONS.map((d) => <option key={d} value={d}>Last {d} days</option>)}
           </select>
           <button type="button" onClick={() => setTick((t) => t + 1)} className="bg-card border border-line rounded-full px-3.5 py-1.5 text-sm font-medium text-ink cursor-pointer hover:bg-sunken">Refresh</button>
+          {isAdmin && !demo && (
+            <button type="button" onClick={runCheck} disabled={check?.busy} className="bg-card border border-line rounded-full px-3.5 py-1.5 text-sm font-medium text-ink cursor-pointer hover:bg-sunken disabled:opacity-50">
+              {check?.busy ? 'Checking...' : 'Check connections'}
+            </button>
+          )}
           <button type="button" onClick={() => { setDemo((d) => !d); setSdrId('all'); }} className="bg-transparent border-0 text-[12.5px] text-muted underline cursor-pointer">
             {demo ? 'Use live data' : 'Show sample data'}
           </button>
         </div>
       </div>
+
+      {check && !check.busy && (
+        <div className="mb-6 rounded-xl border border-line bg-card px-4 py-3 text-[13px]">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="font-heading font-bold">Connection check</span>
+            <button type="button" onClick={() => setCheck(null)} className="bg-transparent border-0 text-muted underline cursor-pointer text-[12px]">Close</button>
+          </div>
+          {check.error && <div className="text-red">{check.error}</div>}
+          <ul className="space-y-1">
+            {check.checks.map((c) => (
+              <li key={c.name} className="flex gap-2 items-baseline">
+                <span className={c.ok ? 'text-emerald' : 'text-red'}>{c.ok ? 'Working' : 'Not working'}</span>
+                <span className="text-body">{c.name}</span>
+                <span className="text-muted">{(c.ms / 1000).toFixed(1)}s</span>
+                {c.error && <span className="text-red">{c.error}</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {demo && <div className="mb-6 rounded-xl bg-info-soft text-info text-[13px] px-4 py-3">You are looking at sample data, not real calls.</div>}
       {problem && (
