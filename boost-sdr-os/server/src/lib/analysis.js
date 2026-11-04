@@ -167,7 +167,7 @@ async function analyseCall({ turns, call }, { fetchImpl = fetch } = {}) {
   const length = call.durationMin == null ? 'unknown length' : `about ${Math.round(call.durationMin)} minute${Math.round(call.durationMin) === 1 ? '' : 's'}`;
   const user = `Call length: ${length}.\n\nTranscript:\n${renderForModel(turns)}`;
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 90000);
+  const timer = setTimeout(() => ctrl.abort(), 55000);
   try {
     const res = await fetchImpl('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -184,6 +184,27 @@ async function analyseCall({ turns, call }, { fetchImpl = fetch } = {}) {
     const json = await res.json();
     const text = (json.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
     return validate(extractJson(text), turns);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Tiny request that proves the key works and Claude can be reached from this server.
+async function ping({ fetchImpl = fetch } = {}) {
+  const apiKey = getSecret('ANTHROPIC_API_KEY');
+  if (!apiKey) throw new Error('The server is missing ANTHROPIC_API_KEY.');
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 15000);
+  try {
+    const res = await fetchImpl('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      signal: ctrl.signal,
+      headers: { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: CLAUDE_MODEL, max_tokens: 8, messages: [{ role: 'user', content: 'Reply with the single word OK.' }] }),
+    });
+    if (!res.ok) throw new Error(`Claude API HTTP ${res.status}`);
+  } catch (err) {
+    throw new Error(err.name === 'AbortError' ? 'Claude did not answer within 15 seconds' : err.message);
   } finally {
     clearTimeout(timer);
   }
@@ -225,6 +246,6 @@ const CALL_TYPE_LABELS = {
 };
 
 module.exports = {
-  analyseCall, validate, extractJson, MEDDPICC, CRAFT, SYSTEM,
+  analyseCall, ping, validate, extractJson, MEDDPICC, CRAFT, SYSTEM,
   OBJECTION_LABELS, OPENER_LABELS, SENIORITY_LABELS, CALL_TYPE_LABELS,
 };
