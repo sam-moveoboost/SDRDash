@@ -1,4 +1,6 @@
-// MEDDPICC call analysis with Claude. Each call is analysed once and saved.
+// MEDDPICC and opener analysis of a call transcript with Claude. Each call is
+// analysed once and saved. Short calls are included on purpose: how a call opens
+// and why people hang up is some of the most useful coaching data.
 
 const { getSecret } = require('./secrets');
 const { CLAUDE_MODEL, RUBRIC_VERSION } = require('./config');
@@ -23,42 +25,52 @@ const CRAFT = [
   { key: 'tone_and_control', label: 'Tone and call control' },
 ];
 
+const CALL_TYPES = ['conversation', 'early_hangup', 'gatekeeper', 'voicemail', 'automated_menu', 'wrong_person', 'other'];
+const OPENER_RESULTS = ['stayed_engaged', 'brushed_off', 'hung_up', 'blocked_by_gatekeeper', 'unclear'];
 const OBJECTION_CATEGORIES = [
   'not_interested', 'no_time', 'send_email', 'already_have_solution', 'using_competitor',
   'no_budget', 'wrong_person', 'bad_timing', 'other',
 ];
 const OPENER_STYLES = ['permission_based', 'direct_pitch', 'referral_or_context', 'pattern_interrupt', 'other'];
 const SENIORITY = ['c_level', 'vp_director', 'manager', 'individual', 'unknown'];
+const STAGES = ['opener', 'middle', 'close'];
 
-const SYSTEM = `You are a sales coach reviewing a recorded outbound call by an SDR (sales development rep) at boost, a monday.com partner that sells implementation and consulting services. Coach the way a good sales manager would: specific, fair, practical and kind, never harsh.
+const list = (xs) => xs.map((s) => `"${s}"`).join(' | ');
 
-You will get a transcript where the SDR is labelled "SDR" and the other person "PROSPECT". Transcripts are machine-generated and can contain errors; do not criticise transcription mistakes.
+const SYSTEM = `You are a sales coach reviewing a recorded call by an SDR (sales development rep) at boost, a monday.com partner that sells implementation and consulting services. Coach the way a good sales manager would: specific, fair, practical and kind, never harsh.
 
-Score using MEDDPICC, judging what was actually realistic for an SDR in this call:
-- 0 = not touched on, 1 = touched on or partly explored, 2 = explored well with a clear answer.
-- Most cold calls will score 0 on elements such as paper process or decision criteria. That is normal and is not a failing. Only treat a missing element as a gap when the prospect opened the door and the SDR did not follow it.
+You will get a transcript where the SDR is labelled "SDR" and the other person "PROSPECT". Transcripts are machine-generated and can contain errors; do not criticise transcription mistakes. Many calls are short. A prospect who hangs up or brushes the SDR off within the first few exchanges is useful data, so analyse it, do not dismiss it.
 
-Also score call craft from 1 (weak) to 5 (excellent): opening, discovery, objection handling, asking for the next step, tone and call control. If a dimension did not come up (for example no objection was raised), score it null.
+Judge three things:
+1. How the call opened and what happened next (did the prospect stay, brush the SDR off, or hang up?).
+2. Any objection or brush-off, where in the call it came, and how the SDR answered.
+3. For real two-way conversations only, MEDDPICC and call craft.
+
+MEDDPICC scoring, judging what was realistic for an SDR: 0 = not touched on, 1 = touched on or partly explored, 2 = explored well. Most calls score 0 on most elements. That is normal and is never a failing. Set "coachable" to true only when the call was a real two-way conversation with enough substance to judge discovery. For short, one-sided or blocked calls set it to false, score every MEDDPICC element 0 and score craft dimensions that did not come up as null.
+
+Call craft is scored 1 (weak) to 5 (excellent): opening, discovery, objection handling, asking for the next step, tone and call control. Use null for any dimension that did not come up.
 
 Rules:
-- Every quote you give must be copied word for word from the transcript, short (under 30 words), and never invented.
+- Every quote must be copied word for word from the transcript, short (under 30 words), and never invented.
 - Base everything on the transcript. If something is unclear, say so instead of guessing.
-- "try_next_time" must be two or three concrete actions the SDR can do on their next call, ideally with a suggested phrase.
+- "try_next_time" must be one to three concrete actions for the next call, ideally with a suggested phrase. For early hang-ups, focus on the first ten seconds.
 - Be honest. Praise only what happened.
-- "objections": list each genuine objection or brush-off the prospect raised (up to four), with the SDR's actual reply. Use an empty list if there were none. Do not invent objections.
+- "objections": each genuine objection or brush-off from the prospect (up to four) with the SDR's actual reply and where it came ("opener" means within the first couple of exchanges). Use an empty list if there were none.
 - "prospect" and "opener": only use what is said on the call. Use null or "unknown" when it is not stated; never guess a job title.
 
 Reply with a single JSON object and nothing else, in exactly this shape:
 {
-  "call_type": "conversation" | "gatekeeper" | "voicemail" | "automated_menu" | "wrong_person" | "other",
+  "call_type": ${list(CALL_TYPES)},
   "coachable": boolean,
   "summary": "two sentences on what happened and where the call ended",
+  "opener_result": ${list(OPENER_RESULTS)},
+  "ended_by": "prospect" | "sdr" | "unclear",
   "next_step_secured": boolean,
   "meddpicc": { ${MEDDPICC.map((m) => `"${m.key}": { "score": 0|1|2, "evidence": "verbatim quote or empty string" }`).join(', ')} },
   "craft": { ${CRAFT.map((c) => `"${c.key}": { "score": 1-5 or null, "note": "one sentence" }`).join(', ')} },
-  "prospect": { "role_or_title": "as said on the call, or null", "seniority": ${SENIORITY.map((s) => `"${s}"`).join(' | ')}, "company_type_or_industry": "as said or clearly implied, or null" },
-  "opener": { "style": ${OPENER_STYLES.map((s) => `"${s}"`).join(' | ')}, "quote": "verbatim: how the SDR opened, the first thing said after the greeting", "note": "one sentence" },
-  "objections": [ { "category": ${OBJECTION_CATEGORIES.map((s) => `"${s}"`).join(' | ')}, "quote": "verbatim prospect words", "response_quote": "verbatim SDR reply", "handled": "well" | "ok" | "poorly", "why": "one sentence" } ],
+  "prospect": { "role_or_title": "as said on the call, or null", "seniority": ${list(SENIORITY)}, "company_type_or_industry": "as said or clearly implied, or null" },
+  "opener": { "style": ${list(OPENER_STYLES)}, "quote": "verbatim: how the SDR opened, the first thing said after the greeting", "note": "one sentence" },
+  "objections": [ { "category": ${list(OBJECTION_CATEGORIES)}, "stage": ${list(STAGES)}, "quote": "verbatim prospect words", "response_quote": "verbatim SDR reply or empty string", "handled": "well" | "ok" | "poorly", "why": "one sentence" } ],
   "best_moment": { "quote": "verbatim", "why": "one sentence" } | null,
   "missed_moment": { "quote": "verbatim", "better": "what could have been said or asked instead" } | null,
   "try_next_time": ["...", "..."]
@@ -76,22 +88,38 @@ function clampScore(v, min, max) {
   return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : null;
 }
 
+const oneOf = (v, options, fallback) => (options.includes(v) ? v : fallback);
+
 // Cleans the model output and removes any quote that is not really in the transcript.
 function validate(raw, turns) {
   const tNorm = norm(turns.map((t) => t.text).join(' '));
   const out = {
     version: RUBRIC_VERSION,
-    callType: String(raw.call_type || 'other'),
-    coachable: raw.coachable !== false,
+    callType: oneOf(raw.call_type, CALL_TYPES, 'other'),
+    coachable: raw.coachable === true,
     summary: String(raw.summary || '').slice(0, 600),
+    openerResult: oneOf(raw.opener_result, OPENER_RESULTS, 'unclear'),
+    endedBy: oneOf(raw.ended_by, ['prospect', 'sdr', 'unclear'], 'unclear'),
     nextStepSecured: Boolean(raw.next_step_secured),
     meddpicc: {},
     craft: {},
+    prospect: {
+      role: raw.prospect?.role_or_title ? String(raw.prospect.role_or_title).slice(0, 80) : null,
+      seniority: oneOf(raw.prospect?.seniority, SENIORITY, 'unknown'),
+      industry: raw.prospect?.company_type_or_industry ? String(raw.prospect.company_type_or_industry).slice(0, 80) : null,
+    },
+    opener: {
+      style: oneOf(raw.opener?.style, OPENER_STYLES, 'other'),
+      quote: raw.opener?.quote && quoteIsReal(tNorm, raw.opener.quote) ? String(raw.opener.quote) : null,
+      note: String(raw.opener?.note || '').slice(0, 300),
+    },
+    objections: [],
     bestMoment: null,
     missedMoment: null,
     tryNextTime: Array.isArray(raw.try_next_time) ? raw.try_next_time.map(String).slice(0, 3) : [],
     analysedAt: new Date().toISOString(),
   };
+
   for (const { key } of MEDDPICC) {
     const m = raw.meddpicc?.[key] || {};
     const evidence = m.evidence && quoteIsReal(tNorm, m.evidence) ? String(m.evidence) : null;
@@ -101,28 +129,20 @@ function validate(raw, turns) {
     const c = raw.craft?.[key] || {};
     out.craft[key] = { score: c.score == null ? null : clampScore(c.score, 1, 5), note: String(c.note || '').slice(0, 300) };
   }
-  const oneOf = (v, list, fallback) => (list.includes(v) ? v : fallback);
-  out.prospect = {
-    role: raw.prospect?.role_or_title ? String(raw.prospect.role_or_title).slice(0, 80) : null,
-    seniority: oneOf(raw.prospect?.seniority, SENIORITY, 'unknown'),
-    industry: raw.prospect?.company_type_or_industry ? String(raw.prospect.company_type_or_industry).slice(0, 80) : null,
-  };
-  out.opener = {
-    style: oneOf(raw.opener?.style, OPENER_STYLES, 'other'),
-    quote: raw.opener?.quote && quoteIsReal(tNorm, raw.opener.quote) ? String(raw.opener.quote) : null,
-    note: String(raw.opener?.note || '').slice(0, 300),
-  };
+
   // An objection only counts if the prospect's words really are in the transcript.
   out.objections = (Array.isArray(raw.objections) ? raw.objections : [])
     .filter((o) => o?.quote && quoteIsReal(tNorm, o.quote))
     .slice(0, 4)
     .map((o) => ({
       category: oneOf(o.category, OBJECTION_CATEGORIES, 'other'),
+      stage: oneOf(o.stage, STAGES, 'middle'),
       quote: String(o.quote),
       responseQuote: o.response_quote && quoteIsReal(tNorm, o.response_quote) ? String(o.response_quote) : null,
       handled: oneOf(o.handled, ['well', 'ok', 'poorly'], 'ok'),
       why: String(o.why || '').slice(0, 300),
     }));
+
   if (raw.best_moment?.quote && quoteIsReal(tNorm, raw.best_moment.quote)) {
     out.bestMoment = { quote: String(raw.best_moment.quote), why: String(raw.best_moment.why || '').slice(0, 300) };
   }
@@ -144,7 +164,8 @@ async function analyseCall({ turns, call }, { fetchImpl = fetch } = {}) {
   const apiKey = getSecret('ANTHROPIC_API_KEY');
   if (!apiKey) throw Object.assign(new Error('The server is missing ANTHROPIC_API_KEY.'), { code: 'not_configured' });
 
-  const user = `Call length: about ${Math.round(call.durationMin)} minutes.\n\nTranscript:\n${renderForModel(turns)}`;
+  const length = call.durationMin == null ? 'unknown length' : `about ${Math.round(call.durationMin)} minute${Math.round(call.durationMin) === 1 ? '' : 's'}`;
+  const user = `Call length: ${length}.\n\nTranscript:\n${renderForModel(turns)}`;
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 90000);
   try {
@@ -166,26 +187,6 @@ async function analyseCall({ turns, call }, { fetchImpl = fetch } = {}) {
   } finally {
     clearTimeout(timer);
   }
-}
-
-// What we save for calls that were never a real conversation, so they are not retried.
-function notAConversation() {
-  return {
-    version: RUBRIC_VERSION,
-    callType: 'not_a_conversation',
-    coachable: false,
-    summary: 'Too short or one-sided to coach (for example a gatekeeper, voicemail or phone menu).',
-    nextStepSecured: false,
-    meddpicc: {},
-    craft: {},
-    prospect: { role: null, seniority: 'unknown', industry: null },
-    opener: { style: 'other', quote: null, note: '' },
-    objections: [],
-    bestMoment: null,
-    missedMoment: null,
-    tryNextTime: [],
-    analysedAt: new Date().toISOString(),
-  };
 }
 
 const OBJECTION_LABELS = {
@@ -213,8 +214,17 @@ const SENIORITY_LABELS = {
   individual: 'Individual contributor',
   unknown: 'Not stated',
 };
+const CALL_TYPE_LABELS = {
+  conversation: 'Conversation',
+  early_hangup: 'Early hang-up',
+  gatekeeper: 'Gatekeeper',
+  voicemail: 'Voicemail',
+  automated_menu: 'Phone menu',
+  wrong_person: 'Wrong person',
+  other: 'Other',
+};
 
 module.exports = {
-  analyseCall, notAConversation, validate, extractJson, MEDDPICC, CRAFT, SYSTEM,
-  OBJECTION_LABELS, OPENER_LABELS, SENIORITY_LABELS,
+  analyseCall, validate, extractJson, MEDDPICC, CRAFT, SYSTEM,
+  OBJECTION_LABELS, OPENER_LABELS, SENIORITY_LABELS, CALL_TYPE_LABELS,
 };

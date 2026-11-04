@@ -1,7 +1,12 @@
 // Team-wide patterns for managers, built from saved analyses (no extra AI cost).
-// Input is a list of { call, analysis, stats } where stats are the transcript talk stats.
+// Input is a list of { call, analysis }. analysis.stats holds the transcript talk stats.
+//
+// Short calls are included: openers and early hang-ups are exactly what managers
+// want to see. Only voicemail and phone menus are left out.
 
 const { OBJECTION_LABELS, OPENER_LABELS, SENIORITY_LABELS } = require('./analysis');
+
+const NON_HUMAN = new Set(['voicemail', 'automated_menu']);
 
 const avg = (xs) => {
   const v = xs.filter((x) => Number.isFinite(x));
@@ -9,6 +14,8 @@ const avg = (xs) => {
 };
 const rate = (a, b) => (b > 0 ? a / b : null);
 const isBooked = (call) => call.tags.includes('MeetingBooked');
+const stayed = (a) => a.openerResult === 'stayed_engaged';
+const hungUp = (a) => a.openerResult === 'hung_up' || a.openerResult === 'brushed_off';
 const norm = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
 
 function groupRate(items, keyFn, labelFn = (k) => k, limit = 8) {
@@ -27,55 +34,116 @@ function groupRate(items, keyFn, labelFn = (k) => k, limit = 8) {
     .slice(0, limit);
 }
 
+// Best examples first: the call booked, then the prospect stayed, then a next step was secured.
+const successScore = (p) => Number(isBooked(p.call)) * 4 + Number(stayed(p.analysis)) * 2 + Number(p.analysis.nextStepSecured);
+
 function buildTrends(pairs) {
-  const real = pairs.filter((p) => p.analysis && p.analysis.coachable && p.analysis.callType !== 'not_a_conversation');
-  const booked = real.filter((p) => isBooked(p.call));
+  const human = pairs.filter((p) => p.analysis && !NON_HUMAN.has(p.analysis.callType));
+  const real = human.filter((p) => p.analysis.coachable);
+  const booked = human.filter((p) => isBooked(p.call));
 
   // ---- objections ----
-  const objections = real.flatMap((p) => (p.analysis.objections || []).map((o) => ({ ...o, call: p.call, analysis: p.analysis })));
+  const objections = human.flatMap((p) => (p.analysis.objections || []).map((o) => ({ ...o, pair: p })));
   const byCat = new Map();
   for (const o of objections) {
     const g = byCat.get(o.category) || { category: o.category, items: [] };
     g.items.push(o);
     byCat.set(o.category, g);
   }
+  const catSummary = (category, items) => ({
+    category,
+    label: OBJECTION_LABELS[category] || category,
+    count: items.length,
+    handledWell: items.filter((o) => o.handled === 'well').length,
+    handledPoorly: items.filter((o) => o.handled === 'poorly').length,
+    bookedAfter: items.filter((o) => isBooked(o.pair.call)).length,
+    stayedAfter: items.filter((o) => stayed(o.pair.analysis)).length,
+    hungUpAfter: items.filter((o) => hungUp(o.pair.analysis)).length,
+  });
+  const bestExamples = (items, n = 2) => items
+    .filter((o) => o.handled === 'well' && o.responseQuote)
+    .sort((a, b) => successScore(b.pair) - successScore(a.pair))
+    .slice(0, n)
+    .map((o) => ({
+      sdrName: o.pair.call.sdrName,
+      stage: o.stage,
+      quote: o.quote,
+      response: o.responseQuote,
+      why: o.why,
+      booked: isBooked(o.pair.call),
+      stayed: stayed(o.pair.analysis),
+      startedAt: o.pair.call.startedAt,
+      callId: o.pair.call.id,
+    }));
+
   const topObjections = [...byCat.values()]
     .map((g) => ({
-      category: g.category,
-      label: OBJECTION_LABELS[g.category] || g.category,
-      count: g.items.length,
+      ...catSummary(g.category, g.items),
       share: rate(g.items.length, objections.length),
-      handledWell: g.items.filter((o) => o.handled === 'well').length,
-      handledPoorly: g.items.filter((o) => o.handled === 'poorly').length,
-      bookedAfter: g.items.filter((o) => isBooked(o.call)).length,
-      examples: g.items.slice(0, 2).map((o) => ({ quote: o.quote, sdrName: o.call.sdrName })),
+      examples: g.items.slice(0, 2).map((o) => ({ quote: o.quote, sdrName: o.pair.call.sdrName })),
     }))
     .sort((a, b) => b.count - a.count);
 
-  // The best answers: handled well, with the SDR's own words, preferring calls that went on to book.
-  const bestHandling = topObjections.slice(0, 5).map((t) => {
-    const items = (byCat.get(t.category)?.items || [])
-      .filter((o) => o.handled === 'well' && o.responseQuote)
-      .sort((a, b) => Number(isBooked(b.call)) - Number(isBooked(a.call)) || Number(b.analysis.nextStepSecured) - Number(a.analysis.nextStepSecured));
+  const bestHandling = topObjections.slice(0, 5)
+    .map((t) => ({ category: t.category, label: t.label, examples: bestExamples(byCat.get(t.category).items) }))
+    .filter((b) => b.examples.length);
+
+  // Objections that came up in the opening seconds: the ones that decide whether the call survives.
+  const early = objections.filter((o) => o.stage === 'opener');
+  const earlyByCat = new Map();
+  for (const o of early) {
+    const g = earlyByCat.get(o.category) || { category: o.category, items: [] };
+    g.items.push(o);
+    earlyByCat.set(o.category, g);
+  }
+  const earlyObjections = [...earlyByCat.values()]
+    .map((g) => ({ ...catSummary(g.category, g.items), examples: bestExamples(g.items) }))
+    .sort((a, b) => b.count - a.count);
+
+  // ---- how calls open, and who stays ----
+  const styles = [...new Set(human.map((p) => p.analysis.opener?.style).filter(Boolean))];
+  const openers = styles.map((style) => {
+    const group = human.filter((p) => p.analysis.opener?.style === style);
+    const quoteOf = (p) => (p.analysis.opener?.quote ? { quote: p.analysis.opener.quote, sdrName: p.call.sdrName } : null);
     return {
-      category: t.category,
-      label: t.label,
-      examples: items.slice(0, 2).map((o) => ({
-        sdrName: o.call.sdrName,
-        quote: o.quote,
-        response: o.responseQuote,
-        why: o.why,
-        booked: isBooked(o.call),
-        startedAt: o.call.startedAt,
-        callId: o.call.id,
-      })),
+      style,
+      label: OPENER_LABELS[style] || style,
+      calls: group.length,
+      stayed: group.filter((p) => stayed(p.analysis)).length,
+      stayedRate: rate(group.filter((p) => stayed(p.analysis)).length, group.length),
+      hungUp: group.filter((p) => hungUp(p.analysis)).length,
+      hungUpRate: rate(group.filter((p) => hungUp(p.analysis)).length, group.length),
+      booked: group.filter((p) => isBooked(p.call)).length,
+      bookedRate: rate(group.filter((p) => isBooked(p.call)).length, group.length),
+      nextStepRate: rate(group.filter((p) => p.analysis.nextStepSecured).length, group.length),
+      stayExamples: group.filter((p) => stayed(p.analysis)).sort((a, b) => successScore(b) - successScore(a)).map(quoteOf).filter(Boolean).slice(0, 2),
+      hangUpExamples: group.filter((p) => hungUp(p.analysis)).map(quoteOf).filter(Boolean).slice(0, 2),
     };
-  }).filter((b) => b.examples.length);
+  }).sort((a, b) => b.calls - a.calls);
+
+  // ---- hang-ups ----
+  const hangs = human.filter((p) => hungUp(p.analysis));
+  const reasonMap = new Map();
+  for (const p of hangs) {
+    const first = (p.analysis.objections || [])[0];
+    const key = first ? first.category : 'no_objection_given';
+    const g = reasonMap.get(key) || { category: key, count: 0, examples: [] };
+    g.count += 1;
+    if (first && g.examples.length < 2) g.examples.push({ quote: first.quote, sdrName: p.call.sdrName, opener: p.analysis.opener?.quote || null });
+    reasonMap.set(key, g);
+  }
+  const hangups = {
+    count: hangs.length,
+    share: rate(hangs.length, human.length),
+    reasons: [...reasonMap.values()]
+      .map((g) => ({ ...g, label: g.category === 'no_objection_given' ? 'Hung up without saying why' : OBJECTION_LABELS[g.category] || g.category }))
+      .sort((a, b) => b.count - a.count),
+  };
 
   // ---- who is being booked ----
   const profile = {
-    bySeniority: groupRate(real, (p) => p.analysis.prospect?.seniority, (k) => SENIORITY_LABELS[k] || k),
-    byIndustry: groupRate(real, (p) => norm(p.analysis.prospect?.industry)),
+    bySeniority: groupRate(human, (p) => p.analysis.prospect?.seniority, (k) => SENIORITY_LABELS[k] || k),
+    byIndustry: groupRate(human, (p) => norm(p.analysis.prospect?.industry)),
     bookedRoles: (() => {
       const m = new Map();
       for (const p of booked) {
@@ -86,33 +154,17 @@ function buildTrends(pairs) {
     })(),
   };
 
-  // ---- how the outreach sounded ----
-  const openers = [...new Set(real.map((p) => p.analysis.opener?.style).filter(Boolean))].map((style) => {
-    const group = real.filter((p) => p.analysis.opener?.style === style);
-    const gBooked = group.filter((p) => isBooked(p.call));
-    return {
-      style,
-      label: OPENER_LABELS[style] || style,
-      calls: group.length,
-      booked: gBooked.length,
-      bookedRate: rate(gBooked.length, group.length),
-      nextStepRate: rate(group.filter((p) => p.analysis.nextStepSecured).length, group.length),
-      examples: gBooked.filter((p) => p.analysis.opener?.quote).slice(0, 2).map((p) => ({ quote: p.analysis.opener.quote, sdrName: p.call.sdrName })),
-    };
-  }).sort((a, b) => b.calls - a.calls);
-
   const talk = (group) => ({
     calls: group.length,
-    avgSdrShare: avg(group.map((p) => p.stats?.sdrShare)),
-    avgQuestions: avg(group.map((p) => p.stats?.sdrQuestions)),
-    avgLongestSdrTurnWords: avg(group.map((p) => p.stats?.longestSdrTurnWords)),
+    avgSdrShare: avg(group.map((p) => p.analysis.stats?.sdrShare)),
+    avgQuestions: avg(group.map((p) => p.analysis.stats?.sdrQuestions)),
+    avgLongestSdrTurnWords: avg(group.map((p) => p.analysis.stats?.longestSdrTurnWords)),
     avgDurationMin: avg(group.map((p) => p.call.durationMin)),
   });
-  const notBooked = real.filter((p) => !isBooked(p.call));
 
   // ---- by SDR ----
   const sdrMap = new Map();
-  for (const p of real) {
+  for (const p of human) {
     const k = p.call.sdrId || `name:${p.call.sdrName}`;
     const g = sdrMap.get(k) || { id: p.call.sdrId, name: p.call.sdrName, items: [] };
     g.items.push(p);
@@ -125,21 +177,25 @@ function buildTrends(pairs) {
       name: g.name,
       analysedCalls: g.items.length,
       booked: g.items.filter((p) => isBooked(p.call)).length,
+      stayedRate: rate(g.items.filter((p) => stayed(p.analysis)).length, g.items.length),
       nextStepRate: rate(g.items.filter((p) => p.analysis.nextStepSecured).length, g.items.length),
       objectionsHandledWellRate: rate(objs.filter((o) => o.handled === 'well').length, objs.length),
-      avgCraft: avg(g.items.flatMap((p) => Object.values(p.analysis.craft || {}).map((c) => c.score))),
+      avgCraft: avg(g.items.filter((p) => p.analysis.coachable).flatMap((p) => Object.values(p.analysis.craft || {}).map((c) => c.score))),
     };
   }).sort((a, b) => b.booked - a.booked || b.analysedCalls - a.analysedCalls);
 
   return {
-    analysedCalls: real.length,
+    analysedCalls: human.length,
+    coachableCalls: real.length,
     bookedCalls: booked.length,
     objectionCount: objections.length,
     topObjections,
     bestHandling,
-    profile,
+    earlyObjections,
     openers,
-    talk: { booked: talk(booked), notBooked: talk(notBooked) },
+    hangups,
+    profile,
+    talk: { booked: talk(booked), notBooked: talk(human.filter((p) => !isBooked(p.call))) },
     sdrs,
   };
 }

@@ -16,7 +16,7 @@ function weekStart(iso) {
 
 function statsFor(calls) {
   const outbound = calls.filter((c) => c.direction === 'outbound');
-  const answered = outbound.filter((c) => /answered/i.test(c.outcome));
+  const answered = outbound.filter((c) => /\banswered\b/i.test(c.outcome));
   const conversations = outbound.filter((c) => (c.durationMin ?? 0) > CONVERSATION_MINUTES);
   const booked = calls.filter((c) => c.tags.includes('MeetingBooked'));
   const convMinutes = conversations.reduce((s, c) => s + c.durationMin, 0);

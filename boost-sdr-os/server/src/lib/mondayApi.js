@@ -2,7 +2,7 @@
 // depends on (or exposes) a token in the browser.
 
 const { getSecret } = require('./secrets');
-const { CALLS_BOARD, COLS } = require('./config');
+const { CALLS_BOARD, COLS, STATUS_ANALYSED } = require('./config');
 
 const API_VERSION = '2024-01';
 
@@ -54,6 +54,9 @@ function parseCall(item) {
     sdrName: text(COLS.bizdev) || text(COLS.agentName) || 'Unassigned',
     agentName: text(COLS.agentName) || text(COLS.bizdev) || '',
     outcome: text(COLS.outcome),
+    // \b so that "Outbound unanswered" does not count as answered.
+    answered: /\banswered\b/i.test(text(COLS.outcome)),
+    coachingStatus: text(COLS.coachingStatus) || null,
     direction: text(COLS.direction).toLowerCase(),
     tags: text(COLS.tags).split(',').map((t) => t.trim()).filter(Boolean),
     durationMin,
@@ -98,4 +101,12 @@ async function fetchTranscripts(itemIds) {
   return out;
 }
 
-module.exports = { fetchCalls, fetchTranscripts, parseCall };
+// Marks a call as analysed on the board. The analysis itself is not written here.
+async function markAnalysed(itemId) {
+  await gql(
+    `mutation($b: ID!, $i: ID!, $c: String!, $v: String!) { change_simple_column_value(board_id: $b, item_id: $i, column_id: $c, value: $v) { id } }`,
+    { b: CALLS_BOARD, i: String(itemId), c: COLS.coachingStatus, v: STATUS_ANALYSED },
+  );
+}
+
+module.exports = { fetchCalls, fetchTranscripts, parseCall, markAnalysed };

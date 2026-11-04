@@ -3,10 +3,11 @@ import { coachingApi } from '../api/coaching';
 import { demoOverview, demoCalls, demoTrends } from '../utils/coachingDemoData';
 import StatCard from '../components/shared/StatCard';
 import {
-  Section, Card, Chip, Empty, WeekBars, TeamTable, FocusPanel, CallDetail, TrendsPanel, fmtWhen, pct, num,
+  Section, Card, Chip, Empty, WeekBars, TeamTable, FocusPanel, CallDetail, TrendsPanel, CoverageTable, fmtWhen, pct, num, CALL_TYPE_LABELS,
 } from '../components/coaching/CoachingParts';
 
 const DAY_OPTIONS = [14, 30, 60, 90];
+const fmtDay = (iso) => new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
 const BATCH = 5;
 
 // Turns a failed request into something a person can act on.
@@ -32,6 +33,7 @@ export default function Coaching({ user }) {
   const [problem, setProblem] = useState(null);
   const [overview, setOverview] = useState(null);
   const [calls, setCalls] = useState([]);
+  const [meta, setMeta] = useState({ waitingCount: 0, coverage: [], rules: null });
   const [trends, setTrends] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [analysing, setAnalysing] = useState({ busy: false, message: null });
@@ -48,6 +50,7 @@ export default function Coaching({ user }) {
       const picked = sdrId === 'all' ? demoCalls.calls : demoCalls.calls.filter((c) => c.sdrId === sdrId);
       setOverview(demoOverview);
       setCalls(picked);
+      setMeta({ waitingCount: demoCalls.waitingCount, coverage: demoCalls.coverage, rules: demoCalls.rules });
       setTrends(demoTrends);
       setLoading(false);
       return undefined;
@@ -64,6 +67,7 @@ export default function Coaching({ user }) {
         ]);
         if (!alive) return;
         setCalls(cl.calls);
+        setMeta({ waitingCount: cl.waitingCount, coverage: cl.coverage, rules: cl.rules });
         setTrends(tr);
       } catch (e) {
         if (alive) setProblem(explain(e));
@@ -83,12 +87,7 @@ export default function Coaching({ user }) {
     } catch { /* the page already shows the earlier numbers */ }
   }, [userIdParam, days]);
 
-  const waiting = useMemo(
-    () => calls
-      .filter((c) => c.transcript?.available && !c.analysis)
-      .sort((a, b) => Number(!!b.transcript.hasConversation) - Number(!!a.transcript.hasConversation)),
-    [calls],
-  );
+  const waiting = useMemo(() => calls.filter((c) => c.status === 'waiting'), [calls]);
 
   // One call per request: each analysis takes 20 to 40 seconds, and a single long
   // request for five calls can be cut off by the hosting before it answers.
@@ -98,6 +97,7 @@ export default function Coaching({ user }) {
     if (!ids.length) return;
 
     let done = 0;
+    let unsaved = 0;
     let failed = 0;
     let cutOff = false;
     let lastError = null;
@@ -107,8 +107,10 @@ export default function Coaching({ user }) {
         const { results } = await coachingApi.analyse([id]);
         const r = results?.[0];
         if (r?.analysis) {
-          setCalls((prev) => prev.map((c) => (c.id === id ? { ...c, analysis: r.analysis } : c)));
-          done += 1;
+          // Only a saved analysis counts as done. If it could not be kept permanently the
+          // call stays in the waiting list so it is offered again.
+          setCalls((prev) => prev.map((c) => (c.id === id ? { ...c, analysis: r.analysis, status: r.saved ? 'analysed' : c.status } : c)));
+          if (r.saved) done += 1; else unsaved += 1;
         } else {
           failed += 1;
         }
@@ -120,13 +122,17 @@ export default function Coaching({ user }) {
     }
 
     let message = failed ? `${done} analysed, ${failed} could not be.` : `${done} analysed.`;
+    if (unsaved) message += ` ${unsaved} could not be saved permanently, so ${unsaved === 1 ? 'it' : 'they'} will be offered again.`;
     if (cutOff) message = `${done} analysed. The server stopped answering part way, so try again. Anything that finished is saved.`;
     else if (lastError && !done) message = explain(lastError).text;
     setAnalysing({ busy: false, message });
 
     // The server may have finished a call after the connection dropped, so re-read the list.
     if (cutOff) coachingApi.calls(userIdParam, days).then((cl) => setCalls(cl.calls)).catch(() => {});
-    if (done) refreshSummaries();
+    if (done) {
+      setMeta((m) => ({ ...m, waitingCount: Math.max(0, m.waitingCount - done) }));
+      refreshSummaries();
+    }
   };
 
   const stats = overview?.stats;
@@ -177,7 +183,7 @@ export default function Coaching({ user }) {
             <StatCard label="Conversations" value={stats.conversations} meta={`${pct(stats.conversationRate)} of outbound calls`} />
             <StatCard label="Meetings booked" value={stats.meetingsBooked} meta={`${pct(stats.bookingRate)} of conversations`} />
             <StatCard label="Average conversation" value={stats.avgConversationMin == null ? 'n/a' : `${num(stats.avgConversationMin)} min`} meta={`${stats.talkMinutes} minutes talking`} />
-            <StatCard label="Calls analysed" value={`${overview.coaching.analysedCalls} / ${overview.transcribedCalls}`} meta="transcribed calls over 2 minutes" />
+            <StatCard label="Calls analysed" value={overview.analysedCount} meta={`answered calls since ${fmtDay(overview.coachingFrom)}`} />
           </div>
 
           {isAdmin && sdrId === 'all' && (
@@ -206,19 +212,25 @@ export default function Coaching({ user }) {
             )}><WeekBars weekly={stats.weekly} /></Card>
           </Section>
 
+          {isAdmin && sdrId === 'all' && meta.coverage.length > 0 && (
+            <Section title="Transcript coverage" sub="Answered calls that have a transcript to coach from. A gap here usually means call recording or transcription is not switched on for that person in Aircall.">
+              <Card><CoverageTable coverage={meta.coverage} /></Card>
+            </Section>
+          )}
+
           <Section
             title="Calls to review"
-            sub="Transcribed calls over 2 minutes, newest first. Only calls since transcripts were switched on appear here."
+            sub={`Answered calls since ${meta.rules ? fmtDay(meta.rules.from) : '1 Nov'} with a transcript of ${meta.rules?.minChars ?? 250} characters or more, newest first. Short calls and hang-ups count too.`}
             right={(
               <div className="flex items-center gap-3">
                 {analysing.message && <span className="text-[12.5px] text-muted">{analysing.message}</span>}
                 <button
                   type="button"
-                  disabled={analysing.busy || waiting.length === 0}
+                  disabled={analysing.busy || meta.waitingCount === 0}
                   onClick={analyseNext}
                   className="rounded-full bg-navy text-white text-sm font-medium px-4 py-2 border-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  {analysing.busy ? 'Analysing...' : waiting.length ? `Analyse new calls (${waiting.length} waiting)` : 'All calls analysed'}
+                  {analysing.busy ? 'Analysing...' : meta.waitingCount ? `Analyse next ${Math.min(BATCH, meta.waitingCount)} calls (${meta.waitingCount} waiting)` : 'All calls analysed'}
                 </button>
               </div>
             )}
@@ -230,18 +242,21 @@ export default function Coaching({ user }) {
                 {calls.map((c) => {
                   const open = openId === c.id;
                   const a = c.analysis;
-                  const status = a
-                    ? a.callType === 'not_a_conversation' ? <Chip>No conversation</Chip> : <Chip tone="good">Analysed</Chip>
-                    : c.transcript?.available ? <Chip tone="warn">Waiting</Chip> : <Chip>No transcript yet</Chip>;
+                  const status = c.detailsMissing
+                    ? <Chip tone="warn">Analysed, details missing</Chip>
+                    : a && c.status === 'analysed' ? <Chip tone="good">Analysed</Chip>
+                    : a ? <Chip tone="warn">Not saved yet</Chip>
+                    : <Chip tone="warn">Waiting</Chip>;
                   return (
                     <div key={c.id} className="bg-card border border-line rounded-2xl">
                       <button type="button" onClick={() => setOpenId(open ? null : c.id)} className="w-full text-left bg-transparent border-0 px-5 py-3.5 cursor-pointer flex items-center gap-4 flex-wrap">
                         <span className="text-[13px] font-medium text-ink w-[110px]">{fmtWhen(c.startedAt)}</span>
                         {isAdmin && <span className="text-[13px] text-body w-[150px]">{c.sdrName}</span>}
-                        <span className="text-[13px] text-muted w-[70px]">{Math.round(c.durationMin)} min</span>
+                        <span className="text-[13px] text-muted w-[70px]">{c.durationMin == null ? '' : `${Math.round(c.durationMin)} min`}</span>
                         <span className="flex gap-1.5 flex-wrap flex-1">
                           {status}
                           {c.tags.includes('MeetingBooked') && <Chip tone="good">Meeting booked</Chip>}
+                          {a && a.callType !== 'conversation' && <Chip>{CALL_TYPE_LABELS[a.callType] || a.callType}</Chip>}
                           {a?.nextStepSecured && <Chip tone="info">Next step secured</Chip>}
                           {a?.objections?.length > 0 && <Chip>{a.objections.length} objection{a.objections.length === 1 ? '' : 's'}</Chip>}
                         </span>

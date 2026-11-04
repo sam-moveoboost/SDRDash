@@ -19,9 +19,13 @@ module.exports = {
     endedAt: 'date_mm19jrq',
     recording: 'link_mm19c866',
     duration: 'formula_mm3jzhbk',
+    coachingStatus: 'color_mm8sjkwt', // "Coaching analysis" status column, set to Analysed by the app
   },
 
-  MIN_TRANSCRIBED_MINUTES: 2, // calls shorter than this are not transcribed
+  STATUS_ANALYSED: 'Analysed',
+  COACHING_FROM_MS: Date.parse('2026-11-01T00:00:00Z'), // nothing before this is analysed
+  MIN_TRANSCRIPT_CHARS: 250, // shorter transcripts are ignored; short hang-ups still count above this
+
   CONVERSATION_MINUTES: 1, // matches the board's own "Conversation formula"
   MAX_DAYS: 120,
   MAX_ANALYSE_PER_REQUEST: 5,

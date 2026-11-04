@@ -46,6 +46,7 @@ function parseTranscript(raw, agentName = '') {
   return {
     turns,
     stats: {
+      chars: body.trim().length,
       sdrWords: words.sdr,
       prospectWords: words.prospect,
       sdrShare: total ? words.sdr / total : null,
