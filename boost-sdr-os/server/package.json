@@ -8,7 +8,7 @@
     "start": "node src/index.js"
   },
   "dependencies": {
-    "@mondaycom/apps-sdk": "^2.1.2",
+    "@mondaycom/apps-sdk": "^3.3.2",
     "express": "^4.21.2"
   }
 }
