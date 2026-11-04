@@ -50,7 +50,8 @@ export default function ProjectFinder() {
                   </div>
                 </div>
                 {g.overdue > 0 && <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-red text-white">{g.overdue} overdue</span>}
-                {g.outstanding > 0 && <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-pale text-navy">{g.outstanding} outstanding</span>}
+                {g.toInvoice > 0 && <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-soft text-amber-ink">{g.toInvoice} to invoice</span>}
+                {g.outstanding > 0 && <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-pale text-navy">{g.outstanding} awaiting payment</span>}
                 <button
                   onClick={() => openProject(g)}
                   className="px-3.5 py-1.5 rounded-full text-[12px] font-semibold text-white bg-navy hover:bg-navy-700 border-0 cursor-pointer"
