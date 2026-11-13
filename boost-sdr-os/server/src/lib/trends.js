@@ -4,7 +4,7 @@
 // Short calls are included: openers and early hang-ups are exactly what managers
 // want to see. Only voicemail and phone menus are left out.
 
-const { OBJECTION_LABELS, OPENER_LABELS, SENIORITY_LABELS } = require('./analysis');
+const { OBJECTION_LABELS, OPENER_LABELS, OPENER_DESCRIPTIONS, SENIORITY_LABELS } = require('./analysis');
 
 const NON_HUMAN = new Set(['voicemail', 'automated_menu']);
 
@@ -108,6 +108,7 @@ function buildTrends(pairs) {
     return {
       style,
       label: OPENER_LABELS[style] || style,
+      description: OPENER_DESCRIPTIONS[style] || null,
       calls: group.length,
       stayed: group.filter((p) => stayed(p.analysis)).length,
       stayedRate: rate(group.filter((p) => stayed(p.analysis)).length, group.length),

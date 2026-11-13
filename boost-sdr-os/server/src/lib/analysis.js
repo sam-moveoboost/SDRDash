@@ -31,7 +31,13 @@ const OBJECTION_CATEGORIES = [
   'not_interested', 'no_time', 'send_email', 'already_have_solution', 'using_competitor',
   'no_budget', 'wrong_person', 'bad_timing', 'other',
 ];
-const OPENER_STYLES = ['permission_based', 'direct_pitch', 'referral_or_context', 'pattern_interrupt', 'other'];
+// Five opening types, grouped from a read of the real transcripts since 1 Nov (65 valid ones):
+// about half referred to an earlier connection, a fifth were a cold request for a moment, and the
+// rest were credentials first, asking for a named person, or opening with a pain-point question.
+const OPENER_STYLES = ['warm_followup', 'cold_permission_ask', 'credentials_first', 'named_person_ask', 'pain_question_hook', 'other'];
+
+// Bump when the shape or the rules of an analysis change, so earlier analyses are offered for redoing.
+const ANALYSIS_SCHEMA = 2;
 const SENIORITY = ['c_level', 'vp_director', 'manager', 'individual', 'unknown'];
 const STAGES = ['opener', 'middle', 'close'];
 
@@ -132,6 +138,14 @@ Rules:
 - "objections": each genuine objection or brush-off from the prospect (up to four) with the SDR's actual reply and where it came ("opener" means within the first couple of exchanges). Use an empty list if there were none.
 - "prospect" and "opener": only use what is said on the call. Use null or "unknown" when it is not stated; never guess a job title.
 
+Opener style: judge only from how the SDR opened (their first lines after the greeting), not from how the call went. Choose exactly one:
+- warm_followup: the first lines refer to an earlier meeting, event, conversation, a named person who referred them, or a previous call attempt (for example "we met at the event", "we spoke before", "Gershon suggested I call you", "it's Emad again").
+- cold_permission_ask: the SDR gives their name and company and asks for a moment or half a minute before saying anything about what they offer, with no earlier connection (for example "I'm calling out of the blue, do you have 30 seconds?").
+- credentials_first: the SDR explains what the company does and names clients or partners to build credibility (for example "we work with monday.com and Anthropic and clients like ...") before or while asking for a minute.
+- named_person_ask: the SDR opens by asking for a named person, or checking they have the right company or number, and holds back the pitch (for example "is that Galaxy Realty?", "can I speak to Alex Stewart?").
+- pain_question_hook: the SDR states a common problem in the prospect's industry and asks how they handle it, as the hook (for example "how do you handle leads that sit untouched in the CRM?").
+- other: anything that does not clearly fit one of the five. Use it sparingly.
+
 Record your analysis by calling the record_call_analysis tool, using exactly this shape:
 {
   "call_type": ${list(CALL_TYPES)},
@@ -195,6 +209,7 @@ function validate(raw, turns) {
   const openerQuote = raw.opener?.quote && quoteIsReal(tNorm, raw.opener.quote) ? String(raw.opener.quote) : null;
   const out = {
     version: RUBRIC_VERSION,
+    schema: ANALYSIS_SCHEMA,
     callType: oneOf(raw.call_type, CALL_TYPES, 'other'),
     language: String(raw.language || 'English').trim().slice(0, 30) || 'English',
     coachable: raw.coachable === true,
@@ -368,11 +383,20 @@ const OBJECTION_LABELS = {
   other: 'Other',
 };
 const OPENER_LABELS = {
-  permission_based: 'Permission based',
-  direct_pitch: 'Direct pitch',
-  referral_or_context: 'Referral or context',
-  pattern_interrupt: 'Pattern interrupt',
+  warm_followup: 'Warm follow-up',
+  cold_permission_ask: 'Cold permission ask',
+  credentials_first: 'Credentials first',
+  named_person_ask: 'Asking for a person',
+  pain_question_hook: 'Pain-point question',
   other: 'Other',
+};
+const OPENER_DESCRIPTIONS = {
+  warm_followup: 'Refers to an earlier meeting, event, conversation, a named referrer or a previous attempt.',
+  cold_permission_ask: 'Gives a name and company, then asks for a moment before saying what they offer.',
+  credentials_first: 'Says what the company does and names clients or partners, then asks for a minute.',
+  named_person_ask: 'Opens by asking for a named person, or checking the company or number, and holds back the pitch.',
+  pain_question_hook: 'States a common problem in the prospect\'s industry and asks how they handle it.',
+  other: 'Does not clearly fit one of the five types.',
 };
 const SENIORITY_LABELS = {
   c_level: 'C-level',
@@ -392,6 +416,6 @@ const CALL_TYPE_LABELS = {
 };
 
 module.exports = {
-  analyseCall, ping, validate, extractJson, MEDDPICC, CRAFT, SYSTEM,
-  OBJECTION_LABELS, OPENER_LABELS, SENIORITY_LABELS, CALL_TYPE_LABELS,
+  analyseCall, ping, validate, extractJson, MEDDPICC, CRAFT, SYSTEM, ANALYSIS_SCHEMA,
+  OBJECTION_LABELS, OPENER_LABELS, OPENER_DESCRIPTIONS, SENIORITY_LABELS, CALL_TYPE_LABELS,
 };

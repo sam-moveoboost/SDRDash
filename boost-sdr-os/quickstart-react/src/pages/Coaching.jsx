@@ -294,7 +294,7 @@ export default function Coaching({ user }) {
                     ) : (
                       <>
                         <span className="font-medium text-ink">{waiting.length}</span> call{waiting.length === 1 ? '' : 's'} waiting to be analysed
-                        {redoCount > 0 && ` (${redoCount} ${redoCount === 1 ? 'is an older analysis' : 'are older analyses'} to redo in English)`}.
+                        {redoCount > 0 && ` (${redoCount} ${redoCount === 1 ? 'is an older analysis' : 'are older analyses'} to redo with the new rules)`}.
                       </>
                     )}
                     {analysing.message && <div className="text-[12.5px] text-muted mt-1">{analysing.message}</div>}
@@ -348,7 +348,7 @@ export default function Coaching({ user }) {
                             <span className="w-[110px] text-ink font-medium">{fmtWhen(c.startedAt)}</span>
                             {isAdmin && <span className="w-[150px] text-body">{c.sdrName}</span>}
                             <span className="w-[60px] text-muted">{c.durationMin == null ? '' : `${Math.round(c.durationMin)} min`}</span>
-                            {c.refresh === 'english' && <Chip tone="warn">Update to English</Chip>}
+                            {c.refresh === 'outdated' && <Chip tone="warn">Redo with new rules</Chip>}
                             {c.refresh === 'missing' && <Chip tone="warn">Details missing, redo</Chip>}
                             {c.tags.includes('MeetingBooked') && <Chip tone="good">Meeting booked</Chip>}
                           </li>

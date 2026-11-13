@@ -21,6 +21,7 @@ const { statsFor, bySdr } = require('../lib/metrics');
 const { summarise } = require('../lib/focus');
 const { buildTrends, forEveryone } = require('../lib/trends');
 const { reviewPriority } = require('../lib/priority');
+const { ANALYSIS_SCHEMA } = require('../lib/analysis');
 
 const CALLS_TTL_MS = 3 * 60 * 1000;
 const FRESH_CALL_MS = 60 * 60 * 1000; // a transcript can still arrive for about an hour
@@ -168,9 +169,9 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
       recordingUrl: c.recordingUrl,
       ...extra,
     });
-    // An analysis that is missing, or was saved before findings were written in English (it has no
-    // language field), is offered for redoing, so older Hebrew-only wording gets replaced.
-    const refreshOf = (analysis) => (!analysis ? 'missing' : !analysis.language ? 'english' : null);
+    // An analysis that is missing, or was made under older rules (before English findings, before the
+    // five opening types), is offered for redoing so the whole set follows the current rules.
+    const refreshOf = (analysis) => (!analysis ? 'missing' : !(analysis.schema >= ANALYSIS_SCHEMA) ? 'outdated' : null);
     const byNewest = (x, y) => String(y.createdAt).localeCompare(String(x.createdAt));
     const refreshing = done.filter((p) => refreshOf(p.analysis));
 
@@ -274,12 +275,11 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
         }
         if (isAnalysed(call)) {
           const existing = await step('read saved analysis', () => store.getAnalysis(id));
-          if (existing && existing.language) {
+          if (existing && existing.schema >= ANALYSIS_SCHEMA) {
             results.push({ id, analysis: existing, saved: true, marked: true });
             continue;
           }
-          // Marked done, but the saved analysis is missing or was made before findings were
-          // written in English: fall through and redo it.
+          // Marked done, but the saved analysis is missing or was made under older rules: redo it.
         }
         const raw = await step('read transcript', async () => (await loadTranscripts([call]))[id]);
         const parsed = parseTranscript(raw, call.agentName);
