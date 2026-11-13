@@ -20,6 +20,7 @@ const { parseTranscript } = require('../lib/transcript');
 const { statsFor, bySdr } = require('../lib/metrics');
 const { summarise } = require('../lib/focus');
 const { buildTrends } = require('../lib/trends');
+const { reviewPriority } = require('../lib/priority');
 
 const CALLS_TTL_MS = 3 * 60 * 1000;
 const FRESH_CALL_MS = 60 * 60 * 1000; // a transcript can still arrive for about an hour
@@ -170,14 +171,21 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
     // An analysis that is missing, or was saved before findings were written in English (it has no
     // language field), is offered for redoing, so older Hebrew-only wording gets replaced.
     const refreshOf = (analysis) => (!analysis ? 'missing' : !analysis.language ? 'english' : null);
+    const byNewest = (x, y) => String(y.createdAt).localeCompare(String(x.createdAt));
     const refreshing = done.filter((p) => refreshOf(p.analysis));
-    const rows = [
-      ...done.map((p) => {
-        const refresh = refreshOf(p.analysis);
-        return row(p.call, { status: refresh ? 'waiting' : 'analysed', refresh, transcript: { available: true }, analysis: p.analysis, detailsMissing: !p.analysis });
-      }),
-      ...waiting.map((p) => row(p.call, { status: 'waiting', transcript: { available: true, chars: p.parsed.stats.chars }, analysis: null })),
-    ].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).slice(0, MAX_ROWS);
+
+    // Every call that still needs analysing is always sent, so "Analyse all" really covers them all.
+    // Finished calls fill the rest of the list, newest first, up to a cap.
+    const waitingRows = [
+      ...refreshing.map((p) => row(p.call, { status: 'waiting', refresh: refreshOf(p.analysis), transcript: { available: true }, analysis: p.analysis, detailsMissing: !p.analysis })),
+      ...waiting.map((p) => row(p.call, { status: 'waiting', refresh: null, transcript: { available: true, chars: p.parsed.stats.chars }, analysis: null })),
+    ];
+    const finishedRows = done
+      .filter((p) => !refreshOf(p.analysis))
+      .map((p) => row(p.call, { status: 'analysed', refresh: null, transcript: { available: true }, analysis: p.analysis, detailsMissing: false, priority: reviewPriority(p.analysis, p.call) }))
+      .sort(byNewest)
+      .slice(0, MAX_ROWS);
+    const rows = [...waitingRows, ...finishedRows].sort(byNewest);
 
     // Managers can see which SDRs actually have transcripts to coach from.
     let coverage = [];
@@ -196,7 +204,7 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
 
     res.json({
       calls: rows,
-      waitingCount: waiting.length + refreshing.length,
+      waitingCount: waitingRows.length,
       refreshCount: refreshing.length,
       coverage,
       rules: { from: new Date(cfg.COACHING_FROM_MS).toISOString().slice(0, 10), minChars: cfg.MIN_TRANSCRIPT_CHARS },

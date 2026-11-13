@@ -159,7 +159,7 @@ export function CoverageTable({ coverage }) {
 
 export function FocusPanel({ coaching, who }) {
   if (!coaching || coaching.analysedCalls === 0) {
-    return <Empty>No calls have been analysed yet. Use the Analyse buttons under Calls to review to start.</Empty>;
+    return <Empty>No calls have been analysed yet. Use the Analyse calls panel at the top of the page to start.</Empty>;
   }
   const tone = (v) => (v >= 0.66 ? 'good' : v >= 0.4 ? 'warn' : 'bad');
   return (
@@ -248,10 +248,16 @@ export function CallDetail({ call, demo }) {
   };
 
   if (!a) {
-    return <div className="text-[13px] text-muted">Not analysed yet. {call.transcript?.available ? 'Use the Analyse buttons under Calls to review to analyse it.' : 'There is no transcript on this call yet.'}</div>;
+    return <div className="text-[13px] text-muted">Not analysed yet. {call.transcript?.available ? 'Use the Analyse calls panel at the top of the page to analyse it.' : 'There is no transcript on this call yet.'}</div>;
   }
   return (
     <div className="space-y-5">
+      {call.priority && (
+        <div className="flex items-center gap-2 flex-wrap text-[12.5px]">
+          <span className="font-heading font-bold">Review priority {call.priority.score}/10 ({call.priority.level})</span>
+          {call.priority.reasons.map((r) => <Chip key={r}>{r}</Chip>)}
+        </div>
+      )}
       {call.refresh === 'english' && (
         <div className="rounded-xl bg-amber-soft text-amber-ink text-[12.5px] px-3 py-2">
           This analysis was made before findings were written in English, so some wording may still be in the call's own language. It will be redone the next time you press an Analyse button.
@@ -375,7 +381,7 @@ export function CallDetail({ call, demo }) {
 export function TrendsPanel({ data }) {
   const t = data?.trends;
   if (!t || t.analysedCalls === 0) {
-    return <Empty>Trends appear once calls have been analysed. Use the Analyse buttons under Calls to review to start.</Empty>;
+    return <Empty>Trends appear once calls have been analysed. Use the Analyse calls panel at the top of the page to start.</Empty>;
   }
   const maxCount = Math.max(...t.topObjections.map((o) => o.count), 1);
   return (

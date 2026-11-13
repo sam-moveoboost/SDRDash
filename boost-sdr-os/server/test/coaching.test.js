@@ -667,3 +667,95 @@ test('Anthropic never receives a forced tool choice, which this model rejects', 
     assert.deepEqual(seen.map((t) => t.type), ['auto', 'auto']);
   });
 });
+
+test('calls still waiting are always listed, even when many finished calls come after them', async () => {
+  await withServer(async ({ json, calls, deps }) => {
+    // 210 newer, finished calls for Luke: more than the list's cap, and all newer than the waiting ones.
+    for (let i = 0; i < 210; i++) {
+      const id = `done${i}`;
+      calls.push(mkCall({ id, createdAt: '2026-11-10T10:00:00Z', startedAt: '2026-11-10 10:00', coachingStatus: 'Analysed', tags: ['Gatekeeper'] }));
+      await deps.store.saveAnalysis(id, { callType: 'conversation', language: 'English', coachable: true, meddpicc: {}, craft: {}, objections: [] });
+    }
+    const list = await json('/calls', LUKE);
+    const waitingRows = list.calls.filter((c) => c.status === 'waiting');
+    assert.deepEqual(waitingRows.map((c) => c.id).sort(), ['1', '3']); // the two older waiting calls are not crowded out
+    assert.equal(list.waitingCount, waitingRows.length); // the count and the list agree
+    assert.equal(list.calls.filter((c) => c.status === 'analysed').length, 200); // finished calls are capped
+  });
+});
+
+test('Claude is given room for a long analysis', async () => {
+  const { analyseCall } = require('../src/lib/analysis');
+  await withKey(async () => {
+    let body;
+    const fetchImpl = async (_u, init) => { body = JSON.parse(init.body); return toolReply({ call_type: 'conversation', coachable: true, meddpicc: {}, craft: {}, objections: [] }); };
+    await analyseCall({ turns: quoteTurns, call: { durationMin: 1 } }, { fetchImpl });
+    assert.ok(body.max_tokens >= 6000);
+  });
+});
+
+// ---- review priority (1 to 10) ----
+const { reviewPriority } = require('../src/lib/priority');
+const craftOf = (score) => Object.fromEntries(['opening', 'discovery', 'objection_handling', 'next_step_ask', 'tone_and_control'].map((k) => [k, { score, note: '' }]));
+
+test('a long conversation with poor objection handling, weak craft and a missed moment is top priority', () => {
+  const p = reviewPriority({
+    callType: 'conversation', coachable: true, stats: { chars: 6000 },
+    objections: [{ handled: 'poorly' }, { handled: 'poorly' }],
+    craft: { ...craftOf(4), discovery: { score: 1 }, next_step_ask: { score: 2 } },
+    missedMoment: { quote: 'x' }, tryNextTime: ['a', 'b', 'c'],
+  }, { durationMin: 9 });
+  assert.equal(p.score, 10);
+  assert.equal(p.level, 'high');
+  assert.ok(p.reasons.some((r) => /Long conversation/.test(r)));
+  assert.ok(p.reasons.some((r) => /2 objections handled poorly/.test(r)));
+  assert.ok(p.reasons.some((r) => /Weak: Discovery, Asking for the next step/.test(r)));
+  assert.ok(p.reasons.includes('Lots of feedback'));
+});
+
+test('a long conversation where everything went well is only medium or low', () => {
+  const p = reviewPriority({ callType: 'conversation', coachable: true, stats: { chars: 5000 }, objections: [{ handled: 'well' }], craft: craftOf(4), tryNextTime: ['a'] }, { durationMin: 7 });
+  assert.ok(p.score >= 3 && p.score <= 5, `score was ${p.score}`);
+  assert.notEqual(p.level, 'high');
+  assert.deepEqual(p.reasons.filter((r) => r === 'Went well'), ['Went well']);
+});
+
+test('a short conversation with something to fix outranks a long one that went well', () => {
+  const shortButBad = reviewPriority({ callType: 'conversation', coachable: true, stats: { chars: 900 }, objections: [{ handled: 'poorly' }], craft: { ...craftOf(4), discovery: { score: 2 } }, missedMoment: { quote: 'x' }, tryNextTime: ['a'] }, { durationMin: 2 });
+  const longAndGood = reviewPriority({ callType: 'conversation', coachable: true, stats: { chars: 5000 }, objections: [], craft: craftOf(5), tryNextTime: [] }, { durationMin: 8 });
+  assert.ok(shortButBad.score > longAndGood.score);
+  assert.equal(shortButBad.level, 'high');
+});
+
+test('quick hang-ups and gatekeepers are low priority, a badly handled opener lifts them a little', () => {
+  const plain = reviewPriority({ callType: 'early_hangup', coachable: false, objections: [], craft: {}, tryNextTime: [] }, { durationMin: 0 });
+  assert.equal(plain.score, 1);
+  assert.equal(plain.level, 'low');
+  const bad = reviewPriority({ callType: 'early_hangup', coachable: false, objections: [{ handled: 'poorly' }], missedMoment: { quote: 'x' }, craft: {}, tryNextTime: [] }, { durationMin: 0 });
+  assert.ok(bad.score > plain.score && bad.score <= 5, `score was ${bad.score}`);
+  assert.equal(reviewPriority({ callType: 'gatekeeper', coachable: false, objections: [], craft: {} }, {}).level, 'low');
+});
+
+test('voicemail and phone menus are the lowest priority, and a missing analysis has none', () => {
+  assert.equal(reviewPriority({ callType: 'voicemail', coachable: false }, {}).score, 1);
+  assert.equal(reviewPriority({ callType: 'automated_menu', coachable: false }, {}).score, 1);
+  assert.equal(reviewPriority(null, {}), null);
+});
+
+test('scores always stay between 1 and 10', () => {
+  for (const poor of [0, 1, 5]) for (const weakScore of [1, 3, 5]) for (const minutes of [0, 4, 20]) {
+    const p = reviewPriority({ callType: 'conversation', coachable: true, stats: { chars: minutes * 800 }, objections: Array.from({ length: poor }, () => ({ handled: 'poorly' })), craft: craftOf(weakScore), missedMoment: { quote: 'x' }, tryNextTime: ['a', 'b', 'c'] }, { durationMin: minutes });
+    assert.ok(Number.isInteger(p.score) && p.score >= 1 && p.score <= 10);
+  }
+});
+
+test('finished calls come back with a priority, in the list the page shows', async () => {
+  await withServer(async ({ json, calls, deps }) => {
+    calls.find((c) => c.id === '3').coachingStatus = 'Analysed';
+    await deps.store.saveAnalysis('3', { callType: 'early_hangup', language: 'English', coachable: false, objections: [], craft: {} });
+    const row = (await json('/calls', LUKE)).calls.find((c) => c.id === '3');
+    assert.equal(row.status, 'analysed');
+    assert.equal(row.priority.level, 'low');
+    assert.equal(row.priority.score, 1);
+  });
+});

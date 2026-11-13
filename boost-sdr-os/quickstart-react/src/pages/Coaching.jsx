@@ -41,6 +41,9 @@ export default function Coaching({ user }) {
   const [openId, setOpenId] = useState(null);
   const [analysing, setAnalysing] = useState({ busy: false, message: null });
   const [confirmAll, setConfirmAll] = useState(false);
+  const [showWaiting, setShowWaiting] = useState(false);
+  const [sortBy, setSortBy] = useState('priority'); // 'priority' | 'newest'
+  const [levelFilter, setLevelFilter] = useState('all'); // 'all' | 'high' | 'medium' | 'low'
   const stopRef = useRef(false);
   const [check, setCheck] = useState(null); // { busy, checks, error }
 
@@ -94,6 +97,16 @@ export default function Coaching({ user }) {
   }, [userIdParam, days]);
 
   const waiting = useMemo(() => calls.filter((c) => c.status === 'waiting'), [calls]);
+  const redoCount = waiting.filter((c) => c.refresh).length;
+
+  // Calls to review: only analysed ones, ordered by how much they are worth a manager's time.
+  const finished = useMemo(() => calls.filter((c) => c.status === 'analysed'), [calls]);
+  const levelCounts = useMemo(() => finished.reduce((m, c) => { const l = c.priority?.level; if (l) m[l] += 1; return m; }, { high: 0, medium: 0, low: 0 }), [finished]);
+  const reviewList = useMemo(() => {
+    const shown = levelFilter === 'all' ? finished : finished.filter((c) => c.priority?.level === levelFilter);
+    const newest = (a, b) => String(b.createdAt).localeCompare(String(a.createdAt));
+    return [...shown].sort(sortBy === 'newest' ? newest : (a, b) => (b.priority?.score ?? 0) - (a.priority?.score ?? 0) || newest(a, b));
+  }, [finished, levelFilter, sortBy]);
 
   // Re-read the list after a run, so counts and statuses match the server.
   const reloadCalls = useCallback(async () => {
@@ -270,6 +283,81 @@ export default function Coaching({ user }) {
             <StatCard label="Calls analysed" value={overview.analysedCount} meta={`connected calls since ${fmtDay(overview.coachingFrom)}`} />
           </div>
 
+          <Section title="Analyse calls" sub="Claude reads each call's transcript and scores it. Calls that are already analysed are skipped.">
+            <Card>
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div className="text-[13.5px] text-body">
+                  {waiting.length === 0 ? (
+                    <span className="text-ink font-medium">Every call is analysed.</span>
+                  ) : (
+                    <>
+                      <span className="font-medium text-ink">{waiting.length}</span> call{waiting.length === 1 ? '' : 's'} waiting to be analysed
+                      {redoCount > 0 && ` (${redoCount} ${redoCount === 1 ? 'is an older analysis' : 'are older analyses'} to redo in English)`}.
+                    </>
+                  )}
+                  {analysing.message && <div className="text-[12.5px] text-muted mt-1">{analysing.message}</div>}
+                </div>
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  {analysing.busy ? (
+                    <button type="button" onClick={() => { stopRef.current = true; }} className="rounded-full bg-card border border-line text-ink text-sm font-medium px-4 py-2 cursor-pointer hover:bg-sunken">
+                      Stop after this call
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        disabled={waiting.length === 0}
+                        onClick={analyseNext}
+                        className="rounded-full bg-navy text-white text-sm font-medium px-4 py-2 border-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {waiting.length ? `Analyse next ${Math.min(BATCH, waiting.length)}` : 'Nothing to analyse'}
+                      </button>
+                      {waiting.length > BATCH && (
+                        <button type="button" onClick={() => setConfirmAll(true)} className="rounded-full bg-card border border-line text-ink text-sm font-medium px-4 py-2 cursor-pointer hover:bg-sunken">
+                          Analyse all {waiting.length}
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {confirmAll && !analysing.busy && (
+                <div className="mt-4 rounded-xl border border-line bg-sunken px-4 py-3 text-[13px] flex items-center justify-between gap-4 flex-wrap">
+                  <span className="text-body">
+                    This analyses all {waiting.length} waiting calls, {ALL_WORKERS} at a time. It will take roughly {estimateMinutes} minute{estimateMinutes === 1 ? '' : 's'}, uses Claude for each call, and needs this tab left open. You can stop at any point and nothing already finished is lost.
+                  </span>
+                  <span className="flex gap-2">
+                    <button type="button" onClick={analyseAll} className="rounded-full bg-navy text-white text-sm font-medium px-4 py-1.5 border-0 cursor-pointer">Start</button>
+                    <button type="button" onClick={() => setConfirmAll(false)} className="rounded-full bg-card border border-line text-ink text-sm font-medium px-4 py-1.5 cursor-pointer hover:bg-sunken">Cancel</button>
+                  </span>
+                </div>
+              )}
+
+              {waiting.length > 0 && (
+                <div className="mt-3">
+                  <button type="button" onClick={() => setShowWaiting((v) => !v)} className="bg-transparent border-0 p-0 text-[12.5px] text-info underline cursor-pointer">
+                    {showWaiting ? 'Hide the waiting calls' : 'Show the waiting calls'}
+                  </button>
+                  {showWaiting && (
+                    <ul className="mt-2 divide-y divide-line text-[12.5px] max-h-64 overflow-y-auto">
+                      {waiting.map((c) => (
+                        <li key={c.id} className="py-1.5 flex items-center gap-4 flex-wrap">
+                          <span className="w-[110px] text-ink font-medium">{fmtWhen(c.startedAt)}</span>
+                          {isAdmin && <span className="w-[150px] text-body">{c.sdrName}</span>}
+                          <span className="w-[60px] text-muted">{c.durationMin == null ? '' : `${Math.round(c.durationMin)} min`}</span>
+                          {c.refresh === 'english' && <Chip tone="warn">Update to English</Chip>}
+                          {c.refresh === 'missing' && <Chip tone="warn">Details missing, redo</Chip>}
+                          {c.tags.includes('MeetingBooked') && <Chip tone="good">Meeting booked</Chip>}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+            </Card>
+          </Section>
+
           {isAdmin && sdrId === 'all' && (
             <Section title="The team" sub="Numbers cover every call in the period, including those before transcripts were switched on. A call counts as connected when it was answered and the SDR has not tagged it 1.NoAnswer, 3.Busy, LeftVoicemail or BadData.">
               <Card><TeamTable team={overview.team} onPick={(id) => { setSdrId(id); setOpenId(null); }} /></Card>
@@ -311,72 +399,51 @@ export default function Coaching({ user }) {
 
           <Section
             title="Calls to review"
+            sub="Analysed calls, with a priority out of 10. Long conversations, poorly handled objections, weak call craft and lots of feedback score high. Quick hang-ups and calls that went well score lower."
             right={(
-              <div className="flex items-center gap-3 flex-wrap justify-end">
-                {analysing.message && <span className="text-[12.5px] text-muted max-w-[420px] text-right">{analysing.message}</span>}
-                {analysing.busy ? (
-                  <button type="button" onClick={() => { stopRef.current = true; }} className="rounded-full bg-card border border-line text-ink text-sm font-medium px-4 py-2 cursor-pointer hover:bg-sunken">
-                    Stop after this call
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                {[['all', `All ${finished.length}`], ['high', `High ${levelCounts.high}`], ['medium', `Medium ${levelCounts.medium}`], ['low', `Low ${levelCounts.low}`]].map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setLevelFilter(id)}
+                    className={`rounded-full text-[12.5px] font-medium px-3 py-1.5 cursor-pointer border ${levelFilter === id ? 'bg-navy text-white border-navy' : 'bg-card text-ink border-line hover:bg-sunken'}`}
+                  >
+                    {label}
                   </button>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      disabled={meta.waitingCount === 0}
-                      onClick={analyseNext}
-                      className="rounded-full bg-navy text-white text-sm font-medium px-4 py-2 border-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      {meta.waitingCount ? `Analyse next ${Math.min(BATCH, meta.waitingCount)} (${meta.waitingCount} waiting)` : 'All calls analysed'}
-                    </button>
-                    {waiting.length > BATCH && (
-                      <button
-                        type="button"
-                        onClick={() => setConfirmAll(true)}
-                        className="rounded-full bg-card border border-line text-ink text-sm font-medium px-4 py-2 cursor-pointer hover:bg-sunken"
-                      >
-                        Analyse all {waiting.length} waiting
-                      </button>
-                    )}
-                  </>
-                )}
+                ))}
+                <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="bg-card border border-line rounded-full px-3 py-1.5 text-[12.5px] font-medium text-ink cursor-pointer">
+                  <option value="priority">Highest priority first</option>
+                  <option value="newest">Newest first</option>
+                </select>
               </div>
             )}
           >
-            {confirmAll && !analysing.busy && (
-              <div className="mb-4 rounded-xl border border-line bg-card px-4 py-3 text-[13px] flex items-center justify-between gap-4 flex-wrap">
-                <span className="text-body">
-                  This analyses all {waiting.length} waiting calls, {ALL_WORKERS} at a time. {meta.refreshCount > 0 && ` ${meta.refreshCount} of them ${meta.refreshCount === 1 ? 'is an older analysis' : 'are older analyses'} that will be redone in English.`} It will take roughly {estimateMinutes} minute{estimateMinutes === 1 ? '' : 's'}, uses Claude for each call, and needs this tab left open. You can stop at any point and nothing already finished is lost.
-                </span>
-                <span className="flex gap-2">
-                  <button type="button" onClick={analyseAll} className="rounded-full bg-navy text-white text-sm font-medium px-4 py-1.5 border-0 cursor-pointer">Start</button>
-                  <button type="button" onClick={() => setConfirmAll(false)} className="rounded-full bg-card border border-line text-ink text-sm font-medium px-4 py-1.5 cursor-pointer hover:bg-sunken">Cancel</button>
-                </span>
-              </div>
-            )}
-            {calls.length === 0 ? (
-              <Card><Empty>No transcribed calls in this period yet.</Empty></Card>
+            {finished.length === 0 ? (
+              <Card><Empty>No calls have been analysed yet. Use the Analyse calls panel above to start.</Empty></Card>
+            ) : reviewList.length === 0 ? (
+              <Card><Empty>No calls at this priority.</Empty></Card>
             ) : (
               <div className="space-y-2">
-                {calls.map((c) => {
+                {reviewList.map((c) => {
                   const open = openId === c.id;
                   const a = c.analysis;
-                  const status = c.refresh === 'english' ? <Chip tone="warn">Update to English</Chip>
-                    : c.refresh === 'missing' ? <Chip tone="warn">Re-analyse (details missing)</Chip>
-                    : a && c.status === 'analysed' ? <Chip tone="good">Analysed</Chip>
-                    : a ? <Chip tone="warn">Not saved yet</Chip>
-                    : <Chip tone="warn">Waiting</Chip>;
+                  const pr = c.priority;
+                  const badge = { high: 'bg-red-soft text-red', medium: 'bg-amber-soft text-amber-ink', low: 'bg-sunken text-muted' }[pr?.level] || 'bg-sunken text-muted';
                   return (
                     <div key={c.id} className="bg-card border border-line rounded-2xl">
                       <button type="button" onClick={() => setOpenId(open ? null : c.id)} className="w-full text-left bg-transparent border-0 px-5 py-3.5 cursor-pointer flex items-center gap-4 flex-wrap">
+                        <span className={`w-14 shrink-0 rounded-xl py-1 text-center ${badge}`} title={pr ? `Review priority ${pr.score} out of 10` : ''}>
+                          <span className="font-display text-[20px] font-semibold leading-none">{pr?.score ?? '-'}</span>
+                          <span className="text-[10.5px] opacity-70">/10</span>
+                        </span>
                         <span className="text-[13px] font-medium text-ink w-[110px]">{fmtWhen(c.startedAt)}</span>
                         {isAdmin && <span className="text-[13px] text-body w-[150px]">{c.sdrName}</span>}
-                        <span className="text-[13px] text-muted w-[70px]">{c.durationMin == null ? '' : `${Math.round(c.durationMin)} min`}</span>
+                        <span className="text-[13px] text-muted w-[60px]">{c.durationMin == null ? '' : `${Math.round(c.durationMin)} min`}</span>
                         <span className="flex gap-1.5 flex-wrap flex-1">
-                          {status}
+                          {(pr?.reasons || []).slice(0, 3).map((r) => <Chip key={r} tone={/poorly|Weak|missed|Lots of/.test(r) ? 'warn' : 'muted'}>{r}</Chip>)}
                           {c.tags.includes('MeetingBooked') && <Chip tone="good">Meeting booked</Chip>}
-                          {a && a.callType !== 'conversation' && <Chip>{CALL_TYPE_LABELS[a.callType] || a.callType}</Chip>}
                           {a?.nextStepSecured && <Chip tone="info">Next step secured</Chip>}
-                          {a?.objections?.length > 0 && <Chip>{a.objections.length} objection{a.objections.length === 1 ? '' : 's'}</Chip>}
                         </span>
                         <span className="text-muted text-[12px]">{open ? 'Hide' : 'Open'}</span>
                       </button>
