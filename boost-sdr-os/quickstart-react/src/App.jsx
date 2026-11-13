@@ -19,11 +19,6 @@ const monday = mondaySdk();
 
 const REGIONS = ['All', 'UK', 'US', 'IL', 'UAE'];
 
-// The Coaching tab is being rolled out. Until it is switched on for the SDRs, only
-// these monday users (Sam Moore, Yarden Berrebi) see it in the menu. To open it up,
-// set this to null. The server enforces who can see which data either way.
-const COACHING_PREVIEW_USER_IDS = ['97429928', '94869273'];
-
 function getMonthOptions() {
   const options = [];
   const now = new Date();
@@ -77,10 +72,10 @@ function AppShell({ tab, setTab, user }) {
             { id: 'revenue',       label: 'Revenue' },
             { id: 'events',        label: 'Events' },
             { id: 'workflow',      label: 'My Work' },
-            { id: 'coaching',      label: 'Coaching', hidden: COACHING_PREVIEW_USER_IDS && !COACHING_PREVIEW_USER_IDS.includes(String(user?.id)) },
+            { id: 'coaching',      label: 'Coaching' },
             { id: 'billing',       label: 'Billing' },
             { id: 'missing',       label: 'My Missing Data' },
-          ].filter(t => !t.hidden).map(t => (
+          ].map(t => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}

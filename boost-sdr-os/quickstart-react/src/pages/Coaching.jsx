@@ -283,80 +283,83 @@ export default function Coaching({ user }) {
             <StatCard label="Calls analysed" value={overview.analysedCount} meta={`connected calls since ${fmtDay(overview.coachingFrom)}`} />
           </div>
 
-          <Section title="Analyse calls" sub="Claude reads each call's transcript and scores it. Calls that are already analysed are skipped.">
-            <Card>
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                <div className="text-[13.5px] text-body">
-                  {waiting.length === 0 ? (
-                    <span className="text-ink font-medium">Every call is analysed.</span>
-                  ) : (
-                    <>
-                      <span className="font-medium text-ink">{waiting.length}</span> call{waiting.length === 1 ? '' : 's'} waiting to be analysed
-                      {redoCount > 0 && ` (${redoCount} ${redoCount === 1 ? 'is an older analysis' : 'are older analyses'} to redo in English)`}.
-                    </>
-                  )}
-                  {analysing.message && <div className="text-[12.5px] text-muted mt-1">{analysing.message}</div>}
-                </div>
-                <div className="flex items-center gap-2.5 flex-wrap">
-                  {analysing.busy ? (
-                    <button type="button" onClick={() => { stopRef.current = true; }} className="rounded-full bg-card border border-line text-ink text-sm font-medium px-4 py-2 cursor-pointer hover:bg-sunken">
-                      Stop after this call
-                    </button>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        disabled={waiting.length === 0}
-                        onClick={analyseNext}
-                        className="rounded-full bg-navy text-white text-sm font-medium px-4 py-2 border-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        {waiting.length ? `Analyse next ${Math.min(BATCH, waiting.length)}` : 'Nothing to analyse'}
+          {/* Managers run the analysis. SDRs see the results for their own calls. */}
+          {isAdmin && (
+            <Section title="Analyse calls" sub="Claude reads each call's transcript and scores it. Calls that are already analysed are skipped.">
+              <Card>
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div className="text-[13.5px] text-body">
+                    {waiting.length === 0 ? (
+                      <span className="text-ink font-medium">Every call is analysed.</span>
+                    ) : (
+                      <>
+                        <span className="font-medium text-ink">{waiting.length}</span> call{waiting.length === 1 ? '' : 's'} waiting to be analysed
+                        {redoCount > 0 && ` (${redoCount} ${redoCount === 1 ? 'is an older analysis' : 'are older analyses'} to redo in English)`}.
+                      </>
+                    )}
+                    {analysing.message && <div className="text-[12.5px] text-muted mt-1">{analysing.message}</div>}
+                  </div>
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    {analysing.busy ? (
+                      <button type="button" onClick={() => { stopRef.current = true; }} className="rounded-full bg-card border border-line text-ink text-sm font-medium px-4 py-2 cursor-pointer hover:bg-sunken">
+                        Stop after this call
                       </button>
-                      {waiting.length > BATCH && (
-                        <button type="button" onClick={() => setConfirmAll(true)} className="rounded-full bg-card border border-line text-ink text-sm font-medium px-4 py-2 cursor-pointer hover:bg-sunken">
-                          Analyse all {waiting.length}
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          disabled={waiting.length === 0}
+                          onClick={analyseNext}
+                          className="rounded-full bg-navy text-white text-sm font-medium px-4 py-2 border-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          {waiting.length ? `Analyse next ${Math.min(BATCH, waiting.length)}` : 'Nothing to analyse'}
                         </button>
-                      )}
-                    </>
-                  )}
+                        {waiting.length > BATCH && (
+                          <button type="button" onClick={() => setConfirmAll(true)} className="rounded-full bg-card border border-line text-ink text-sm font-medium px-4 py-2 cursor-pointer hover:bg-sunken">
+                            Analyse all {waiting.length}
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              {confirmAll && !analysing.busy && (
-                <div className="mt-4 rounded-xl border border-line bg-sunken px-4 py-3 text-[13px] flex items-center justify-between gap-4 flex-wrap">
-                  <span className="text-body">
-                    This analyses all {waiting.length} waiting calls, {ALL_WORKERS} at a time. It will take roughly {estimateMinutes} minute{estimateMinutes === 1 ? '' : 's'}, uses Claude for each call, and needs this tab left open. You can stop at any point and nothing already finished is lost.
-                  </span>
-                  <span className="flex gap-2">
-                    <button type="button" onClick={analyseAll} className="rounded-full bg-navy text-white text-sm font-medium px-4 py-1.5 border-0 cursor-pointer">Start</button>
-                    <button type="button" onClick={() => setConfirmAll(false)} className="rounded-full bg-card border border-line text-ink text-sm font-medium px-4 py-1.5 cursor-pointer hover:bg-sunken">Cancel</button>
-                  </span>
-                </div>
-              )}
+                {confirmAll && !analysing.busy && (
+                  <div className="mt-4 rounded-xl border border-line bg-sunken px-4 py-3 text-[13px] flex items-center justify-between gap-4 flex-wrap">
+                    <span className="text-body">
+                      This analyses all {waiting.length} waiting calls, {ALL_WORKERS} at a time. It will take roughly {estimateMinutes} minute{estimateMinutes === 1 ? '' : 's'}, uses Claude for each call, and needs this tab left open. You can stop at any point and nothing already finished is lost.
+                    </span>
+                    <span className="flex gap-2">
+                      <button type="button" onClick={analyseAll} className="rounded-full bg-navy text-white text-sm font-medium px-4 py-1.5 border-0 cursor-pointer">Start</button>
+                      <button type="button" onClick={() => setConfirmAll(false)} className="rounded-full bg-card border border-line text-ink text-sm font-medium px-4 py-1.5 cursor-pointer hover:bg-sunken">Cancel</button>
+                    </span>
+                  </div>
+                )}
 
-              {waiting.length > 0 && (
-                <div className="mt-3">
-                  <button type="button" onClick={() => setShowWaiting((v) => !v)} className="bg-transparent border-0 p-0 text-[12.5px] text-info underline cursor-pointer">
-                    {showWaiting ? 'Hide the waiting calls' : 'Show the waiting calls'}
-                  </button>
-                  {showWaiting && (
-                    <ul className="mt-2 divide-y divide-line text-[12.5px] max-h-64 overflow-y-auto">
-                      {waiting.map((c) => (
-                        <li key={c.id} className="py-1.5 flex items-center gap-4 flex-wrap">
-                          <span className="w-[110px] text-ink font-medium">{fmtWhen(c.startedAt)}</span>
-                          {isAdmin && <span className="w-[150px] text-body">{c.sdrName}</span>}
-                          <span className="w-[60px] text-muted">{c.durationMin == null ? '' : `${Math.round(c.durationMin)} min`}</span>
-                          {c.refresh === 'english' && <Chip tone="warn">Update to English</Chip>}
-                          {c.refresh === 'missing' && <Chip tone="warn">Details missing, redo</Chip>}
-                          {c.tags.includes('MeetingBooked') && <Chip tone="good">Meeting booked</Chip>}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )}
-            </Card>
-          </Section>
+                {waiting.length > 0 && (
+                  <div className="mt-3">
+                    <button type="button" onClick={() => setShowWaiting((v) => !v)} className="bg-transparent border-0 p-0 text-[12.5px] text-info underline cursor-pointer">
+                      {showWaiting ? 'Hide the waiting calls' : 'Show the waiting calls'}
+                    </button>
+                    {showWaiting && (
+                      <ul className="mt-2 divide-y divide-line text-[12.5px] max-h-64 overflow-y-auto">
+                        {waiting.map((c) => (
+                          <li key={c.id} className="py-1.5 flex items-center gap-4 flex-wrap">
+                            <span className="w-[110px] text-ink font-medium">{fmtWhen(c.startedAt)}</span>
+                            {isAdmin && <span className="w-[150px] text-body">{c.sdrName}</span>}
+                            <span className="w-[60px] text-muted">{c.durationMin == null ? '' : `${Math.round(c.durationMin)} min`}</span>
+                            {c.refresh === 'english' && <Chip tone="warn">Update to English</Chip>}
+                            {c.refresh === 'missing' && <Chip tone="warn">Details missing, redo</Chip>}
+                            {c.tags.includes('MeetingBooked') && <Chip tone="good">Meeting booked</Chip>}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </Card>
+            </Section>
+          )}
 
           {isAdmin && sdrId === 'all' && (
             <Section title="The team" sub="Numbers cover every call in the period, including those before transcripts were switched on. A call counts as connected when it was answered and the SDR has not tagged it 1.NoAnswer, 3.Busy, LeftVoicemail or BadData.">
@@ -371,7 +374,7 @@ export default function Coaching({ user }) {
           )}
 
           <Section title={isAdmin ? `Coaching focus for ${who}` : 'Where to focus'} sub="Built from the calls that have been analysed against MEDDPICC and call craft.">
-            <FocusPanel coaching={overview.coaching} who={who} />
+            <FocusPanel coaching={overview.coaching} who={who} canAnalyse={isAdmin} />
           </Section>
 
           <Section title="Activity by week" sub="Calls, conversations and meetings booked.">
@@ -420,7 +423,7 @@ export default function Coaching({ user }) {
             )}
           >
             {finished.length === 0 ? (
-              <Card><Empty>No calls have been analysed yet. Use the Analyse calls panel above to start.</Empty></Card>
+              <Card><Empty>{isAdmin ? 'No calls have been analysed yet. Use the Analyse calls panel above to start.' : 'None of your calls have been analysed yet. Your managers run the analysis, so check back soon.'}</Empty></Card>
             ) : reviewList.length === 0 ? (
               <Card><Empty>No calls at this priority.</Empty></Card>
             ) : (
