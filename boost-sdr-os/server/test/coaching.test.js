@@ -667,3 +667,29 @@ test('Anthropic never receives a forced tool choice, which this model rejects', 
     assert.deepEqual(seen.map((t) => t.type), ['auto', 'auto']);
   });
 });
+
+test('calls still waiting are always listed, even when many finished calls come after them', async () => {
+  await withServer(async ({ json, calls, deps }) => {
+    // 210 newer, finished calls for Luke: more than the list's cap, and all newer than the waiting ones.
+    for (let i = 0; i < 210; i++) {
+      const id = `done${i}`;
+      calls.push(mkCall({ id, createdAt: '2026-11-10T10:00:00Z', startedAt: '2026-11-10 10:00', coachingStatus: 'Analysed', tags: ['Gatekeeper'] }));
+      await deps.store.saveAnalysis(id, { callType: 'conversation', language: 'English', coachable: true, meddpicc: {}, craft: {}, objections: [] });
+    }
+    const list = await json('/calls', LUKE);
+    const waitingRows = list.calls.filter((c) => c.status === 'waiting');
+    assert.deepEqual(waitingRows.map((c) => c.id).sort(), ['1', '3']); // the two older waiting calls are not crowded out
+    assert.equal(list.waitingCount, waitingRows.length); // the count and the list agree
+    assert.equal(list.calls.filter((c) => c.status === 'analysed').length, 200); // finished calls are capped
+  });
+});
+
+test('Claude is given room for a long analysis', async () => {
+  const { analyseCall } = require('../src/lib/analysis');
+  await withKey(async () => {
+    let body;
+    const fetchImpl = async (_u, init) => { body = JSON.parse(init.body); return toolReply({ call_type: 'conversation', coachable: true, meddpicc: {}, craft: {}, objections: [] }); };
+    await analyseCall({ turns: quoteTurns, call: { durationMin: 1 } }, { fetchImpl });
+    assert.ok(body.max_tokens >= 6000);
+  });
+});

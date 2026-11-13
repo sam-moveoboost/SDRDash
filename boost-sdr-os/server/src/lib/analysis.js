@@ -277,7 +277,9 @@ async function askClaude(user, apiKey, fetchImpl) {
       headers: anthropicHeaders(apiKey),
       body: JSON.stringify({
         model: CLAUDE_MODEL,
-        max_tokens: 3000,
+        // Generous: an analysis with several quotes, each given in the original language and in
+        // English (Hebrew costs more tokens), can run long. Only tokens actually produced are paid for.
+        max_tokens: 8000,
         system: SYSTEM,
         tools: [ANALYSIS_TOOL],
         // Forcing the tool is refused by this model, so it is offered and asked for instead.

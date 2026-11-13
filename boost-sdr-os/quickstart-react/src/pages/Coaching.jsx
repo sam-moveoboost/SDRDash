@@ -322,11 +322,11 @@ export default function Coaching({ user }) {
                   <>
                     <button
                       type="button"
-                      disabled={meta.waitingCount === 0}
+                      disabled={waiting.length === 0}
                       onClick={analyseNext}
                       className="rounded-full bg-navy text-white text-sm font-medium px-4 py-2 border-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                      {meta.waitingCount ? `Analyse next ${Math.min(BATCH, meta.waitingCount)} (${meta.waitingCount} waiting)` : 'All calls analysed'}
+                      {waiting.length ? `Analyse next ${Math.min(BATCH, waiting.length)} (${waiting.length} waiting)` : 'All calls analysed'}
                     </button>
                     {waiting.length > BATCH && (
                       <button
