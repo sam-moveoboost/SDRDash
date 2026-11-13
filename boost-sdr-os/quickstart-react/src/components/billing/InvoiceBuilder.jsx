@@ -164,7 +164,7 @@ export default function InvoiceBuilder({ oppId, project, mode, user, meta, bille
       {source.fromBoard ? (
         <div className="grid grid-cols-4 gap-3 max-[900px]:grid-cols-2 mb-4 text-[12.5px]">
           <Info label="Project" value={source.name} sub="from the Booking board" />
-          <Info label="On the board" value={`${existingCount} invoice${existingCount === 1 ? '' : 's'}`} sub={`${(projectInvoices ?? []).filter(i => i.kind === 'overdue').length} overdue · ${(projectInvoices ?? []).filter(i => i.kind === 'outstanding').length} outstanding`} />
+          <Info label="On the board" value={`${existingCount} invoice${existingCount === 1 ? '' : 's'}`} sub={`${(projectInvoices ?? []).filter(i => i.kind === 'overdue').length} overdue · ${(projectInvoices ?? []).filter(i => i.kind === 'awaiting' || i.kind === 'issue').length} to invoice · ${(projectInvoices ?? []).filter(i => i.kind === 'outstanding').length} awaiting payment`} />
           <Info label="BD" value={(projectInvoices ?? [])[0]?.bd || '–'} />
           <Info label="Latest invoice" value={(projectInvoices ?? [])[0]?.name || '–'} sub={(projectInvoices ?? [])[0] ? `${(projectInvoices ?? [])[0].month} ${(projectInvoices ?? [])[0].year}` : ''} />
         </div>
