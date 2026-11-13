@@ -67,8 +67,8 @@ function buildTrends(pairs) {
     .map((o) => ({
       sdrName: o.pair.call.sdrName,
       stage: o.stage,
-      quote: o.quote,
-      response: o.responseQuote,
+      quote: o.quoteEn || o.quote,
+      response: o.responseQuoteEn || o.responseQuote,
       why: o.why,
       booked: isBooked(o.pair.call),
       stayed: stayed(o.pair.analysis),
@@ -80,7 +80,7 @@ function buildTrends(pairs) {
     .map((g) => ({
       ...catSummary(g.category, g.items),
       share: rate(g.items.length, objections.length),
-      examples: g.items.slice(0, 2).map((o) => ({ quote: o.quote, sdrName: o.pair.call.sdrName })),
+      examples: g.items.slice(0, 2).map((o) => ({ quote: o.quoteEn || o.quote, sdrName: o.pair.call.sdrName })),
     }))
     .sort((a, b) => b.count - a.count);
 
@@ -104,7 +104,7 @@ function buildTrends(pairs) {
   const styles = [...new Set(human.map((p) => p.analysis.opener?.style).filter(Boolean))];
   const openers = styles.map((style) => {
     const group = human.filter((p) => p.analysis.opener?.style === style);
-    const quoteOf = (p) => (p.analysis.opener?.quote ? { quote: p.analysis.opener.quote, sdrName: p.call.sdrName } : null);
+    const quoteOf = (p) => (p.analysis.opener?.quote ? { quote: p.analysis.opener.quoteEn || p.analysis.opener.quote, sdrName: p.call.sdrName } : null);
     return {
       style,
       label: OPENER_LABELS[style] || style,
@@ -129,7 +129,7 @@ function buildTrends(pairs) {
     const key = first ? first.category : 'no_objection_given';
     const g = reasonMap.get(key) || { category: key, count: 0, examples: [] };
     g.count += 1;
-    if (first && g.examples.length < 2) g.examples.push({ quote: first.quote, sdrName: p.call.sdrName, opener: p.analysis.opener?.quote || null });
+    if (first && g.examples.length < 2) g.examples.push({ quote: first.quoteEn || first.quote, sdrName: p.call.sdrName, opener: p.analysis.opener?.quoteEn || p.analysis.opener?.quote || null });
     reasonMap.set(key, g);
   }
   const hangups = {

@@ -456,33 +456,71 @@ test('Claude\'s own explanation of a refusal is shown, not just the status', asy
   delete process.env.ANTHROPIC_API_KEY;
 });
 
-test('the workspace ID is sent to Anthropic only when it has been set', async () => {
-  const { analyseCall, ping } = require('../src/lib/analysis');
-  process.env.ANTHROPIC_API_KEY = 'sk-test-key';
-  const turns = [{ who: 'sdr', text: 'Hi is that Jo, quick minute of your time.' }, { who: 'prospect', text: 'Not now, thanks, bye.' }];
-  const reply = { call_type: 'early_hangup', coachable: false, opener_result: 'brushed_off', meddpicc: {}, craft: {}, objections: [] };
-  let headers;
-  const fetchImpl = async (_url, init) => { headers = init.headers; return { ok: true, json: async () => ({ content: [{ type: 'text', text: JSON.stringify(reply) }] }) }; };
-
-  delete process.env.ANTHROPIC_WORKSPACE_ID;
-  await analyseCall({ turns, call: { durationMin: 0 } }, { fetchImpl });
-  assert.equal(headers['anthropic-workspace-id'], undefined);
-
-  process.env.ANTHROPIC_WORKSPACE_ID = ' wrkspc_test123 ';
-  await analyseCall({ turns, call: { durationMin: 0 } }, { fetchImpl });
-  assert.equal(headers['anthropic-workspace-id'], 'wrkspc_test123'); // trimmed
-  await ping({ fetchImpl });
-  assert.equal(headers['anthropic-workspace-id'], 'wrkspc_test123'); // the connection check sends it too
-
-  delete process.env.ANTHROPIC_WORKSPACE_ID;
-  delete process.env.ANTHROPIC_API_KEY;
+test('app storage keeps objects intact even though the service turns them into text', async () => {
+  // Mimics the fault seen live: the service saved the words "[object Object]" (15 characters).
+  class CoercingStorage {
+    constructor() { this.data = new Map(); }
+    async set(key, value) { this.data.set(key, String(value)); return { success: true, version: '1' }; }
+    async get(key) { return { success: true, value: this.data.get(key) }; }
+  }
+  const [, app] = realStore._makeBackends({ Storage: CoercingStorage, SecureStorage: class {}, getSecret: () => 'token' });
+  realStore._setBackends([app]);
+  const analysis = { callType: 'conversation', summary: 'x' };
+  assert.equal(await realStore.saveAnalysis('4', analysis), true);
+  assert.deepEqual(await realStore.getAnalysis('4'), analysis);
+  const results = await realStore.selfTest();
+  assert.equal(results[0].ok, true); // the connection check no longer shows this store as broken
 });
 
-test('a workspace error tells you which secret to add', async () => {
-  const { ping } = require('../src/lib/analysis');
-  process.env.ANTHROPIC_API_KEY = 'sk-test-key';
-  delete process.env.ANTHROPIC_WORKSPACE_ID;
-  const fetchImpl = async () => ({ ok: false, status: 400, text: async () => JSON.stringify({ error: { message: 'This API key is not scoped to a workspace, so this request must include the anthropic-workspace-id header.' } }) });
-  await assert.rejects(() => ping({ fetchImpl }), /ANTHROPIC_WORKSPACE_ID/);
-  delete process.env.ANTHROPIC_API_KEY;
+// ---- English output for calls in other languages ----
+const hebrewTurns = [
+  { who: 'sdr', text: 'שלום, מדבר דני מבוסט, יש לך רגע?' },
+  { who: 'prospect', text: 'אין לי זמן עכשיו, תתקשר בהזדמנות אחרת.' },
+  { who: 'sdr', text: 'מבין לגמרי, אפשר עשר דקות בשבוע הבא?' },
+];
+
+test('findings are kept in English and quotes are checked in the original language', () => {
+  const { validate, SYSTEM } = require('../src/lib/analysis');
+  const out = validate({
+    call_type: 'conversation', language: 'Hebrew', coachable: true, opener_result: 'stayed_engaged',
+    opener: { style: 'permission_based', quote: 'יש לך רגע', quote_en: 'do you have a moment', note: 'Asked permission first.' },
+    objections: [
+      { category: 'no_time', stage: 'opener', quote: 'אין לי זמן עכשיו', quote_en: 'I do not have time right now', response_quote: 'אפשר עשר דקות בשבוע הבא', response_quote_en: 'could we do ten minutes next week', handled: 'well', why: 'Acknowledged, then made the ask smaller.' },
+      { category: 'no_budget', stage: 'middle', quote: 'אין לנו תקציב בכלל', quote_en: 'we have no budget at all', handled: 'poorly', why: 'invented' },
+    ],
+    best_moment: { quote: 'מבין לגמרי', quote_en: 'I completely understand', why: 'Showed empathy.' },
+    meddpicc: { identify_pain: { score: 1, evidence: 'אין לי זמן עכשיו', evidence_en: 'I do not have time right now' } },
+  }, hebrewTurns);
+
+  assert.equal(out.language, 'Hebrew');
+  assert.equal(out.opener.quote, 'יש לך רגע'); // the original, which was checked against the transcript
+  assert.equal(out.opener.quoteEn, 'do you have a moment');
+  assert.equal(out.objections.length, 1); // the made-up Hebrew quote was dropped
+  assert.equal(out.objections[0].quoteEn, 'I do not have time right now');
+  assert.equal(out.objections[0].responseQuoteEn, 'could we do ten minutes next week');
+  assert.equal(out.bestMoment.quoteEn, 'I completely understand');
+  assert.equal(out.meddpicc.identify_pain.evidenceEn, 'I do not have time right now');
+  assert.match(SYSTEM, /Write every finding in English/);
+});
+
+test('an English call needs no translation and a missing translation falls back to the original', () => {
+  const { validate } = require('../src/lib/analysis');
+  const turns = [{ who: 'prospect', text: 'We are not looking at any new tools this year, sorry.' }];
+  const out = validate({ call_type: 'conversation', objections: [{ category: 'not_interested', stage: 'middle', quote: 'We are not looking at any new tools this year', handled: 'ok', why: 'x' }] }, turns);
+  assert.equal(out.language, 'English');
+  assert.equal(out.objections[0].quoteEn, 'We are not looking at any new tools this year');
+});
+
+test('manager trends show the English wording of quotes', () => {
+  const mk = (id, analysis) => ({ call: { id, sdrId: id, sdrName: `SDR ${id}`, tags: [], durationMin: 1, startedAt: '2026-11-02 10:00' }, analysis });
+  const t = buildTrends([mk('1', {
+    coachable: false, callType: 'early_hangup', nextStepSecured: false, craft: {}, prospect: { seniority: 'unknown' }, openerResult: 'hung_up',
+    opener: { style: 'direct_pitch', quote: 'שלום מבוסט', quoteEn: 'Hello from boost' },
+    objections: [{ category: 'no_time', stage: 'opener', quote: 'אין לי זמן', quoteEn: 'I have no time', responseQuote: 'עשר דקות', responseQuoteEn: 'ten minutes', handled: 'well', why: 'x' }],
+  })]);
+  assert.equal(t.topObjections[0].examples[0].quote, 'I have no time');
+  assert.equal(t.earlyObjections[0].examples[0].quote, 'I have no time');
+  assert.equal(t.earlyObjections[0].examples[0].response, 'ten minutes');
+  assert.equal(t.openers[0].hangUpExamples[0].quote, 'Hello from boost');
+  assert.equal(t.hangups.reasons[0].examples[0].quote, 'I have no time');
 });

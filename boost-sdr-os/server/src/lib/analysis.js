@@ -51,7 +51,8 @@ MEDDPICC scoring, judging what was realistic for an SDR: 0 = not touched on, 1 =
 Call craft is scored 1 (weak) to 5 (excellent): opening, discovery, objection handling, asking for the next step, tone and call control. Use null for any dimension that did not come up.
 
 Rules:
-- Every quote must be copied word for word from the transcript, short (under 30 words), and never invented.
+- Calls may be in Hebrew or another language. Write every finding in English: the summary, the notes, the reasons, the suggestions and the explanations. Never answer in the language of the call.
+- Every quote is given twice. The main field ("quote", "evidence" or "response_quote") is copied word for word in the original language, exactly as it appears in the transcript, short (under 30 words) and never invented. That copy is checked against the transcript, so never translate it. The matching field ending in _en is a faithful English translation of the same words (identical to the original when the call is already in English).
 - Base everything on the transcript. If something is unclear, say so instead of guessing.
 - "try_next_time" must be one to three concrete actions for the next call, ideally with a suggested phrase. For early hang-ups, focus on the first ten seconds.
 - Be honest. Praise only what happened.
@@ -61,28 +62,24 @@ Rules:
 Reply with a single JSON object and nothing else, in exactly this shape:
 {
   "call_type": ${list(CALL_TYPES)},
+  "language": "the main language the call was spoken in, written in English, for example English or Hebrew",
   "coachable": boolean,
   "summary": "two sentences on what happened and where the call ended",
   "opener_result": ${list(OPENER_RESULTS)},
   "ended_by": "prospect" | "sdr" | "unclear",
   "next_step_secured": boolean,
-  "meddpicc": { ${MEDDPICC.map((m) => `"${m.key}": { "score": 0|1|2, "evidence": "verbatim quote or empty string" }`).join(', ')} },
+  "meddpicc": { ${MEDDPICC.map((m) => `"${m.key}": { "score": 0|1|2, "evidence": "verbatim quote in the original language, or empty string", "evidence_en": "English translation of the evidence" }`).join(', ')} },
   "craft": { ${CRAFT.map((c) => `"${c.key}": { "score": 1-5 or null, "note": "one sentence" }`).join(', ')} },
   "prospect": { "role_or_title": "as said on the call, or null", "seniority": ${list(SENIORITY)}, "company_type_or_industry": "as said or clearly implied, or null" },
-  "opener": { "style": ${list(OPENER_STYLES)}, "quote": "verbatim: how the SDR opened, the first thing said after the greeting", "note": "one sentence" },
-  "objections": [ { "category": ${list(OBJECTION_CATEGORIES)}, "stage": ${list(STAGES)}, "quote": "verbatim prospect words", "response_quote": "verbatim SDR reply or empty string", "handled": "well" | "ok" | "poorly", "why": "one sentence" } ],
-  "best_moment": { "quote": "verbatim", "why": "one sentence" } | null,
-  "missed_moment": { "quote": "verbatim", "better": "what could have been said or asked instead" } | null,
+  "opener": { "style": ${list(OPENER_STYLES)}, "quote": "verbatim, original language: how the SDR opened, the first thing said after the greeting", "quote_en": "English translation", "note": "one sentence" },
+  "objections": [ { "category": ${list(OBJECTION_CATEGORIES)}, "stage": ${list(STAGES)}, "quote": "verbatim prospect words, original language", "quote_en": "English translation", "response_quote": "verbatim SDR reply in the original language, or empty string", "response_quote_en": "English translation of the reply", "handled": "well" | "ok" | "poorly", "why": "one sentence" } ],
+  "best_moment": { "quote": "verbatim, original language", "quote_en": "English translation", "why": "one sentence" } | null,
+  "missed_moment": { "quote": "verbatim, original language", "quote_en": "English translation", "better": "what could have been said or asked instead" } | null,
   "try_next_time": ["...", "..."]
 }`;
 
-// Keys that are not tied to a single workspace must say which workspace to use. The ID is
-// not secret, but it lives with the other settings so it can be changed without code.
 function anthropicHeaders(apiKey) {
-  const headers = { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' };
-  const workspace = getSecret('ANTHROPIC_WORKSPACE_ID');
-  if (workspace) headers['anthropic-workspace-id'] = String(workspace).trim();
-  return headers;
+  return { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' };
 }
 
 // Anthropic says why a request was refused (for example a model name or the account balance).
@@ -95,10 +92,7 @@ async function describeFailure(res) {
   } catch (_err) {
     // no readable explanation
   }
-  const hint = /workspace/i.test(detail) && !getSecret('ANTHROPIC_WORKSPACE_ID')
-    ? ' (Save the workspace ID as a secret named ANTHROPIC_WORKSPACE_ID.)'
-    : '';
-  return `Claude API HTTP ${res.status}${detail}${hint}`;
+  return `Claude API HTTP ${res.status}${detail}`;
 }
 
 const norm = (s) => String(s || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
@@ -115,12 +109,21 @@ function clampScore(v, min, max) {
 
 const oneOf = (v, options, fallback) => (options.includes(v) ? v : fallback);
 
+// The English wording to show. Falls back to the original when no translation came back
+// (which is correct when the call was already in English).
+const english = (original, translated) => {
+  const t = translated == null ? '' : String(translated).trim();
+  return t ? t.slice(0, 400) : original;
+};
+
 // Cleans the model output and removes any quote that is not really in the transcript.
 function validate(raw, turns) {
   const tNorm = norm(turns.map((t) => t.text).join(' '));
+  const openerQuote = raw.opener?.quote && quoteIsReal(tNorm, raw.opener.quote) ? String(raw.opener.quote) : null;
   const out = {
     version: RUBRIC_VERSION,
     callType: oneOf(raw.call_type, CALL_TYPES, 'other'),
+    language: String(raw.language || 'English').trim().slice(0, 30) || 'English',
     coachable: raw.coachable === true,
     summary: String(raw.summary || '').slice(0, 600),
     openerResult: oneOf(raw.opener_result, OPENER_RESULTS, 'unclear'),
@@ -135,7 +138,8 @@ function validate(raw, turns) {
     },
     opener: {
       style: oneOf(raw.opener?.style, OPENER_STYLES, 'other'),
-      quote: raw.opener?.quote && quoteIsReal(tNorm, raw.opener.quote) ? String(raw.opener.quote) : null,
+      quote: openerQuote,
+      quoteEn: openerQuote ? english(openerQuote, raw.opener?.quote_en) : null,
       note: String(raw.opener?.note || '').slice(0, 300),
     },
     objections: [],
@@ -148,7 +152,7 @@ function validate(raw, turns) {
   for (const { key } of MEDDPICC) {
     const m = raw.meddpicc?.[key] || {};
     const evidence = m.evidence && quoteIsReal(tNorm, m.evidence) ? String(m.evidence) : null;
-    out.meddpicc[key] = { score: clampScore(m.score, 0, 2) ?? 0, evidence };
+    out.meddpicc[key] = { score: clampScore(m.score, 0, 2) ?? 0, evidence, evidenceEn: evidence ? english(evidence, m.evidence_en) : null };
   }
   for (const { key } of CRAFT) {
     const c = raw.craft?.[key] || {};
@@ -159,20 +163,25 @@ function validate(raw, turns) {
   out.objections = (Array.isArray(raw.objections) ? raw.objections : [])
     .filter((o) => o?.quote && quoteIsReal(tNorm, o.quote))
     .slice(0, 4)
-    .map((o) => ({
-      category: oneOf(o.category, OBJECTION_CATEGORIES, 'other'),
-      stage: oneOf(o.stage, STAGES, 'middle'),
-      quote: String(o.quote),
-      responseQuote: o.response_quote && quoteIsReal(tNorm, o.response_quote) ? String(o.response_quote) : null,
-      handled: oneOf(o.handled, ['well', 'ok', 'poorly'], 'ok'),
-      why: String(o.why || '').slice(0, 300),
-    }));
+    .map((o) => {
+      const responseQuote = o.response_quote && quoteIsReal(tNorm, o.response_quote) ? String(o.response_quote) : null;
+      return {
+        category: oneOf(o.category, OBJECTION_CATEGORIES, 'other'),
+        stage: oneOf(o.stage, STAGES, 'middle'),
+        quote: String(o.quote),
+        quoteEn: english(String(o.quote), o.quote_en),
+        responseQuote,
+        responseQuoteEn: responseQuote ? english(responseQuote, o.response_quote_en) : null,
+        handled: oneOf(o.handled, ['well', 'ok', 'poorly'], 'ok'),
+        why: String(o.why || '').slice(0, 300),
+      };
+    });
 
   if (raw.best_moment?.quote && quoteIsReal(tNorm, raw.best_moment.quote)) {
-    out.bestMoment = { quote: String(raw.best_moment.quote), why: String(raw.best_moment.why || '').slice(0, 300) };
+    out.bestMoment = { quote: String(raw.best_moment.quote), quoteEn: english(String(raw.best_moment.quote), raw.best_moment.quote_en), why: String(raw.best_moment.why || '').slice(0, 300) };
   }
   if (raw.missed_moment?.quote && quoteIsReal(tNorm, raw.missed_moment.quote)) {
-    out.missedMoment = { quote: String(raw.missed_moment.quote), better: String(raw.missed_moment.better || '').slice(0, 400) };
+    out.missedMoment = { quote: String(raw.missed_moment.quote), quoteEn: english(String(raw.missed_moment.quote), raw.missed_moment.quote_en), better: String(raw.missed_moment.better || '').slice(0, 400) };
   }
   return out;
 }

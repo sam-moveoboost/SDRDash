@@ -33,27 +33,28 @@ const describe = (v) => {
 // Keys use underscores only, which are safe in a URL path.
 const keyFor = (itemId) => `coach_v${RUBRIC_VERSION}_${itemId}`;
 
-function defaultBackends() {
+// The monday SDK is passed in so tests can stand in for it.
+function makeBackends({ Storage: AppStorage = Storage, SecureStorage: SecureStore = SecureStorage, getSecret: secret = getSecret } = {}) {
   let secure;
   let app;
   return [
     {
       name: 'secure storage',
       async set(key, value) {
-        secure = secure || new SecureStorage();
+        secure = secure || new SecureStore();
         return (await secure.set(key, value)) === true;
       },
       async get(key) {
-        secure = secure || new SecureStorage();
+        secure = secure || new SecureStore();
         return parse(await secure.get(key));
       },
     },
     {
       name: 'app storage',
       async set(key, value) {
-        const token = getSecret('MONDAY_API_TOKEN');
+        const token = secret('MONDAY_API_TOKEN');
         if (!token) throw new Error('the monday API token secret is missing');
-        app = app || new Storage(token);
+        app = app || new AppStorage(token);
         // This store keeps text, so objects must be turned into JSON first (otherwise they
         // are saved as the words "[object Object]").
         const res = await app.set(key, JSON.stringify(value));
@@ -61,9 +62,9 @@ function defaultBackends() {
         return true;
       },
       async get(key) {
-        const token = getSecret('MONDAY_API_TOKEN');
+        const token = secret('MONDAY_API_TOKEN');
         if (!token) throw new Error('the monday API token secret is missing');
-        app = app || new Storage(token);
+        app = app || new AppStorage(token);
         const res = await app.get(key);
         return parse(res?.value);
       },
@@ -71,7 +72,7 @@ function defaultBackends() {
   ];
 }
 
-let backends = defaultBackends();
+let backends = makeBackends();
 let chosen = null;
 let lastTried = 0;
 const memory = new Map();
@@ -176,4 +177,4 @@ async function mapLimit(items, limit, fn) {
   return results;
 }
 
-module.exports = { getAnalysis, saveAnalysis, mapLimit, selfTest, _setBackends };
+module.exports = { getAnalysis, saveAnalysis, mapLimit, selfTest, _setBackends, _makeBackends: makeBackends };
