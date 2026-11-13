@@ -17,6 +17,7 @@ export const CALL_TYPE_LABELS = {
 const OPENER_RESULT_LABELS = {
   stayed_engaged: 'Prospect stayed', brushed_off: 'Brushed off', hung_up: 'Prospect hung up', blocked_by_gatekeeper: 'Blocked by gatekeeper', unclear: 'Unclear',
 };
+const OPENER_STYLE_LABELS = { warm_followup: 'Warm follow-up', cold_permission_ask: 'Cold permission ask', credentials_first: 'Credentials first', named_person_ask: 'Asking for a person', pain_question_hook: 'Pain-point question', other: 'Other' };
 const openerTone = (r) => (r === 'stayed_engaged' ? 'good' : r === 'hung_up' || r === 'brushed_off' ? 'bad' : 'muted');
 
 export const pct = (v, dp = 0) => (v == null ? 'n/a' : `${(v * 100).toFixed(dp)}%`);
@@ -258,9 +259,9 @@ export function CallDetail({ call, demo }) {
           {call.priority.reasons.map((r) => <Chip key={r}>{r}</Chip>)}
         </div>
       )}
-      {call.refresh === 'english' && (
+      {call.refresh === 'outdated' && (
         <div className="rounded-xl bg-amber-soft text-amber-ink text-[12.5px] px-3 py-2">
-          This analysis was made before findings were written in English, so some wording may still be in the call's own language. It will be redone the next time you press an Analyse button.
+          This analysis was made under older rules (before English findings or the five opening types), so some wording or groupings may look different. It will be redone the next time you press an Analyse button.
         </div>
       )}
       <p className="text-[13.5px] text-ink">{a.summary}</p>
@@ -269,7 +270,7 @@ export function CallDetail({ call, demo }) {
         {a.language && a.language.toLowerCase() !== 'english' && <Chip tone="info">Translated from {a.language}</Chip>}
         {a.openerResult && <Chip tone={openerTone(a.openerResult)}>{OPENER_RESULT_LABELS[a.openerResult] || a.openerResult}</Chip>}
         {a.endedBy && a.endedBy !== 'unclear' && <Chip>Ended by the {a.endedBy === 'sdr' ? 'SDR' : 'prospect'}</Chip>}
-        {a.opener?.style && <Chip tone="info">Opener: {a.opener.style.replace(/_/g, ' ')}</Chip>}
+        {a.opener?.style && <Chip tone="info">Opener: {OPENER_STYLE_LABELS[a.opener.style] || a.opener.style.replace(/_/g, ' ')}</Chip>}
       </div>
       {a.opener?.quote && (
         <div>
@@ -396,11 +397,12 @@ export function TrendsPanel({ data }) {
             <ul className="space-y-4">
               {t.openers.map((o) => (
                 <li key={o.style}>
-                  <div className="flex justify-between text-[13px] mb-1.5"><span className="font-medium text-ink">{o.label}</span><span className="text-muted">{o.calls} call{o.calls === 1 ? "" : "s"}, {o.booked} booked</span></div>
+                  <div className="flex justify-between text-[13px] mb-0.5"><span className="font-medium text-ink">{o.label}</span><span className="text-muted">{o.calls} call{o.calls === 1 ? "" : "s"}, {o.booked} booked</span></div>
+                  {o.description && <div className="text-[11.5px] text-muted mb-1.5">{o.description}</div>}
                   <div className="flex items-center gap-2 text-[11.5px] text-muted mb-1"><span className="w-[72px]">Stayed</span><div className="flex-1"><Bar value={o.stayedRate} tone="good" /></div><span className="w-9 text-right">{pct(o.stayedRate)}</span></div>
                   <div className="flex items-center gap-2 text-[11.5px] text-muted"><span className="w-[72px]">Hung up</span><div className="flex-1"><Bar value={o.hungUpRate} tone="bad" /></div><span className="w-9 text-right">{pct(o.hungUpRate)}</span></div>
-                  {o.stayExamples[0] && <div className="text-[12px] text-body italic mt-1.5">Kept them on: "{o.stayExamples[0].quote}" ({o.stayExamples[0].sdrName})</div>}
-                  {o.hangUpExamples[0] && <div className="text-[12px] text-body italic mt-1">Lost them: "{o.hangUpExamples[0].quote}" ({o.hangUpExamples[0].sdrName})</div>}
+                  {o.stayExamples[0] && <div className="text-[12px] text-body italic mt-1.5">Kept them on: "{o.stayExamples[0].quote}"{o.stayExamples[0].sdrName ? ` (${o.stayExamples[0].sdrName})` : ''}</div>}
+                  {o.hangUpExamples[0] && <div className="text-[12px] text-body italic mt-1">Lost them: "{o.hangUpExamples[0].quote}"{o.hangUpExamples[0].sdrName ? ` (${o.hangUpExamples[0].sdrName})` : ''}</div>}
                 </li>
               ))}
             </ul>
@@ -414,7 +416,7 @@ export function TrendsPanel({ data }) {
                 <li key={r.category}>
                   <div className="flex justify-between text-[13px] mb-1"><span className="font-medium text-ink">{r.label}</span><span className="text-muted">{r.count}</span></div>
                   <Bar value={r.count / t.hangups.count} tone="bad" />
-                  {r.examples[0] && <div className="text-[12px] text-body italic mt-1">"{r.examples[0].quote}" ({r.examples[0].sdrName})</div>}
+                  {r.examples[0] && <div className="text-[12px] text-body italic mt-1">"{r.examples[0].quote}"{r.examples[0].sdrName ? ` (${r.examples[0].sdrName})` : ''}</div>}
                 </li>
               ))}
             </ul>
@@ -432,7 +434,7 @@ export function TrendsPanel({ data }) {
                 {o.examples.length === 0 ? <div className="text-[12px] text-muted">No well-handled example yet.</div> : o.examples.map((e, i) => (
                   <div key={i} className="mb-2 space-y-1">
                     <Quote>Prospect: "{e.quote}"</Quote>
-                    <Quote>{e.sdrName}: "{e.response}"</Quote>
+                    <Quote>{e.sdrName || 'SDR'}: "{e.response}"</Quote>
                     <div className="text-[11.5px] text-muted flex gap-2 items-center flex-wrap">{e.stayed && <Chip tone="good">they stayed</Chip>}{e.booked && <Chip tone="good">meeting booked</Chip>}<span>{e.why}</span></div>
                   </div>
                 ))}
@@ -467,7 +469,7 @@ export function TrendsPanel({ data }) {
                   {b.examples.map((e, i) => (
                     <div key={i} className="mb-2 rounded-xl border border-line p-2.5 space-y-1">
                       <Quote>Prospect: "{e.quote}"</Quote>
-                      <Quote>{e.sdrName}: "{e.response}"</Quote>
+                      <Quote>{e.sdrName || 'SDR'}: "{e.response}"</Quote>
                       <div className="text-[11.5px] text-muted flex gap-2 items-center flex-wrap">{e.booked && <Chip tone="good">meeting booked</Chip>}{e.stayed && !e.booked && <Chip tone="good">they stayed</Chip>}<span>{e.why}</span></div>
                     </div>
                   ))}
@@ -505,21 +507,23 @@ export function TrendsPanel({ data }) {
         </table>
       </Card>
 
-      <Card title="SDR comparison" note="analysed calls only">
-        <div className="overflow-x-auto">
-          <table className="w-full text-[13px]">
-            <thead><tr className="text-left text-muted text-[11.5px]">{['SDR', 'Analysed', 'Booked', 'Prospect stayed', 'Next step secured', 'Objections handled well', 'Average craft'].map((h) => <th key={h} className="font-medium pb-2 pr-4 whitespace-nowrap">{h}</th>)}</tr></thead>
-            <tbody>
-              {t.sdrs.map((r) => (
-                <tr key={r.id || r.name} className="border-t border-line">
-                  <td className="py-2.5 pr-4 font-medium text-ink">{r.name}</td><td className="py-2.5 pr-4">{r.analysedCalls}</td><td className="py-2.5 pr-4">{r.booked}</td>
-                  <td className="py-2.5 pr-4">{pct(r.stayedRate)}</td><td className="py-2.5 pr-4">{pct(r.nextStepRate)}</td><td className="py-2.5 pr-4">{pct(r.objectionsHandledWellRate)}</td><td className="py-2.5 pr-4">{r.avgCraft == null ? 'n/a' : `${num(r.avgCraft)}/5`}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+      {t.sdrs && (
+        <Card title="SDR comparison" note="analysed calls only">
+          <div className="overflow-x-auto">
+            <table className="w-full text-[13px]">
+              <thead><tr className="text-left text-muted text-[11.5px]">{['SDR', 'Analysed', 'Booked', 'Prospect stayed', 'Next step secured', 'Objections handled well', 'Average craft'].map((h) => <th key={h} className="font-medium pb-2 pr-4 whitespace-nowrap">{h}</th>)}</tr></thead>
+              <tbody>
+                {t.sdrs.map((r) => (
+                  <tr key={r.id || r.name} className="border-t border-line">
+                    <td className="py-2.5 pr-4 font-medium text-ink">{r.name}</td><td className="py-2.5 pr-4">{r.analysedCalls}</td><td className="py-2.5 pr-4">{r.booked}</td>
+                    <td className="py-2.5 pr-4">{pct(r.stayedRate)}</td><td className="py-2.5 pr-4">{pct(r.nextStepRate)}</td><td className="py-2.5 pr-4">{pct(r.objectionsHandledWellRate)}</td><td className="py-2.5 pr-4">{r.avgCraft == null ? 'n/a' : `${num(r.avgCraft)}/5`}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

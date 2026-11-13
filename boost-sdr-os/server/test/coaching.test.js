@@ -70,7 +70,7 @@ function makeDeps({ persist = true, claudeFails = false, claudePingFails = false
         analyseCall: async ({ call }) => {
           if (claudeFails) throw new Error('Claude API HTTP 529');
           log.analysed.push(call.id);
-          return { callType: 'conversation', language: 'English', coachable: true, openerResult: 'stayed_engaged', nextStepSecured: true, meddpicc: {}, craft: {}, objections: [] };
+          return { callType: 'conversation', language: 'English', schema: 2, coachable: true, openerResult: 'stayed_engaged', nextStepSecured: true, meddpicc: {}, craft: {}, objections: [] };
         },
       },
       store: {
@@ -226,11 +226,45 @@ test('transcripts never expose prospect phone numbers and other SDRs cannot read
   });
 });
 
-test('trends are for managers only', async () => {
-  await withServer(async ({ call }) => {
-    assert.equal((await call('/trends', LUKE)).status, 403);
-    assert.equal((await call(`/trends?userId=${LUKE}`, LUKE)).status, 403);
-    assert.equal((await call('/trends', SAM)).status, 200);
+test('everyone can see the team trends, but nothing that points at an individual', async () => {
+  await withServer(async ({ call, json, calls, deps }) => {
+    // Two SDRs' calls, both analysed, with objections that were handled well and poorly.
+    for (const id of ['1', '2']) {
+      calls.find((c) => c.id === id).coachingStatus = 'Analysed';
+      await deps.store.saveAnalysis(id, {
+        callType: 'conversation', language: 'English', schema: 2, coachable: true, openerResult: 'stayed_engaged', nextStepSecured: true, craft: {},
+        prospect: { seniority: 'manager', role: 'Head of Sales', industry: 'software' },
+        opener: { style: 'permission_based', quote: 'Got a minute?', quoteEn: 'Got a minute?' },
+        objections: [{ category: 'no_time', stage: 'opener', quote: 'No time', quoteEn: 'No time', responseQuote: 'Ten minutes next week?', responseQuoteEn: 'Ten minutes next week?', handled: id === '1' ? 'well' : 'poorly', why: 'x' }],
+      });
+    }
+
+    // An SDR gets the team's patterns, even when they ask for someone else, and not just their own calls.
+    const sdr = await json(`/trends?userId=${EMAD}`, LUKE);
+    assert.equal(sdr.analysedCount, 2);
+    assert.equal(sdr.trends.analysedCalls, 2);
+    assert.equal(sdr.trends.topObjections[0].count, 2);
+    assert.ok(sdr.trends.bestHandling[0].examples[0].response); // what works is visible
+    assert.equal(sdr.trends.sdrs, undefined); // no SDR-by-SDR comparison
+
+    // Nothing in what an SDR receives names a person or points at a call.
+    const text = JSON.stringify(sdr);
+    for (const forbidden of ['Luke Birchley', 'Emad Mahamid', 'sdrName', 'sdrId', 'callId', '"111"', '"222"']) {
+      assert.ok(!text.includes(forbidden), `an SDR was sent ${forbidden}`);
+    }
+
+    // Managers still get names, links to calls and the comparison, and can look at one SDR.
+    const manager = await json('/trends', SAM);
+    assert.equal(manager.trends.sdrs.length, 2);
+    assert.ok(JSON.stringify(manager).includes('Luke Birchley'));
+    assert.equal((await json(`/trends?userId=${LUKE}`, SAM)).trends.analysedCalls, 1);
+
+    // Seeing trends does not open anyone's calls: transcripts and analyses stay private.
+    assert.equal((await call('/calls/2/transcript', LUKE)).status, 404);
+    const res = await json('/analyse', LUKE, { method: 'POST', body: JSON.stringify({ ids: ['2'] }) });
+    assert.equal(res.results[0].error, 'not_found');
+    const mine = await json('/calls', LUKE);
+    assert.ok(mine.calls.every((c) => c.sdrId === LUKE));
   });
 });
 
@@ -615,7 +649,7 @@ test('an analysis saved before the English change is offered for redoing, and re
     const list = await json('/calls', LUKE);
     const row = list.calls.find((c) => c.id === '3');
     assert.equal(row.status, 'waiting');
-    assert.equal(row.refresh, 'english');
+    assert.equal(row.refresh, 'outdated');
     assert.equal(list.refreshCount, 1);
     assert.equal(list.waitingCount, 2); // call 1 (never analysed) plus call 3 (to redo)
 
@@ -628,7 +662,7 @@ test('an analysis saved before the English change is offered for redoing, and re
 test('a current analysis (with a language) is left alone and never redone', async () => {
   await withServer(async ({ json, log, calls, deps }) => {
     calls.find((c) => c.id === '3').coachingStatus = 'Analysed';
-    await deps.store.saveAnalysis('3', { callType: 'early_hangup', language: 'English', coachable: false });
+    await deps.store.saveAnalysis('3', { callType: 'early_hangup', language: 'English', schema: 2, coachable: false });
 
     const list = await json('/calls', LUKE);
     assert.equal(list.calls.find((c) => c.id === '3').status, 'analysed');
@@ -674,7 +708,7 @@ test('calls still waiting are always listed, even when many finished calls come 
     for (let i = 0; i < 210; i++) {
       const id = `done${i}`;
       calls.push(mkCall({ id, createdAt: '2026-11-10T10:00:00Z', startedAt: '2026-11-10 10:00', coachingStatus: 'Analysed', tags: ['Gatekeeper'] }));
-      await deps.store.saveAnalysis(id, { callType: 'conversation', language: 'English', coachable: true, meddpicc: {}, craft: {}, objections: [] });
+      await deps.store.saveAnalysis(id, { callType: 'conversation', language: 'English', schema: 2, coachable: true, meddpicc: {}, craft: {}, objections: [] });
     }
     const list = await json('/calls', LUKE);
     const waitingRows = list.calls.filter((c) => c.status === 'waiting');
@@ -694,17 +728,16 @@ test('Claude is given room for a long analysis', async () => {
   });
 });
 
-// ---- review priority (1 to 10) ----
+// ---- review priority (1 to 10): how much there is to learn from a call ----
 const { reviewPriority } = require('../src/lib/priority');
 const craftOf = (score) => Object.fromEntries(['opening', 'discovery', 'objection_handling', 'next_step_ask', 'tone_and_control'].map((k) => [k, { score, note: '' }]));
+const conv = (extra = {}) => ({ callType: 'conversation', coachable: true, stats: { chars: 1500 }, objections: [], craft: craftOf(4), tryNextTime: [], ...extra });
 
 test('a long conversation with poor objection handling, weak craft and a missed moment is top priority', () => {
-  const p = reviewPriority({
-    callType: 'conversation', coachable: true, stats: { chars: 6000 },
-    objections: [{ handled: 'poorly' }, { handled: 'poorly' }],
-    craft: { ...craftOf(4), discovery: { score: 1 }, next_step_ask: { score: 2 } },
-    missedMoment: { quote: 'x' }, tryNextTime: ['a', 'b', 'c'],
-  }, { durationMin: 9 });
+  const p = reviewPriority(conv({
+    stats: { chars: 6000 }, objections: [{ handled: 'poorly' }, { handled: 'poorly' }],
+    craft: { ...craftOf(4), discovery: { score: 1 }, next_step_ask: { score: 2 } }, missedMoment: { quote: 'x' }, tryNextTime: ['a', 'b', 'c'],
+  }), { durationMin: 9 });
   assert.equal(p.score, 10);
   assert.equal(p.level, 'high');
   assert.ok(p.reasons.some((r) => /Long conversation/.test(r)));
@@ -713,26 +746,41 @@ test('a long conversation with poor objection handling, weak craft and a missed 
   assert.ok(p.reasons.includes('Lots of feedback'));
 });
 
-test('a long conversation where everything went well is only medium or low', () => {
-  const p = reviewPriority({ callType: 'conversation', coachable: true, stats: { chars: 5000 }, objections: [{ handled: 'well' }], craft: craftOf(4), tryNextTime: ['a'] }, { durationMin: 7 });
-  assert.ok(p.score >= 3 && p.score <= 5, `score was ${p.score}`);
-  assert.notEqual(p.level, 'high');
-  assert.deepEqual(p.reasons.filter((r) => r === 'Went well'), ['Went well']);
+test('a good example is worth reviewing too: a well-handled objection scores high even when the call was good', () => {
+  const justOne = reviewPriority(conv({ objections: [{ handled: 'well' }] }), { durationMin: 4, tags: [] });
+  assert.ok(justOne.score >= 7, `score was ${justOne.score}`);
+  assert.equal(justOne.level, 'high');
+  assert.ok(justOne.reasons.includes('A well-handled objection'));
+
+  const star = reviewPriority(conv({ objections: [{ handled: 'well' }], bestMoment: { quote: 'x' } }), { durationMin: 6, tags: ['MeetingBooked'] });
+  assert.ok(star.score >= 9, `score was ${star.score}`);
+  assert.ok(star.reasons.includes('A strong moment to share'));
+  assert.ok(star.reasons.includes('Meeting booked'));
 });
 
-test('a short conversation with something to fix outranks a long one that went well', () => {
-  const shortButBad = reviewPriority({ callType: 'conversation', coachable: true, stats: { chars: 900 }, objections: [{ handled: 'poorly' }], craft: { ...craftOf(4), discovery: { score: 2 } }, missedMoment: { quote: 'x' }, tryNextTime: ['a'] }, { durationMin: 2 });
-  const longAndGood = reviewPriority({ callType: 'conversation', coachable: true, stats: { chars: 5000 }, objections: [], craft: craftOf(5), tryNextTime: [] }, { durationMin: 8 });
-  assert.ok(shortButBad.score > longAndGood.score);
-  assert.equal(shortButBad.level, 'high');
+test('a poorly handled and a well-handled objection are equally worth a look', () => {
+  const bad = reviewPriority(conv({ objections: [{ handled: 'poorly' }] }), { durationMin: 3 });
+  const good = reviewPriority(conv({ objections: [{ handled: 'well' }] }), { durationMin: 3 });
+  assert.equal(bad.score, good.score);
 });
 
-test('quick hang-ups and gatekeepers are low priority, a badly handled opener lifts them a little', () => {
+test('a conversation where nothing stood out is low, or medium if it was long', () => {
+  const plain = reviewPriority(conv(), { durationMin: 2, tags: [] });
+  assert.equal(plain.score, 3);
+  assert.equal(plain.level, 'low');
+  assert.ok(plain.reasons.includes('Nothing stood out'));
+  const long = reviewPriority(conv({ stats: { chars: 5000 } }), { durationMin: 7, tags: [] });
+  assert.equal(long.level, 'medium');
+});
+
+test('quick hang-ups and gatekeepers are low unless there is an example in them, and never above 6', () => {
   const plain = reviewPriority({ callType: 'early_hangup', coachable: false, objections: [], craft: {}, tryNextTime: [] }, { durationMin: 0 });
   assert.equal(plain.score, 1);
   assert.equal(plain.level, 'low');
   const bad = reviewPriority({ callType: 'early_hangup', coachable: false, objections: [{ handled: 'poorly' }], missedMoment: { quote: 'x' }, craft: {}, tryNextTime: [] }, { durationMin: 0 });
-  assert.ok(bad.score > plain.score && bad.score <= 5, `score was ${bad.score}`);
+  assert.ok(bad.score > plain.score && bad.score <= 6, `score was ${bad.score}`);
+  const kept = reviewPriority({ callType: 'early_hangup', coachable: false, objections: [{ handled: 'well' }], bestMoment: { quote: 'x' }, craft: {}, tryNextTime: [] }, { durationMin: 0, tags: ['MeetingBooked'] });
+  assert.ok(kept.score <= 6);
   assert.equal(reviewPriority({ callType: 'gatekeeper', coachable: false, objections: [], craft: {} }, {}).level, 'low');
 });
 
@@ -743,8 +791,9 @@ test('voicemail and phone menus are the lowest priority, and a missing analysis 
 });
 
 test('scores always stay between 1 and 10', () => {
-  for (const poor of [0, 1, 5]) for (const weakScore of [1, 3, 5]) for (const minutes of [0, 4, 20]) {
-    const p = reviewPriority({ callType: 'conversation', coachable: true, stats: { chars: minutes * 800 }, objections: Array.from({ length: poor }, () => ({ handled: 'poorly' })), craft: craftOf(weakScore), missedMoment: { quote: 'x' }, tryNextTime: ['a', 'b', 'c'] }, { durationMin: minutes });
+  for (const poor of [0, 1, 5]) for (const well of [0, 2]) for (const weakScore of [1, 3, 5]) for (const minutes of [0, 4, 20]) {
+    const objections = [...Array.from({ length: poor }, () => ({ handled: 'poorly' })), ...Array.from({ length: well }, () => ({ handled: 'well' }))];
+    const p = reviewPriority(conv({ stats: { chars: minutes * 800 }, objections, craft: craftOf(weakScore), missedMoment: { quote: 'x' }, bestMoment: { quote: 'y' }, tryNextTime: ['a', 'b', 'c'] }), { durationMin: minutes, tags: ['MeetingBooked'] });
     assert.ok(Number.isInteger(p.score) && p.score >= 1 && p.score <= 10);
   }
 });
@@ -752,10 +801,21 @@ test('scores always stay between 1 and 10', () => {
 test('finished calls come back with a priority, in the list the page shows', async () => {
   await withServer(async ({ json, calls, deps }) => {
     calls.find((c) => c.id === '3').coachingStatus = 'Analysed';
-    await deps.store.saveAnalysis('3', { callType: 'early_hangup', language: 'English', coachable: false, objections: [], craft: {} });
+    await deps.store.saveAnalysis('3', { callType: 'early_hangup', language: 'English', schema: 2, coachable: false, objections: [], craft: {} });
     const row = (await json('/calls', LUKE)).calls.find((c) => c.id === '3');
     assert.equal(row.status, 'analysed');
     assert.equal(row.priority.level, 'low');
     assert.equal(row.priority.score, 1);
+  });
+});
+
+test('the list says how many valid transcripts there are, analysed and waiting', async () => {
+  await withServer(async ({ json }) => {
+    const before = await json('/calls', LUKE);
+    assert.deepEqual(before.transcriptTotals, { valid: 2, analysed: 0, waiting: 2 });
+    await json('/analyse', LUKE, { method: 'POST', body: JSON.stringify({ ids: ['3'] }) });
+    const after = await json('/calls', LUKE);
+    assert.deepEqual(after.transcriptTotals, { valid: 2, analysed: 1, waiting: 1 });
+    assert.deepEqual((await json('/calls', SAM)).transcriptTotals, { valid: 3, analysed: 1, waiting: 2 }); // plus Emad's call
   });
 });

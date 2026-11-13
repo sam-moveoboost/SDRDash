@@ -36,7 +36,7 @@ export default function Coaching({ user }) {
   const [problem, setProblem] = useState(null);
   const [overview, setOverview] = useState(null);
   const [calls, setCalls] = useState([]);
-  const [meta, setMeta] = useState({ waitingCount: 0, refreshCount: 0, coverage: [], rules: null });
+  const [meta, setMeta] = useState({ waitingCount: 0, refreshCount: 0, coverage: [], rules: null, totals: null });
   const [trends, setTrends] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [analysing, setAnalysing] = useState({ busy: false, message: null });
@@ -59,7 +59,7 @@ export default function Coaching({ user }) {
       const picked = sdrId === 'all' ? demoCalls.calls : demoCalls.calls.filter((c) => c.sdrId === sdrId);
       setOverview(demoOverview);
       setCalls(picked);
-      setMeta({ waitingCount: demoCalls.waitingCount, refreshCount: 0, coverage: demoCalls.coverage, rules: demoCalls.rules });
+      setMeta({ waitingCount: demoCalls.waitingCount, refreshCount: 0, coverage: demoCalls.coverage, rules: demoCalls.rules, totals: demoCalls.transcriptTotals });
       setTrends(demoTrends);
       setLoading(false);
       return undefined;
@@ -72,11 +72,11 @@ export default function Coaching({ user }) {
         setOverview(ov);
         const [cl, tr] = await Promise.all([
           coachingApi.calls(userIdParam, days),
-          ov.scope.isAdmin ? coachingApi.trends(userIdParam, days) : Promise.resolve(null),
+          coachingApi.trends(userIdParam, days),
         ]);
         if (!alive) return;
         setCalls(cl.calls);
-        setMeta({ waitingCount: cl.waitingCount, refreshCount: cl.refreshCount ?? 0, coverage: cl.coverage, rules: cl.rules });
+        setMeta({ waitingCount: cl.waitingCount, refreshCount: cl.refreshCount ?? 0, coverage: cl.coverage, rules: cl.rules, totals: cl.transcriptTotals ?? null });
         setTrends(tr);
       } catch (e) {
         if (alive) setProblem(explain(e));
@@ -92,7 +92,7 @@ export default function Coaching({ user }) {
     try {
       const ov = await coachingApi.overview(userIdParam, days);
       setOverview(ov);
-      if (ov.scope.isAdmin) setTrends(await coachingApi.trends(userIdParam, days));
+      setTrends(await coachingApi.trends(userIdParam, days));
     } catch { /* the page already shows the earlier numbers */ }
   }, [userIdParam, days]);
 
@@ -113,7 +113,7 @@ export default function Coaching({ user }) {
     try {
       const cl = await coachingApi.calls(userIdParam, days);
       setCalls(cl.calls);
-      setMeta({ waitingCount: cl.waitingCount, refreshCount: cl.refreshCount ?? 0, coverage: cl.coverage, rules: cl.rules });
+      setMeta({ waitingCount: cl.waitingCount, refreshCount: cl.refreshCount ?? 0, coverage: cl.coverage, rules: cl.rules, totals: cl.transcriptTotals ?? null });
     } catch { /* the page keeps showing what it has */ }
   }, [userIdParam, days]);
 
@@ -294,7 +294,7 @@ export default function Coaching({ user }) {
                     ) : (
                       <>
                         <span className="font-medium text-ink">{waiting.length}</span> call{waiting.length === 1 ? '' : 's'} waiting to be analysed
-                        {redoCount > 0 && ` (${redoCount} ${redoCount === 1 ? 'is an older analysis' : 'are older analyses'} to redo in English)`}.
+                        {redoCount > 0 && ` (${redoCount} ${redoCount === 1 ? 'is an older analysis' : 'are older analyses'} to redo with the new rules)`}.
                       </>
                     )}
                     {analysing.message && <div className="text-[12.5px] text-muted mt-1">{analysing.message}</div>}
@@ -348,7 +348,7 @@ export default function Coaching({ user }) {
                             <span className="w-[110px] text-ink font-medium">{fmtWhen(c.startedAt)}</span>
                             {isAdmin && <span className="w-[150px] text-body">{c.sdrName}</span>}
                             <span className="w-[60px] text-muted">{c.durationMin == null ? '' : `${Math.round(c.durationMin)} min`}</span>
-                            {c.refresh === 'english' && <Chip tone="warn">Update to English</Chip>}
+                            {c.refresh === 'outdated' && <Chip tone="warn">Redo with new rules</Chip>}
                             {c.refresh === 'missing' && <Chip tone="warn">Details missing, redo</Chip>}
                             {c.tags.includes('MeetingBooked') && <Chip tone="good">Meeting booked</Chip>}
                           </li>
@@ -367,10 +367,14 @@ export default function Coaching({ user }) {
             </Section>
           )}
 
-          {isAdmin && (
-            <Section title="Trends" sub={`What is happening on the phones for ${who}: objections, who books and what the outreach sounds like.`}>
-              <TrendsPanel data={trends} />
-            </Section>
+          <Section
+            title="Trends"
+            sub={isAdmin
+              ? `What is happening on the phones for ${who}: objections, who books and what the outreach sounds like.`
+              : 'What is working across the whole team: the top objections, the best ways they were handled, how calls open and who books. Everyone sees this. Individual calls and transcripts stay private.'}
+          >
+            <TrendsPanel data={trends} />
+          </Section>
           )}
 
           <Section title={isAdmin ? `Coaching focus for ${who}` : 'Where to focus'} sub="Built from the calls that have been analysed against MEDDPICC and call craft.">
@@ -444,7 +448,7 @@ export default function Coaching({ user }) {
                         {isAdmin && <span className="text-[13px] text-body w-[150px]">{c.sdrName}</span>}
                         <span className="text-[13px] text-muted w-[60px]">{c.durationMin == null ? '' : `${Math.round(c.durationMin)} min`}</span>
                         <span className="flex gap-1.5 flex-wrap flex-1">
-                          {(pr?.reasons || []).slice(0, 3).map((r) => <Chip key={r} tone={/poorly|Weak|missed|Lots of/.test(r) ? 'warn' : 'muted'}>{r}</Chip>)}
+                          {(pr?.reasons || []).slice(0, 3).map((r) => <Chip key={r} tone={/poorly|Weak|missed|Lots of/.test(r) ? 'warn' : /well-handled|strong moment|Meeting booked/.test(r) ? 'good' : 'muted'}>{r}</Chip>)}
                           {c.tags.includes('MeetingBooked') && <Chip tone="good">Meeting booked</Chip>}
                           {a?.nextStepSecured && <Chip tone="info">Next step secured</Chip>}
                         </span>

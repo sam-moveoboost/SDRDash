@@ -4,7 +4,7 @@
 // Short calls are included: openers and early hang-ups are exactly what managers
 // want to see. Only voicemail and phone menus are left out.
 
-const { OBJECTION_LABELS, OPENER_LABELS, SENIORITY_LABELS } = require('./analysis');
+const { OBJECTION_LABELS, OPENER_LABELS, OPENER_DESCRIPTIONS, SENIORITY_LABELS } = require('./analysis');
 
 const NON_HUMAN = new Set(['voicemail', 'automated_menu']);
 
@@ -108,6 +108,7 @@ function buildTrends(pairs) {
     return {
       style,
       label: OPENER_LABELS[style] || style,
+      description: OPENER_DESCRIPTIONS[style] || null,
       calls: group.length,
       stayed: group.filter((p) => stayed(p.analysis)).length,
       stayedRate: rate(group.filter((p) => stayed(p.analysis)).length, group.length),
@@ -200,4 +201,17 @@ function buildTrends(pairs) {
   };
 }
 
-module.exports = { buildTrends };
+// The team patterns, with nothing that points at an individual: no names, no IDs, no link back to
+// a particular call, and no SDR-by-SDR comparison. Short example quotes stay, because seeing what
+// works is the point, but they cannot be traced to a person or opened as a transcript.
+const PEOPLE_KEYS = new Set(['sdrName', 'sdrId', 'callId', 'startedAt', 'sdrs']);
+
+function forEveryone(value) {
+  if (Array.isArray(value)) return value.map(forEveryone);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).filter(([k]) => !PEOPLE_KEYS.has(k)).map(([k, v]) => [k, forEveryone(v)]));
+  }
+  return value;
+}
+
+module.exports = { buildTrends, forEveryone };
