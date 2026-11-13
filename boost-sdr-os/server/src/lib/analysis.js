@@ -280,7 +280,9 @@ async function askClaude(user, apiKey, fetchImpl) {
         max_tokens: 3000,
         system: SYSTEM,
         tools: [ANALYSIS_TOOL],
-        tool_choice: { type: 'tool', name: ANALYSIS_TOOL.name },
+        // Forcing the tool is refused by this model, so it is offered and asked for instead.
+        // A plain-text reply is still understood (see readAnalysis).
+        tool_choice: { type: 'auto' },
         messages: [{ role: 'user', content: user }],
       }),
     });
@@ -305,7 +307,7 @@ async function analyseCall({ turns, call }, { fetchImpl = fetch } = {}) {
   if (!apiKey) throw Object.assign(new Error('The server is missing ANTHROPIC_API_KEY.'), { code: 'not_configured' });
 
   const length = call.durationMin == null ? 'unknown length' : `about ${Math.round(call.durationMin)} minute${Math.round(call.durationMin) === 1 ? '' : 's'}`;
-  const user = `Call length: ${length}.\n\nTranscript:\n${renderForModel(turns)}`;
+  const user = `Call length: ${length}.\n\nTranscript:\n${renderForModel(turns)}\n\nRecord your analysis by calling the record_call_analysis tool.`;
 
   // An unreadable answer is retried once; any other failure is reported straight away.
   let lastError;
@@ -340,7 +342,7 @@ async function ping({ fetchImpl = fetch } = {}) {
         model: CLAUDE_MODEL,
         max_tokens: 16,
         tools: [ANALYSIS_TOOL],
-        tool_choice: { type: 'tool', name: ANALYSIS_TOOL.name },
+        tool_choice: { type: 'auto' },
         messages: [{ role: 'user', content: 'Check: record a test analysis.' }],
       }),
     });

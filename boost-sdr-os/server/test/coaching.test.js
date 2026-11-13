@@ -546,9 +546,10 @@ test('Claude is made to answer through a tool, so quotes containing speech marks
       return toolReply({ call_type: 'conversation', coachable: true, opener_result: 'brushed_off', next_step_secured: true, meddpicc: {}, craft: {}, objections: [{ category: 'bad_timing', stage: 'middle', quote: 'He said "not now" and then "call back in March"', handled: 'well', why: 'x' }] });
     };
     const out = await analyseCall({ turns: quoteTurns, call: { durationMin: 1 } }, { fetchImpl });
-    assert.equal(body.tool_choice.type, 'tool');
-    assert.equal(body.tool_choice.name, 'record_call_analysis');
+    // This model refuses a forced tool choice ("tool" or "any"), so the tool is offered and asked for.
+    assert.equal(body.tool_choice.type, 'auto');
     assert.equal(body.tools[0].name, 'record_call_analysis');
+    assert.match(body.messages[0].content, /calling the record_call_analysis tool/);
     assert.equal(out.objections.length, 1);
     assert.match(out.objections[0].quote, /"not now"/);
   });
@@ -595,7 +596,7 @@ test('the connection check also proves Anthropic accepts the analysis format', a
     let body;
     await ping({ fetchImpl: async (_u, init) => { body = JSON.parse(init.body); return { ok: true, json: async () => ({}) }; } });
     assert.equal(body.tools[0].name, 'record_call_analysis');
-    assert.equal(body.tool_choice.name, 'record_call_analysis');
+    assert.equal(body.tool_choice.type, 'auto'); // never forced: this model refuses that
     assert.ok(body.max_tokens <= 32);
   });
   await withKey(async () => {
@@ -645,5 +646,24 @@ test('a call marked analysed whose saved analysis has gone missing is offered ag
     const row = list.calls.find((c) => c.id === '3');
     assert.equal(row.status, 'waiting');
     assert.equal(row.refresh, 'missing');
+  });
+});
+
+test('Anthropic never receives a forced tool choice, which this model rejects', async () => {
+  const { analyseCall, ping } = require('../src/lib/analysis');
+  await withKey(async () => {
+    const seen = [];
+    const fetchImpl = async (_u, init) => {
+      const b = JSON.parse(init.body);
+      seen.push(b.tool_choice);
+      // Mimic the real refusal for any forced choice.
+      if (b.tool_choice && b.tool_choice.type !== 'auto') {
+        return { ok: false, status: 400, text: async () => JSON.stringify({ error: { message: 'tool_choice: type "tool" and "any" are not supported for this model.' } }) };
+      }
+      return toolReply({ call_type: 'conversation', coachable: true, meddpicc: {}, craft: {}, objections: [] });
+    };
+    await analyseCall({ turns: quoteTurns, call: { durationMin: 1 } }, { fetchImpl });
+    await ping({ fetchImpl });
+    assert.deepEqual(seen.map((t) => t.type), ['auto', 'auto']);
   });
 });

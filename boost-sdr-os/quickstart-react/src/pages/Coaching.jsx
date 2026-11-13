@@ -311,7 +311,6 @@ export default function Coaching({ user }) {
 
           <Section
             title="Calls to review"
-            sub={`Answered calls since ${meta.rules ? fmtDay(meta.rules.from) : '1 Nov'} with a transcript of ${meta.rules?.minChars ?? 250} characters or more, newest first. Short calls and hang-ups count too.`}
             right={(
               <div className="flex items-center gap-3 flex-wrap justify-end">
                 {analysing.message && <span className="text-[12.5px] text-muted max-w-[420px] text-right">{analysing.message}</span>}
