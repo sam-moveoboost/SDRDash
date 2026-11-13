@@ -159,7 +159,7 @@ export function CoverageTable({ coverage }) {
 
 export function FocusPanel({ coaching, who }) {
   if (!coaching || coaching.analysedCalls === 0) {
-    return <Empty>No calls have been analysed yet. Use "Analyse new calls" below to start.</Empty>;
+    return <Empty>No calls have been analysed yet. Use the Analyse buttons under Calls to review to start.</Empty>;
   }
   const tone = (v) => (v >= 0.66 ? 'good' : v >= 0.4 ? 'warn' : 'bad');
   return (
@@ -248,7 +248,7 @@ export function CallDetail({ call, demo }) {
   };
 
   if (!a) {
-    return <div className="text-[13px] text-muted">Not analysed yet. {call.transcript?.available ? 'Use "Analyse new calls" to analyse it.' : 'There is no transcript on this call yet.'}</div>;
+    return <div className="text-[13px] text-muted">Not analysed yet. {call.transcript?.available ? 'Use the Analyse buttons under Calls to review to analyse it.' : 'There is no transcript on this call yet.'}</div>;
   }
   return (
     <div className="space-y-5">
@@ -370,7 +370,7 @@ export function CallDetail({ call, demo }) {
 export function TrendsPanel({ data }) {
   const t = data?.trends;
   if (!t || t.analysedCalls === 0) {
-    return <Empty>Trends appear once calls have been analysed. Use "Analyse next calls" below to start.</Empty>;
+    return <Empty>Trends appear once calls have been analysed. Use the Analyse buttons under Calls to review to start.</Empty>;
   }
   const maxCount = Math.max(...t.topObjections.map((o) => o.count), 1);
   return (

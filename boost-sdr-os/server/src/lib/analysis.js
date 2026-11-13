@@ -37,6 +37,79 @@ const STAGES = ['opener', 'middle', 'close'];
 
 const list = (xs) => xs.map((s) => `"${s}"`).join(' | ');
 
+
+// Claude records its analysis by calling this tool. The API then hands back structured data
+// directly, so a quote containing speech marks can no longer break the reply (which is what
+// happened when the analysis was written out as free text and parsed afterwards).
+const str = { type: 'string' };
+const ANALYSIS_TOOL = {
+  name: 'record_call_analysis',
+  description: 'Record the coaching analysis of this call.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      call_type: { type: 'string', enum: CALL_TYPES },
+      language: str,
+      coachable: { type: 'boolean' },
+      summary: str,
+      opener_result: { type: 'string', enum: OPENER_RESULTS },
+      ended_by: { type: 'string', enum: ['prospect', 'sdr', 'unclear'] },
+      next_step_secured: { type: 'boolean' },
+      meddpicc: {
+        type: 'object',
+        properties: Object.fromEntries(MEDDPICC.map((m) => [m.key, {
+          type: 'object',
+          properties: { score: { type: 'integer', enum: [0, 1, 2] }, evidence: str, evidence_en: str },
+          required: ['score'],
+        }])),
+        required: MEDDPICC.map((m) => m.key),
+      },
+      craft: {
+        type: 'object',
+        properties: Object.fromEntries(CRAFT.map((c) => [c.key, {
+          type: 'object',
+          properties: { score: { type: ['integer', 'null'], minimum: 1, maximum: 5 }, note: str },
+          required: ['score'],
+        }])),
+        required: CRAFT.map((c) => c.key),
+      },
+      prospect: {
+        type: 'object',
+        properties: {
+          role_or_title: { type: ['string', 'null'] },
+          seniority: { type: 'string', enum: SENIORITY },
+          company_type_or_industry: { type: ['string', 'null'] },
+        },
+      },
+      opener: {
+        type: 'object',
+        properties: { style: { type: 'string', enum: OPENER_STYLES }, quote: str, quote_en: str, note: str },
+      },
+      objections: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            category: { type: 'string', enum: OBJECTION_CATEGORIES },
+            stage: { type: 'string', enum: STAGES },
+            quote: str,
+            quote_en: str,
+            response_quote: str,
+            response_quote_en: str,
+            handled: { type: 'string', enum: ['well', 'ok', 'poorly'] },
+            why: str,
+          },
+          required: ['category', 'stage', 'quote', 'handled'],
+        },
+      },
+      best_moment: { type: ['object', 'null'], properties: { quote: str, quote_en: str, why: str } },
+      missed_moment: { type: ['object', 'null'], properties: { quote: str, quote_en: str, better: str } },
+      try_next_time: { type: 'array', items: str },
+    },
+    required: ['call_type', 'coachable', 'summary', 'opener_result', 'next_step_secured', 'meddpicc', 'craft', 'objections', 'try_next_time'],
+  },
+};
+
 const SYSTEM = `You are a sales coach reviewing a recorded call by an SDR (sales development rep) at boost, a monday.com partner that sells implementation and consulting services. Coach the way a good sales manager would: specific, fair, practical and kind, never harsh.
 
 You will get a transcript where the SDR is labelled "SDR" and the other person "PROSPECT". Transcripts are machine-generated and can contain errors; do not criticise transcription mistakes. Many calls are short. A prospect who hangs up or brushes the SDR off within the first few exchanges is useful data, so analyse it, do not dismiss it.
@@ -59,7 +132,7 @@ Rules:
 - "objections": each genuine objection or brush-off from the prospect (up to four) with the SDR's actual reply and where it came ("opener" means within the first couple of exchanges). Use an empty list if there were none.
 - "prospect" and "opener": only use what is said on the call. Use null or "unknown" when it is not stated; never guess a job title.
 
-Reply with a single JSON object and nothing else, in exactly this shape:
+Record your analysis by calling the record_call_analysis tool, using exactly this shape:
 {
   "call_type": ${list(CALL_TYPES)},
   "language": "the main language the call was spoken in, written in English, for example English or Hebrew",
@@ -194,12 +267,7 @@ function extractJson(text) {
   return JSON.parse(cleaned.slice(start, end + 1));
 }
 
-async function analyseCall({ turns, call }, { fetchImpl = fetch } = {}) {
-  const apiKey = getSecret('ANTHROPIC_API_KEY');
-  if (!apiKey) throw Object.assign(new Error('The server is missing ANTHROPIC_API_KEY.'), { code: 'not_configured' });
-
-  const length = call.durationMin == null ? 'unknown length' : `about ${Math.round(call.durationMin)} minute${Math.round(call.durationMin) === 1 ? '' : 's'}`;
-  const user = `Call length: ${length}.\n\nTranscript:\n${renderForModel(turns)}`;
+async function askClaude(user, apiKey, fetchImpl) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 55000);
   try {
@@ -209,18 +277,49 @@ async function analyseCall({ turns, call }, { fetchImpl = fetch } = {}) {
       headers: anthropicHeaders(apiKey),
       body: JSON.stringify({
         model: CLAUDE_MODEL,
-        max_tokens: 2000,
+        max_tokens: 3000,
         system: SYSTEM,
+        tools: [ANALYSIS_TOOL],
+        tool_choice: { type: 'tool', name: ANALYSIS_TOOL.name },
         messages: [{ role: 'user', content: user }],
       }),
     });
     if (!res.ok) throw new Error(await describeFailure(res));
-    const json = await res.json();
-    const text = (json.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
-    return validate(extractJson(text), turns);
+    return await res.json();
   } finally {
     clearTimeout(timer);
   }
+}
+
+// The structured answer, or (if Claude replied in plain text instead) JSON pulled out of the text.
+function readAnalysis(json) {
+  if (json.stop_reason === 'max_tokens') throw new Error('Claude ran out of room before finishing its answer');
+  const blocks = json.content || [];
+  const tool = blocks.find((b) => b.type === 'tool_use' && b.name === ANALYSIS_TOOL.name);
+  if (tool && tool.input && typeof tool.input === 'object') return tool.input;
+  return extractJson(blocks.filter((b) => b.type === 'text').map((b) => b.text).join(''));
+}
+
+async function analyseCall({ turns, call }, { fetchImpl = fetch } = {}) {
+  const apiKey = getSecret('ANTHROPIC_API_KEY');
+  if (!apiKey) throw Object.assign(new Error('The server is missing ANTHROPIC_API_KEY.'), { code: 'not_configured' });
+
+  const length = call.durationMin == null ? 'unknown length' : `about ${Math.round(call.durationMin)} minute${Math.round(call.durationMin) === 1 ? '' : 's'}`;
+  const user = `Call length: ${length}.\n\nTranscript:\n${renderForModel(turns)}`;
+
+  // An unreadable answer is retried once; any other failure is reported straight away.
+  let lastError;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const json = await askClaude(user, apiKey, fetchImpl);
+    try {
+      return validate(readAnalysis(json), turns);
+    } catch (err) {
+      const unreadable = err instanceof SyntaxError || /did not return JSON/.test(err.message);
+      if (!unreadable) throw err;
+      lastError = err;
+    }
+  }
+  throw lastError;
 }
 
 // Tiny request that proves the key works and Claude can be reached from this server.
@@ -234,7 +333,16 @@ async function ping({ fetchImpl = fetch } = {}) {
       method: 'POST',
       signal: ctrl.signal,
       headers: anthropicHeaders(apiKey),
-      body: JSON.stringify({ model: CLAUDE_MODEL, max_tokens: 8, messages: [{ role: 'user', content: 'Reply with the single word OK.' }] }),
+      // Sends the real analysis tool too, so a format Anthropic would reject shows up here
+      // and not on every analysis. The tiny token limit keeps the cost negligible; running out
+      // of room is fine because only the request being accepted matters.
+      body: JSON.stringify({
+        model: CLAUDE_MODEL,
+        max_tokens: 16,
+        tools: [ANALYSIS_TOOL],
+        tool_choice: { type: 'tool', name: ANALYSIS_TOOL.name },
+        messages: [{ role: 'user', content: 'Check: record a test analysis.' }],
+      }),
     });
     if (!res.ok) throw new Error(await describeFailure(res));
   } catch (err) {

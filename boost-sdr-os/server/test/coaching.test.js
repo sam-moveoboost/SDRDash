@@ -524,3 +524,82 @@ test('manager trends show the English wording of quotes', () => {
   assert.equal(t.openers[0].hangUpExamples[0].quote, 'Hello from boost');
   assert.equal(t.hangups.reasons[0].examples[0].quote, 'I have no time');
 });
+
+// ---- reliable structured output from Claude ----
+const withKey = async (fn) => {
+  process.env.ANTHROPIC_API_KEY = 'sk-test-key';
+  try { await fn(); } finally { delete process.env.ANTHROPIC_API_KEY; }
+};
+const quoteTurns = [
+  { who: 'prospect', text: 'He said "not now" and then "call back in March", honestly.' },
+  { who: 'sdr', text: 'No problem at all, I will call back in March.' },
+];
+const toolReply = (input) => ({ ok: true, json: async () => ({ stop_reason: 'tool_use', content: [{ type: 'tool_use', name: 'record_call_analysis', input }] }) });
+
+test('Claude is made to answer through a tool, so quotes containing speech marks cannot break it', async () => {
+  const { analyseCall } = require('../src/lib/analysis');
+  await withKey(async () => {
+    let body;
+    const fetchImpl = async (_url, init) => {
+      body = JSON.parse(init.body);
+      // A quote with speech marks in it: as free text this is exactly what produced "Expected ',' or '}'".
+      return toolReply({ call_type: 'conversation', coachable: true, opener_result: 'brushed_off', next_step_secured: true, meddpicc: {}, craft: {}, objections: [{ category: 'bad_timing', stage: 'middle', quote: 'He said "not now" and then "call back in March"', handled: 'well', why: 'x' }] });
+    };
+    const out = await analyseCall({ turns: quoteTurns, call: { durationMin: 1 } }, { fetchImpl });
+    assert.equal(body.tool_choice.type, 'tool');
+    assert.equal(body.tool_choice.name, 'record_call_analysis');
+    assert.equal(body.tools[0].name, 'record_call_analysis');
+    assert.equal(out.objections.length, 1);
+    assert.match(out.objections[0].quote, /"not now"/);
+  });
+});
+
+test('an unreadable plain-text reply is retried once, and a good second answer is used', async () => {
+  const { analyseCall } = require('../src/lib/analysis');
+  await withKey(async () => {
+    let calls = 0;
+    const fetchImpl = async () => {
+      calls += 1;
+      const text = calls === 1 ? '{ "call_type": "conversation" "coachable": true' : JSON.stringify({ call_type: 'conversation', coachable: true, meddpicc: {}, craft: {}, objections: [] });
+      return { ok: true, json: async () => ({ stop_reason: 'end_turn', content: [{ type: 'text', text }] }) };
+    };
+    const out = await analyseCall({ turns: quoteTurns, call: { durationMin: 1 } }, { fetchImpl });
+    assert.equal(calls, 2);
+    assert.equal(out.callType, 'conversation');
+  });
+});
+
+test('an answer that stays unreadable fails clearly after two tries', async () => {
+  const { analyseCall } = require('../src/lib/analysis');
+  await withKey(async () => {
+    let calls = 0;
+    const fetchImpl = async () => { calls += 1; return { ok: true, json: async () => ({ stop_reason: 'end_turn', content: [{ type: 'text', text: 'not json at all' }] }) }; };
+    await assert.rejects(() => analyseCall({ turns: quoteTurns, call: { durationMin: 1 } }, { fetchImpl }), /did not return JSON/);
+    assert.equal(calls, 2);
+  });
+});
+
+test('a reply cut off for length is reported plainly and not retried', async () => {
+  const { analyseCall } = require('../src/lib/analysis');
+  await withKey(async () => {
+    let calls = 0;
+    const fetchImpl = async () => { calls += 1; return { ok: true, json: async () => ({ stop_reason: 'max_tokens', content: [] }) }; };
+    await assert.rejects(() => analyseCall({ turns: quoteTurns, call: { durationMin: 1 } }, { fetchImpl }), /ran out of room/);
+    assert.equal(calls, 1);
+  });
+});
+
+test('the connection check also proves Anthropic accepts the analysis format', async () => {
+  const { ping } = require('../src/lib/analysis');
+  await withKey(async () => {
+    let body;
+    await ping({ fetchImpl: async (_u, init) => { body = JSON.parse(init.body); return { ok: true, json: async () => ({}) }; } });
+    assert.equal(body.tools[0].name, 'record_call_analysis');
+    assert.equal(body.tool_choice.name, 'record_call_analysis');
+    assert.ok(body.max_tokens <= 32);
+  });
+  await withKey(async () => {
+    const reject = async () => ({ ok: false, status: 400, text: async () => JSON.stringify({ error: { message: 'tools.0.input_schema: invalid' } }) });
+    await assert.rejects(() => ping({ fetchImpl: reject }), /HTTP 400: tools\.0\.input_schema/);
+  });
+});
