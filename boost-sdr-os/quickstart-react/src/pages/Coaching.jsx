@@ -36,7 +36,7 @@ export default function Coaching({ user }) {
   const [problem, setProblem] = useState(null);
   const [overview, setOverview] = useState(null);
   const [calls, setCalls] = useState([]);
-  const [meta, setMeta] = useState({ waitingCount: 0, coverage: [], rules: null });
+  const [meta, setMeta] = useState({ waitingCount: 0, refreshCount: 0, coverage: [], rules: null });
   const [trends, setTrends] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [analysing, setAnalysing] = useState({ busy: false, message: null });
@@ -56,7 +56,7 @@ export default function Coaching({ user }) {
       const picked = sdrId === 'all' ? demoCalls.calls : demoCalls.calls.filter((c) => c.sdrId === sdrId);
       setOverview(demoOverview);
       setCalls(picked);
-      setMeta({ waitingCount: demoCalls.waitingCount, coverage: demoCalls.coverage, rules: demoCalls.rules });
+      setMeta({ waitingCount: demoCalls.waitingCount, refreshCount: 0, coverage: demoCalls.coverage, rules: demoCalls.rules });
       setTrends(demoTrends);
       setLoading(false);
       return undefined;
@@ -73,7 +73,7 @@ export default function Coaching({ user }) {
         ]);
         if (!alive) return;
         setCalls(cl.calls);
-        setMeta({ waitingCount: cl.waitingCount, coverage: cl.coverage, rules: cl.rules });
+        setMeta({ waitingCount: cl.waitingCount, refreshCount: cl.refreshCount ?? 0, coverage: cl.coverage, rules: cl.rules });
         setTrends(tr);
       } catch (e) {
         if (alive) setProblem(explain(e));
@@ -100,7 +100,7 @@ export default function Coaching({ user }) {
     try {
       const cl = await coachingApi.calls(userIdParam, days);
       setCalls(cl.calls);
-      setMeta({ waitingCount: cl.waitingCount, coverage: cl.coverage, rules: cl.rules });
+      setMeta({ waitingCount: cl.waitingCount, refreshCount: cl.refreshCount ?? 0, coverage: cl.coverage, rules: cl.rules });
     } catch { /* the page keeps showing what it has */ }
   }, [userIdParam, days]);
 
@@ -144,7 +144,7 @@ export default function Coaching({ user }) {
           if (r?.analysis) {
             // Only a saved analysis counts as done. If it could not be kept permanently the
             // call stays in the waiting list so it is offered again.
-            setCalls((prev) => prev.map((c) => (c.id === id ? { ...c, analysis: r.analysis, status: r.saved ? 'analysed' : c.status } : c)));
+            setCalls((prev) => prev.map((c) => (c.id === id ? { ...c, analysis: r.analysis, status: r.saved ? 'analysed' : c.status, refresh: r.saved ? null : c.refresh, detailsMissing: false } : c)));
             if (r.saved) { done += 1; streak = 0; } else { unsaved += 1; streak += 1; }
           } else {
             failed += 1;
@@ -311,7 +311,6 @@ export default function Coaching({ user }) {
 
           <Section
             title="Calls to review"
-            sub={`Answered calls since ${meta.rules ? fmtDay(meta.rules.from) : '1 Nov'} with a transcript of ${meta.rules?.minChars ?? 250} characters or more, newest first. Short calls and hang-ups count too.`}
             right={(
               <div className="flex items-center gap-3 flex-wrap justify-end">
                 {analysing.message && <span className="text-[12.5px] text-muted max-w-[420px] text-right">{analysing.message}</span>}
@@ -346,7 +345,7 @@ export default function Coaching({ user }) {
             {confirmAll && !analysing.busy && (
               <div className="mb-4 rounded-xl border border-line bg-card px-4 py-3 text-[13px] flex items-center justify-between gap-4 flex-wrap">
                 <span className="text-body">
-                  This analyses all {waiting.length} waiting calls, {ALL_WORKERS} at a time. It will take roughly {estimateMinutes} minute{estimateMinutes === 1 ? '' : 's'}, uses Claude for each call, and needs this tab left open. You can stop at any point and nothing already finished is lost.
+                  This analyses all {waiting.length} waiting calls, {ALL_WORKERS} at a time. {meta.refreshCount > 0 && ` ${meta.refreshCount} of them ${meta.refreshCount === 1 ? 'is an older analysis' : 'are older analyses'} that will be redone in English.`} It will take roughly {estimateMinutes} minute{estimateMinutes === 1 ? '' : 's'}, uses Claude for each call, and needs this tab left open. You can stop at any point and nothing already finished is lost.
                 </span>
                 <span className="flex gap-2">
                   <button type="button" onClick={analyseAll} className="rounded-full bg-navy text-white text-sm font-medium px-4 py-1.5 border-0 cursor-pointer">Start</button>
@@ -361,8 +360,8 @@ export default function Coaching({ user }) {
                 {calls.map((c) => {
                   const open = openId === c.id;
                   const a = c.analysis;
-                  const status = c.detailsMissing
-                    ? <Chip tone="warn">Analysed, details missing</Chip>
+                  const status = c.refresh === 'english' ? <Chip tone="warn">Update to English</Chip>
+                    : c.refresh === 'missing' ? <Chip tone="warn">Re-analyse (details missing)</Chip>
                     : a && c.status === 'analysed' ? <Chip tone="good">Analysed</Chip>
                     : a ? <Chip tone="warn">Not saved yet</Chip>
                     : <Chip tone="warn">Waiting</Chip>;

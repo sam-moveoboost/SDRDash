@@ -252,6 +252,11 @@ export function CallDetail({ call, demo }) {
   }
   return (
     <div className="space-y-5">
+      {call.refresh === 'english' && (
+        <div className="rounded-xl bg-amber-soft text-amber-ink text-[12.5px] px-3 py-2">
+          This analysis was made before findings were written in English, so some wording may still be in the call's own language. It will be redone the next time you press an Analyse button.
+        </div>
+      )}
       <p className="text-[13.5px] text-ink">{a.summary}</p>
       <div className="flex gap-1.5 flex-wrap">
         <Chip>{CALL_TYPE_LABELS[a.callType] || a.callType}</Chip>

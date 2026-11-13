@@ -167,8 +167,15 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
       recordingUrl: c.recordingUrl,
       ...extra,
     });
+    // An analysis that is missing, or was saved before findings were written in English (it has no
+    // language field), is offered for redoing, so older Hebrew-only wording gets replaced.
+    const refreshOf = (analysis) => (!analysis ? 'missing' : !analysis.language ? 'english' : null);
+    const refreshing = done.filter((p) => refreshOf(p.analysis));
     const rows = [
-      ...done.map((p) => row(p.call, { status: 'analysed', transcript: { available: true }, analysis: p.analysis, detailsMissing: !p.analysis })),
+      ...done.map((p) => {
+        const refresh = refreshOf(p.analysis);
+        return row(p.call, { status: refresh ? 'waiting' : 'analysed', refresh, transcript: { available: true }, analysis: p.analysis, detailsMissing: !p.analysis });
+      }),
       ...waiting.map((p) => row(p.call, { status: 'waiting', transcript: { available: true, chars: p.parsed.stats.chars }, analysis: null })),
     ].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).slice(0, MAX_ROWS);
 
@@ -189,7 +196,8 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
 
     res.json({
       calls: rows,
-      waitingCount: waiting.length,
+      waitingCount: waiting.length + refreshing.length,
+      refreshCount: refreshing.length,
       coverage,
       rules: { from: new Date(cfg.COACHING_FROM_MS).toISOString().slice(0, 10), minChars: cfg.MIN_TRANSCRIPT_CHARS },
     });
@@ -248,11 +256,12 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
         }
         if (isAnalysed(call)) {
           const existing = await step('read saved analysis', () => store.getAnalysis(id));
-          if (existing) {
+          if (existing && existing.language) {
             results.push({ id, analysis: existing, saved: true, marked: true });
             continue;
           }
-          // Marked done but the saved analysis is missing: fall through and redo it.
+          // Marked done, but the saved analysis is missing or was made before findings were
+          // written in English: fall through and redo it.
         }
         const raw = await step('read transcript', async () => (await loadTranscripts([call]))[id]);
         const parsed = parseTranscript(raw, call.agentName);
