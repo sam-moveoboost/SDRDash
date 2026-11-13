@@ -159,7 +159,7 @@ export function CoverageTable({ coverage }) {
 
 export function FocusPanel({ coaching, who }) {
   if (!coaching || coaching.analysedCalls === 0) {
-    return <Empty>No calls have been analysed yet. Use "Analyse new calls" below to start.</Empty>;
+    return <Empty>No calls have been analysed yet. Use the Analyse buttons under Calls to review to start.</Empty>;
   }
   const tone = (v) => (v >= 0.66 ? 'good' : v >= 0.4 ? 'warn' : 'bad');
   return (
@@ -219,6 +219,19 @@ function Quote({ children }) {
   return <blockquote className="border-l-2 border-line-warm pl-3 text-[13px] text-body italic">{children}</blockquote>;
 }
 
+// A quote in English. When the call was in another language the original is shown beneath it.
+function Said({ en, original, label }) {
+  const text = en || original;
+  if (!text) return null;
+  const translated = original && en && original.trim() !== en.trim();
+  return (
+    <div>
+      <Quote>{label}"{text}"</Quote>
+      {translated && <div dir="auto" className="text-[11.5px] text-muted mt-0.5 pl-3">Original: {original}</div>}
+    </div>
+  );
+}
+
 export function CallDetail({ call, demo }) {
   const a = call.analysis;
   const [transcript, setTranscript] = useState({ state: 'idle', turns: [], error: null });
@@ -235,13 +248,14 @@ export function CallDetail({ call, demo }) {
   };
 
   if (!a) {
-    return <div className="text-[13px] text-muted">Not analysed yet. {call.transcript?.available ? 'Use "Analyse new calls" to analyse it.' : 'There is no transcript on this call yet.'}</div>;
+    return <div className="text-[13px] text-muted">Not analysed yet. {call.transcript?.available ? 'Use the Analyse buttons under Calls to review to analyse it.' : 'There is no transcript on this call yet.'}</div>;
   }
   return (
     <div className="space-y-5">
       <p className="text-[13.5px] text-ink">{a.summary}</p>
       <div className="flex gap-1.5 flex-wrap">
         <Chip>{CALL_TYPE_LABELS[a.callType] || a.callType}</Chip>
+        {a.language && a.language.toLowerCase() !== 'english' && <Chip tone="info">Translated from {a.language}</Chip>}
         {a.openerResult && <Chip tone={openerTone(a.openerResult)}>{OPENER_RESULT_LABELS[a.openerResult] || a.openerResult}</Chip>}
         {a.endedBy && a.endedBy !== 'unclear' && <Chip>Ended by the {a.endedBy === 'sdr' ? 'SDR' : 'prospect'}</Chip>}
         {a.opener?.style && <Chip tone="info">Opener: {a.opener.style.replace(/_/g, ' ')}</Chip>}
@@ -249,7 +263,7 @@ export function CallDetail({ call, demo }) {
       {a.opener?.quote && (
         <div>
           <div className="font-heading font-bold text-[12.5px] mb-1.5">How the call opened</div>
-          <Quote>"{a.opener.quote}"</Quote>
+          <Said en={a.opener.quoteEn} original={a.opener.quote} />
           {a.opener.note && <div className="text-[12px] text-muted mt-1.5">{a.opener.note}</div>}
         </div>
       )}
@@ -263,12 +277,12 @@ export function CallDetail({ call, demo }) {
                 const m = a.meddpicc?.[k];
                 const sc = m?.score ?? 0;
                 return (
-                  <div key={k} className="rounded-xl border border-line p-2.5" title={m?.evidence || ''}>
+                  <div key={k} className="rounded-xl border border-line p-2.5" title={m?.evidenceEn || m?.evidence || ''}>
                     <div className="flex items-center justify-between text-[12px]">
                       <span className="text-body">{label}</span>
                       <span className="flex gap-0.5">{[0, 1].map((i) => <span key={i} className={`w-2 h-2 rounded-full ${sc > i ? 'bg-emerald' : 'bg-sunken'}`} />)}</span>
                     </div>
-                    {m?.evidence && <div className="text-[11px] text-muted mt-1 italic line-clamp-2">"{m.evidence}"</div>}
+                    {(m?.evidenceEn || m?.evidence) && <div className="text-[11px] text-muted mt-1 italic line-clamp-2">"{m.evidenceEn || m.evidence}"</div>}
                   </div>
                 );
               })}
@@ -301,8 +315,8 @@ export function CallDetail({ call, demo }) {
             {a.objections.map((o, i) => (
               <div key={i} className="rounded-xl border border-line p-3">
                 <div className="flex items-center gap-2 mb-2"><Chip tone="info">{o.category.replace(/_/g, ' ')}</Chip>{o.stage && <Chip>{o.stage === 'opener' ? 'in the opener' : o.stage === 'close' ? 'at the close' : 'mid-call'}</Chip>}<Chip tone={o.handled === 'well' ? 'good' : o.handled === 'poorly' ? 'bad' : 'warn'}>handled {o.handled}</Chip></div>
-                <Quote>Prospect: "{o.quote}"</Quote>
-                {o.responseQuote && <div className="mt-1.5"><Quote>SDR: "{o.responseQuote}"</Quote></div>}
+                <Said label="Prospect: " en={o.quoteEn} original={o.quote} />
+                {o.responseQuote && <div className="mt-1.5"><Said label="SDR: " en={o.responseQuoteEn} original={o.responseQuote} /></div>}
                 {o.why && <div className="text-[12px] text-muted mt-1.5">{o.why}</div>}
               </div>
             ))}
@@ -314,14 +328,14 @@ export function CallDetail({ call, demo }) {
         {a.bestMoment && (
           <div className="rounded-xl bg-pale/40 p-3">
             <div className="font-heading font-bold text-[12.5px] mb-1.5">Best moment</div>
-            <Quote>"{a.bestMoment.quote}"</Quote>
+            <Said en={a.bestMoment.quoteEn} original={a.bestMoment.quote} />
             <div className="text-[12px] text-body mt-1.5">{a.bestMoment.why}</div>
           </div>
         )}
         {a.missedMoment && (
           <div className="rounded-xl bg-amber-soft p-3">
             <div className="font-heading font-bold text-[12.5px] mb-1.5">A moment to learn from</div>
-            <Quote>"{a.missedMoment.quote}"</Quote>
+            <Said en={a.missedMoment.quoteEn} original={a.missedMoment.quote} />
             <div className="text-[12px] text-body mt-1.5">{a.missedMoment.better}</div>
           </div>
         )}
@@ -356,7 +370,7 @@ export function CallDetail({ call, demo }) {
 export function TrendsPanel({ data }) {
   const t = data?.trends;
   if (!t || t.analysedCalls === 0) {
-    return <Empty>Trends appear once calls have been analysed. Use "Analyse next calls" below to start.</Empty>;
+    return <Empty>Trends appear once calls have been analysed. Use the Analyse buttons under Calls to review to start.</Empty>;
   }
   const maxCount = Math.max(...t.topObjections.map((o) => o.count), 1);
   return (

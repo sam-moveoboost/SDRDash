@@ -37,6 +37,79 @@ const STAGES = ['opener', 'middle', 'close'];
 
 const list = (xs) => xs.map((s) => `"${s}"`).join(' | ');
 
+
+// Claude records its analysis by calling this tool. The API then hands back structured data
+// directly, so a quote containing speech marks can no longer break the reply (which is what
+// happened when the analysis was written out as free text and parsed afterwards).
+const str = { type: 'string' };
+const ANALYSIS_TOOL = {
+  name: 'record_call_analysis',
+  description: 'Record the coaching analysis of this call.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      call_type: { type: 'string', enum: CALL_TYPES },
+      language: str,
+      coachable: { type: 'boolean' },
+      summary: str,
+      opener_result: { type: 'string', enum: OPENER_RESULTS },
+      ended_by: { type: 'string', enum: ['prospect', 'sdr', 'unclear'] },
+      next_step_secured: { type: 'boolean' },
+      meddpicc: {
+        type: 'object',
+        properties: Object.fromEntries(MEDDPICC.map((m) => [m.key, {
+          type: 'object',
+          properties: { score: { type: 'integer', enum: [0, 1, 2] }, evidence: str, evidence_en: str },
+          required: ['score'],
+        }])),
+        required: MEDDPICC.map((m) => m.key),
+      },
+      craft: {
+        type: 'object',
+        properties: Object.fromEntries(CRAFT.map((c) => [c.key, {
+          type: 'object',
+          properties: { score: { type: ['integer', 'null'], minimum: 1, maximum: 5 }, note: str },
+          required: ['score'],
+        }])),
+        required: CRAFT.map((c) => c.key),
+      },
+      prospect: {
+        type: 'object',
+        properties: {
+          role_or_title: { type: ['string', 'null'] },
+          seniority: { type: 'string', enum: SENIORITY },
+          company_type_or_industry: { type: ['string', 'null'] },
+        },
+      },
+      opener: {
+        type: 'object',
+        properties: { style: { type: 'string', enum: OPENER_STYLES }, quote: str, quote_en: str, note: str },
+      },
+      objections: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            category: { type: 'string', enum: OBJECTION_CATEGORIES },
+            stage: { type: 'string', enum: STAGES },
+            quote: str,
+            quote_en: str,
+            response_quote: str,
+            response_quote_en: str,
+            handled: { type: 'string', enum: ['well', 'ok', 'poorly'] },
+            why: str,
+          },
+          required: ['category', 'stage', 'quote', 'handled'],
+        },
+      },
+      best_moment: { type: ['object', 'null'], properties: { quote: str, quote_en: str, why: str } },
+      missed_moment: { type: ['object', 'null'], properties: { quote: str, quote_en: str, better: str } },
+      try_next_time: { type: 'array', items: str },
+    },
+    required: ['call_type', 'coachable', 'summary', 'opener_result', 'next_step_secured', 'meddpicc', 'craft', 'objections', 'try_next_time'],
+  },
+};
+
 const SYSTEM = `You are a sales coach reviewing a recorded call by an SDR (sales development rep) at boost, a monday.com partner that sells implementation and consulting services. Coach the way a good sales manager would: specific, fair, practical and kind, never harsh.
 
 You will get a transcript where the SDR is labelled "SDR" and the other person "PROSPECT". Transcripts are machine-generated and can contain errors; do not criticise transcription mistakes. Many calls are short. A prospect who hangs up or brushes the SDR off within the first few exchanges is useful data, so analyse it, do not dismiss it.
@@ -51,30 +124,36 @@ MEDDPICC scoring, judging what was realistic for an SDR: 0 = not touched on, 1 =
 Call craft is scored 1 (weak) to 5 (excellent): opening, discovery, objection handling, asking for the next step, tone and call control. Use null for any dimension that did not come up.
 
 Rules:
-- Every quote must be copied word for word from the transcript, short (under 30 words), and never invented.
+- Calls may be in Hebrew or another language. Write every finding in English: the summary, the notes, the reasons, the suggestions and the explanations. Never answer in the language of the call.
+- Every quote is given twice. The main field ("quote", "evidence" or "response_quote") is copied word for word in the original language, exactly as it appears in the transcript, short (under 30 words) and never invented. That copy is checked against the transcript, so never translate it. The matching field ending in _en is a faithful English translation of the same words (identical to the original when the call is already in English).
 - Base everything on the transcript. If something is unclear, say so instead of guessing.
 - "try_next_time" must be one to three concrete actions for the next call, ideally with a suggested phrase. For early hang-ups, focus on the first ten seconds.
 - Be honest. Praise only what happened.
 - "objections": each genuine objection or brush-off from the prospect (up to four) with the SDR's actual reply and where it came ("opener" means within the first couple of exchanges). Use an empty list if there were none.
 - "prospect" and "opener": only use what is said on the call. Use null or "unknown" when it is not stated; never guess a job title.
 
-Reply with a single JSON object and nothing else, in exactly this shape:
+Record your analysis by calling the record_call_analysis tool, using exactly this shape:
 {
   "call_type": ${list(CALL_TYPES)},
+  "language": "the main language the call was spoken in, written in English, for example English or Hebrew",
   "coachable": boolean,
   "summary": "two sentences on what happened and where the call ended",
   "opener_result": ${list(OPENER_RESULTS)},
   "ended_by": "prospect" | "sdr" | "unclear",
   "next_step_secured": boolean,
-  "meddpicc": { ${MEDDPICC.map((m) => `"${m.key}": { "score": 0|1|2, "evidence": "verbatim quote or empty string" }`).join(', ')} },
+  "meddpicc": { ${MEDDPICC.map((m) => `"${m.key}": { "score": 0|1|2, "evidence": "verbatim quote in the original language, or empty string", "evidence_en": "English translation of the evidence" }`).join(', ')} },
   "craft": { ${CRAFT.map((c) => `"${c.key}": { "score": 1-5 or null, "note": "one sentence" }`).join(', ')} },
   "prospect": { "role_or_title": "as said on the call, or null", "seniority": ${list(SENIORITY)}, "company_type_or_industry": "as said or clearly implied, or null" },
-  "opener": { "style": ${list(OPENER_STYLES)}, "quote": "verbatim: how the SDR opened, the first thing said after the greeting", "note": "one sentence" },
-  "objections": [ { "category": ${list(OBJECTION_CATEGORIES)}, "stage": ${list(STAGES)}, "quote": "verbatim prospect words", "response_quote": "verbatim SDR reply or empty string", "handled": "well" | "ok" | "poorly", "why": "one sentence" } ],
-  "best_moment": { "quote": "verbatim", "why": "one sentence" } | null,
-  "missed_moment": { "quote": "verbatim", "better": "what could have been said or asked instead" } | null,
+  "opener": { "style": ${list(OPENER_STYLES)}, "quote": "verbatim, original language: how the SDR opened, the first thing said after the greeting", "quote_en": "English translation", "note": "one sentence" },
+  "objections": [ { "category": ${list(OBJECTION_CATEGORIES)}, "stage": ${list(STAGES)}, "quote": "verbatim prospect words, original language", "quote_en": "English translation", "response_quote": "verbatim SDR reply in the original language, or empty string", "response_quote_en": "English translation of the reply", "handled": "well" | "ok" | "poorly", "why": "one sentence" } ],
+  "best_moment": { "quote": "verbatim, original language", "quote_en": "English translation", "why": "one sentence" } | null,
+  "missed_moment": { "quote": "verbatim, original language", "quote_en": "English translation", "better": "what could have been said or asked instead" } | null,
   "try_next_time": ["...", "..."]
 }`;
+
+function anthropicHeaders(apiKey) {
+  return { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' };
+}
 
 // Anthropic says why a request was refused (for example a model name or the account balance).
 // That text is safe to show; it never contains the key.
@@ -103,12 +182,21 @@ function clampScore(v, min, max) {
 
 const oneOf = (v, options, fallback) => (options.includes(v) ? v : fallback);
 
+// The English wording to show. Falls back to the original when no translation came back
+// (which is correct when the call was already in English).
+const english = (original, translated) => {
+  const t = translated == null ? '' : String(translated).trim();
+  return t ? t.slice(0, 400) : original;
+};
+
 // Cleans the model output and removes any quote that is not really in the transcript.
 function validate(raw, turns) {
   const tNorm = norm(turns.map((t) => t.text).join(' '));
+  const openerQuote = raw.opener?.quote && quoteIsReal(tNorm, raw.opener.quote) ? String(raw.opener.quote) : null;
   const out = {
     version: RUBRIC_VERSION,
     callType: oneOf(raw.call_type, CALL_TYPES, 'other'),
+    language: String(raw.language || 'English').trim().slice(0, 30) || 'English',
     coachable: raw.coachable === true,
     summary: String(raw.summary || '').slice(0, 600),
     openerResult: oneOf(raw.opener_result, OPENER_RESULTS, 'unclear'),
@@ -123,7 +211,8 @@ function validate(raw, turns) {
     },
     opener: {
       style: oneOf(raw.opener?.style, OPENER_STYLES, 'other'),
-      quote: raw.opener?.quote && quoteIsReal(tNorm, raw.opener.quote) ? String(raw.opener.quote) : null,
+      quote: openerQuote,
+      quoteEn: openerQuote ? english(openerQuote, raw.opener?.quote_en) : null,
       note: String(raw.opener?.note || '').slice(0, 300),
     },
     objections: [],
@@ -136,7 +225,7 @@ function validate(raw, turns) {
   for (const { key } of MEDDPICC) {
     const m = raw.meddpicc?.[key] || {};
     const evidence = m.evidence && quoteIsReal(tNorm, m.evidence) ? String(m.evidence) : null;
-    out.meddpicc[key] = { score: clampScore(m.score, 0, 2) ?? 0, evidence };
+    out.meddpicc[key] = { score: clampScore(m.score, 0, 2) ?? 0, evidence, evidenceEn: evidence ? english(evidence, m.evidence_en) : null };
   }
   for (const { key } of CRAFT) {
     const c = raw.craft?.[key] || {};
@@ -147,20 +236,25 @@ function validate(raw, turns) {
   out.objections = (Array.isArray(raw.objections) ? raw.objections : [])
     .filter((o) => o?.quote && quoteIsReal(tNorm, o.quote))
     .slice(0, 4)
-    .map((o) => ({
-      category: oneOf(o.category, OBJECTION_CATEGORIES, 'other'),
-      stage: oneOf(o.stage, STAGES, 'middle'),
-      quote: String(o.quote),
-      responseQuote: o.response_quote && quoteIsReal(tNorm, o.response_quote) ? String(o.response_quote) : null,
-      handled: oneOf(o.handled, ['well', 'ok', 'poorly'], 'ok'),
-      why: String(o.why || '').slice(0, 300),
-    }));
+    .map((o) => {
+      const responseQuote = o.response_quote && quoteIsReal(tNorm, o.response_quote) ? String(o.response_quote) : null;
+      return {
+        category: oneOf(o.category, OBJECTION_CATEGORIES, 'other'),
+        stage: oneOf(o.stage, STAGES, 'middle'),
+        quote: String(o.quote),
+        quoteEn: english(String(o.quote), o.quote_en),
+        responseQuote,
+        responseQuoteEn: responseQuote ? english(responseQuote, o.response_quote_en) : null,
+        handled: oneOf(o.handled, ['well', 'ok', 'poorly'], 'ok'),
+        why: String(o.why || '').slice(0, 300),
+      };
+    });
 
   if (raw.best_moment?.quote && quoteIsReal(tNorm, raw.best_moment.quote)) {
-    out.bestMoment = { quote: String(raw.best_moment.quote), why: String(raw.best_moment.why || '').slice(0, 300) };
+    out.bestMoment = { quote: String(raw.best_moment.quote), quoteEn: english(String(raw.best_moment.quote), raw.best_moment.quote_en), why: String(raw.best_moment.why || '').slice(0, 300) };
   }
   if (raw.missed_moment?.quote && quoteIsReal(tNorm, raw.missed_moment.quote)) {
-    out.missedMoment = { quote: String(raw.missed_moment.quote), better: String(raw.missed_moment.better || '').slice(0, 400) };
+    out.missedMoment = { quote: String(raw.missed_moment.quote), quoteEn: english(String(raw.missed_moment.quote), raw.missed_moment.quote_en), better: String(raw.missed_moment.better || '').slice(0, 400) };
   }
   return out;
 }
@@ -173,33 +267,59 @@ function extractJson(text) {
   return JSON.parse(cleaned.slice(start, end + 1));
 }
 
-async function analyseCall({ turns, call }, { fetchImpl = fetch } = {}) {
-  const apiKey = getSecret('ANTHROPIC_API_KEY');
-  if (!apiKey) throw Object.assign(new Error('The server is missing ANTHROPIC_API_KEY.'), { code: 'not_configured' });
-
-  const length = call.durationMin == null ? 'unknown length' : `about ${Math.round(call.durationMin)} minute${Math.round(call.durationMin) === 1 ? '' : 's'}`;
-  const user = `Call length: ${length}.\n\nTranscript:\n${renderForModel(turns)}`;
+async function askClaude(user, apiKey, fetchImpl) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 55000);
   try {
     const res = await fetchImpl('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       signal: ctrl.signal,
-      headers: { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      headers: anthropicHeaders(apiKey),
       body: JSON.stringify({
         model: CLAUDE_MODEL,
-        max_tokens: 2000,
+        max_tokens: 3000,
         system: SYSTEM,
+        tools: [ANALYSIS_TOOL],
+        tool_choice: { type: 'tool', name: ANALYSIS_TOOL.name },
         messages: [{ role: 'user', content: user }],
       }),
     });
     if (!res.ok) throw new Error(await describeFailure(res));
-    const json = await res.json();
-    const text = (json.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
-    return validate(extractJson(text), turns);
+    return await res.json();
   } finally {
     clearTimeout(timer);
   }
+}
+
+// The structured answer, or (if Claude replied in plain text instead) JSON pulled out of the text.
+function readAnalysis(json) {
+  if (json.stop_reason === 'max_tokens') throw new Error('Claude ran out of room before finishing its answer');
+  const blocks = json.content || [];
+  const tool = blocks.find((b) => b.type === 'tool_use' && b.name === ANALYSIS_TOOL.name);
+  if (tool && tool.input && typeof tool.input === 'object') return tool.input;
+  return extractJson(blocks.filter((b) => b.type === 'text').map((b) => b.text).join(''));
+}
+
+async function analyseCall({ turns, call }, { fetchImpl = fetch } = {}) {
+  const apiKey = getSecret('ANTHROPIC_API_KEY');
+  if (!apiKey) throw Object.assign(new Error('The server is missing ANTHROPIC_API_KEY.'), { code: 'not_configured' });
+
+  const length = call.durationMin == null ? 'unknown length' : `about ${Math.round(call.durationMin)} minute${Math.round(call.durationMin) === 1 ? '' : 's'}`;
+  const user = `Call length: ${length}.\n\nTranscript:\n${renderForModel(turns)}`;
+
+  // An unreadable answer is retried once; any other failure is reported straight away.
+  let lastError;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const json = await askClaude(user, apiKey, fetchImpl);
+    try {
+      return validate(readAnalysis(json), turns);
+    } catch (err) {
+      const unreadable = err instanceof SyntaxError || /did not return JSON/.test(err.message);
+      if (!unreadable) throw err;
+      lastError = err;
+    }
+  }
+  throw lastError;
 }
 
 // Tiny request that proves the key works and Claude can be reached from this server.
@@ -212,8 +332,17 @@ async function ping({ fetchImpl = fetch } = {}) {
     const res = await fetchImpl('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       signal: ctrl.signal,
-      headers: { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: CLAUDE_MODEL, max_tokens: 8, messages: [{ role: 'user', content: 'Reply with the single word OK.' }] }),
+      headers: anthropicHeaders(apiKey),
+      // Sends the real analysis tool too, so a format Anthropic would reject shows up here
+      // and not on every analysis. The tiny token limit keeps the cost negligible; running out
+      // of room is fine because only the request being accepted matters.
+      body: JSON.stringify({
+        model: CLAUDE_MODEL,
+        max_tokens: 16,
+        tools: [ANALYSIS_TOOL],
+        tool_choice: { type: 'tool', name: ANALYSIS_TOOL.name },
+        messages: [{ role: 'user', content: 'Check: record a test analysis.' }],
+      }),
     });
     if (!res.ok) throw new Error(await describeFailure(res));
   } catch (err) {

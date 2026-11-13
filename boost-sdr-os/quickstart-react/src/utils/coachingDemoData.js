@@ -87,6 +87,19 @@ const hangup = {
   tryNextTime: ['Open with who you are and ask for ten seconds before the pitch.'],
 };
 
+const hebrewCall = {
+  callType: 'conversation', language: 'Hebrew', coachable: true, nextStepSecured: true, openerResult: 'stayed_engaged', endedBy: 'sdr',
+  summary: 'The prospect said they were busy, the SDR acknowledged it and asked for a shorter slot next week, and they agreed to ten minutes.',
+  meddpicc: { identify_pain: { score: 1, evidence: 'אין לי זמן עכשיו', evidenceEn: 'I do not have time right now' } },
+  craft: { opening: { score: 4, note: 'Asked permission before pitching.' }, discovery: { score: null, note: '' }, objection_handling: { score: 4, note: 'Acknowledged the objection, then made the ask smaller.' }, next_step_ask: { score: 4, note: 'Asked for a specific time.' }, tone_and_control: { score: 4, note: 'Calm and respectful.' } },
+  prospect: { role: null, seniority: 'unknown', industry: null },
+  opener: { style: 'permission_based', quote: 'יש לך רגע', quoteEn: 'do you have a moment', note: 'Asked permission first.' },
+  objections: [{ category: 'no_time', stage: 'opener', quote: 'אין לי זמן עכשיו', quoteEn: 'I do not have time right now', responseQuote: 'אפשר עשר דקות בשבוע הבא', responseQuoteEn: 'could we do ten minutes next week', handled: 'well', why: 'Acknowledged, then made the ask smaller.' }],
+  bestMoment: { quote: 'מבין לגמרי', quoteEn: 'I completely understand', why: 'Showed empathy before making the ask.' },
+  missedMoment: null,
+  tryNextTime: ['Ask one question about how they run their pipeline today before booking the follow-up.'],
+};
+
 export const demoCalls = {
   waitingCount: 2,
   rules: { from: '2026-11-01', minChars: 250 },
@@ -99,6 +112,7 @@ export const demoCalls = {
     { id: 'd1', sdrId: '1', sdrName: 'Luke Birchley', startedAt: '2026-11-02 14:56', createdAt: '2026-11-02T14:57:00Z', durationMin: 11, outcome: 'Outbound answered', tags: ['MeetingBooked'], recordingUrl: null, status: 'analysed', transcript: { available: true }, analysis },
     { id: 'd2', sdrId: '2', sdrName: 'Emad Mahamid', startedAt: '2026-11-02 14:44', createdAt: '2026-11-02T14:44:00Z', durationMin: 4, outcome: 'Outbound answered', tags: [], recordingUrl: null, status: 'waiting', transcript: { available: true, chars: 1800 }, analysis: null },
     { id: 'd3', sdrId: '3', sdrName: 'Tayla Jones', startedAt: '2026-11-04 10:14', createdAt: '2026-11-04T10:14:00Z', durationMin: 0, outcome: 'Outbound answered', tags: [], recordingUrl: null, status: 'analysed', transcript: { available: true }, analysis: hangup },
+    { id: 'd5', sdrId: '2', sdrName: 'Emad Mahamid', startedAt: '2026-11-03 11:05', createdAt: '2026-11-03T11:05:00Z', durationMin: 3, outcome: 'Outbound answered', tags: [], recordingUrl: null, status: 'analysed', transcript: { available: true }, analysis: hebrewCall },
     { id: 'd4', sdrId: '3', sdrName: 'Tayla Jones', startedAt: '2026-11-04 10:22', createdAt: '2026-11-04T10:22:00Z', durationMin: 1, outcome: 'Outbound answered', tags: [], recordingUrl: null, status: 'waiting', transcript: { available: true, chars: 640 }, analysis: null },
   ],
 };

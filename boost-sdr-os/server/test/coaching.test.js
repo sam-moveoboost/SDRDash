@@ -455,3 +455,151 @@ test('Claude\'s own explanation of a refusal is shown, not just the status', asy
   await assert.rejects(() => ping({ fetchImpl }), /HTTP 400: Your credit balance is too low/);
   delete process.env.ANTHROPIC_API_KEY;
 });
+
+test('app storage keeps objects intact even though the service turns them into text', async () => {
+  // Mimics the fault seen live: the service saved the words "[object Object]" (15 characters).
+  class CoercingStorage {
+    constructor() { this.data = new Map(); }
+    async set(key, value) { this.data.set(key, String(value)); return { success: true, version: '1' }; }
+    async get(key) { return { success: true, value: this.data.get(key) }; }
+  }
+  const [, app] = realStore._makeBackends({ Storage: CoercingStorage, SecureStorage: class {}, getSecret: () => 'token' });
+  realStore._setBackends([app]);
+  const analysis = { callType: 'conversation', summary: 'x' };
+  assert.equal(await realStore.saveAnalysis('4', analysis), true);
+  assert.deepEqual(await realStore.getAnalysis('4'), analysis);
+  const results = await realStore.selfTest();
+  assert.equal(results[0].ok, true); // the connection check no longer shows this store as broken
+});
+
+// ---- English output for calls in other languages ----
+const hebrewTurns = [
+  { who: 'sdr', text: 'שלום, מדבר דני מבוסט, יש לך רגע?' },
+  { who: 'prospect', text: 'אין לי זמן עכשיו, תתקשר בהזדמנות אחרת.' },
+  { who: 'sdr', text: 'מבין לגמרי, אפשר עשר דקות בשבוע הבא?' },
+];
+
+test('findings are kept in English and quotes are checked in the original language', () => {
+  const { validate, SYSTEM } = require('../src/lib/analysis');
+  const out = validate({
+    call_type: 'conversation', language: 'Hebrew', coachable: true, opener_result: 'stayed_engaged',
+    opener: { style: 'permission_based', quote: 'יש לך רגע', quote_en: 'do you have a moment', note: 'Asked permission first.' },
+    objections: [
+      { category: 'no_time', stage: 'opener', quote: 'אין לי זמן עכשיו', quote_en: 'I do not have time right now', response_quote: 'אפשר עשר דקות בשבוע הבא', response_quote_en: 'could we do ten minutes next week', handled: 'well', why: 'Acknowledged, then made the ask smaller.' },
+      { category: 'no_budget', stage: 'middle', quote: 'אין לנו תקציב בכלל', quote_en: 'we have no budget at all', handled: 'poorly', why: 'invented' },
+    ],
+    best_moment: { quote: 'מבין לגמרי', quote_en: 'I completely understand', why: 'Showed empathy.' },
+    meddpicc: { identify_pain: { score: 1, evidence: 'אין לי זמן עכשיו', evidence_en: 'I do not have time right now' } },
+  }, hebrewTurns);
+
+  assert.equal(out.language, 'Hebrew');
+  assert.equal(out.opener.quote, 'יש לך רגע'); // the original, which was checked against the transcript
+  assert.equal(out.opener.quoteEn, 'do you have a moment');
+  assert.equal(out.objections.length, 1); // the made-up Hebrew quote was dropped
+  assert.equal(out.objections[0].quoteEn, 'I do not have time right now');
+  assert.equal(out.objections[0].responseQuoteEn, 'could we do ten minutes next week');
+  assert.equal(out.bestMoment.quoteEn, 'I completely understand');
+  assert.equal(out.meddpicc.identify_pain.evidenceEn, 'I do not have time right now');
+  assert.match(SYSTEM, /Write every finding in English/);
+});
+
+test('an English call needs no translation and a missing translation falls back to the original', () => {
+  const { validate } = require('../src/lib/analysis');
+  const turns = [{ who: 'prospect', text: 'We are not looking at any new tools this year, sorry.' }];
+  const out = validate({ call_type: 'conversation', objections: [{ category: 'not_interested', stage: 'middle', quote: 'We are not looking at any new tools this year', handled: 'ok', why: 'x' }] }, turns);
+  assert.equal(out.language, 'English');
+  assert.equal(out.objections[0].quoteEn, 'We are not looking at any new tools this year');
+});
+
+test('manager trends show the English wording of quotes', () => {
+  const mk = (id, analysis) => ({ call: { id, sdrId: id, sdrName: `SDR ${id}`, tags: [], durationMin: 1, startedAt: '2026-11-02 10:00' }, analysis });
+  const t = buildTrends([mk('1', {
+    coachable: false, callType: 'early_hangup', nextStepSecured: false, craft: {}, prospect: { seniority: 'unknown' }, openerResult: 'hung_up',
+    opener: { style: 'direct_pitch', quote: 'שלום מבוסט', quoteEn: 'Hello from boost' },
+    objections: [{ category: 'no_time', stage: 'opener', quote: 'אין לי זמן', quoteEn: 'I have no time', responseQuote: 'עשר דקות', responseQuoteEn: 'ten minutes', handled: 'well', why: 'x' }],
+  })]);
+  assert.equal(t.topObjections[0].examples[0].quote, 'I have no time');
+  assert.equal(t.earlyObjections[0].examples[0].quote, 'I have no time');
+  assert.equal(t.earlyObjections[0].examples[0].response, 'ten minutes');
+  assert.equal(t.openers[0].hangUpExamples[0].quote, 'Hello from boost');
+  assert.equal(t.hangups.reasons[0].examples[0].quote, 'I have no time');
+});
+
+// ---- reliable structured output from Claude ----
+const withKey = async (fn) => {
+  process.env.ANTHROPIC_API_KEY = 'sk-test-key';
+  try { await fn(); } finally { delete process.env.ANTHROPIC_API_KEY; }
+};
+const quoteTurns = [
+  { who: 'prospect', text: 'He said "not now" and then "call back in March", honestly.' },
+  { who: 'sdr', text: 'No problem at all, I will call back in March.' },
+];
+const toolReply = (input) => ({ ok: true, json: async () => ({ stop_reason: 'tool_use', content: [{ type: 'tool_use', name: 'record_call_analysis', input }] }) });
+
+test('Claude is made to answer through a tool, so quotes containing speech marks cannot break it', async () => {
+  const { analyseCall } = require('../src/lib/analysis');
+  await withKey(async () => {
+    let body;
+    const fetchImpl = async (_url, init) => {
+      body = JSON.parse(init.body);
+      // A quote with speech marks in it: as free text this is exactly what produced "Expected ',' or '}'".
+      return toolReply({ call_type: 'conversation', coachable: true, opener_result: 'brushed_off', next_step_secured: true, meddpicc: {}, craft: {}, objections: [{ category: 'bad_timing', stage: 'middle', quote: 'He said "not now" and then "call back in March"', handled: 'well', why: 'x' }] });
+    };
+    const out = await analyseCall({ turns: quoteTurns, call: { durationMin: 1 } }, { fetchImpl });
+    assert.equal(body.tool_choice.type, 'tool');
+    assert.equal(body.tool_choice.name, 'record_call_analysis');
+    assert.equal(body.tools[0].name, 'record_call_analysis');
+    assert.equal(out.objections.length, 1);
+    assert.match(out.objections[0].quote, /"not now"/);
+  });
+});
+
+test('an unreadable plain-text reply is retried once, and a good second answer is used', async () => {
+  const { analyseCall } = require('../src/lib/analysis');
+  await withKey(async () => {
+    let calls = 0;
+    const fetchImpl = async () => {
+      calls += 1;
+      const text = calls === 1 ? '{ "call_type": "conversation" "coachable": true' : JSON.stringify({ call_type: 'conversation', coachable: true, meddpicc: {}, craft: {}, objections: [] });
+      return { ok: true, json: async () => ({ stop_reason: 'end_turn', content: [{ type: 'text', text }] }) };
+    };
+    const out = await analyseCall({ turns: quoteTurns, call: { durationMin: 1 } }, { fetchImpl });
+    assert.equal(calls, 2);
+    assert.equal(out.callType, 'conversation');
+  });
+});
+
+test('an answer that stays unreadable fails clearly after two tries', async () => {
+  const { analyseCall } = require('../src/lib/analysis');
+  await withKey(async () => {
+    let calls = 0;
+    const fetchImpl = async () => { calls += 1; return { ok: true, json: async () => ({ stop_reason: 'end_turn', content: [{ type: 'text', text: 'not json at all' }] }) }; };
+    await assert.rejects(() => analyseCall({ turns: quoteTurns, call: { durationMin: 1 } }, { fetchImpl }), /did not return JSON/);
+    assert.equal(calls, 2);
+  });
+});
+
+test('a reply cut off for length is reported plainly and not retried', async () => {
+  const { analyseCall } = require('../src/lib/analysis');
+  await withKey(async () => {
+    let calls = 0;
+    const fetchImpl = async () => { calls += 1; return { ok: true, json: async () => ({ stop_reason: 'max_tokens', content: [] }) }; };
+    await assert.rejects(() => analyseCall({ turns: quoteTurns, call: { durationMin: 1 } }, { fetchImpl }), /ran out of room/);
+    assert.equal(calls, 1);
+  });
+});
+
+test('the connection check also proves Anthropic accepts the analysis format', async () => {
+  const { ping } = require('../src/lib/analysis');
+  await withKey(async () => {
+    let body;
+    await ping({ fetchImpl: async (_u, init) => { body = JSON.parse(init.body); return { ok: true, json: async () => ({}) }; } });
+    assert.equal(body.tools[0].name, 'record_call_analysis');
+    assert.equal(body.tool_choice.name, 'record_call_analysis');
+    assert.ok(body.max_tokens <= 32);
+  });
+  await withKey(async () => {
+    const reject = async () => ({ ok: false, status: 400, text: async () => JSON.stringify({ error: { message: 'tools.0.input_schema: invalid' } }) });
+    await assert.rejects(() => ping({ fetchImpl: reject }), /HTTP 400: tools\.0\.input_schema/);
+  });
+});
