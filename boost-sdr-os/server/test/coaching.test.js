@@ -70,7 +70,7 @@ function makeDeps({ persist = true, claudeFails = false, claudePingFails = false
         analyseCall: async ({ call }) => {
           if (claudeFails) throw new Error('Claude API HTTP 529');
           log.analysed.push(call.id);
-          return { callType: 'conversation', coachable: true, openerResult: 'stayed_engaged', nextStepSecured: true, meddpicc: {}, craft: {}, objections: [] };
+          return { callType: 'conversation', language: 'English', coachable: true, openerResult: 'stayed_engaged', nextStepSecured: true, meddpicc: {}, craft: {}, objections: [] };
         },
       },
       store: {
@@ -601,5 +601,49 @@ test('the connection check also proves Anthropic accepts the analysis format', a
   await withKey(async () => {
     const reject = async () => ({ ok: false, status: 400, text: async () => JSON.stringify({ error: { message: 'tools.0.input_schema: invalid' } }) });
     await assert.rejects(() => ping({ fetchImpl: reject }), /HTTP 400: tools\.0\.input_schema/);
+  });
+});
+
+// ---- older analyses get redone in English ----
+test('an analysis saved before the English change is offered for redoing, and replaced', async () => {
+  await withServer(async ({ json, log, calls, deps }) => {
+    // Call 3 was analysed earlier: marked on the board, but saved without a language (the old format).
+    calls.find((c) => c.id === '3').coachingStatus = 'Analysed';
+    await deps.store.saveAnalysis('3', { callType: 'early_hangup', coachable: false, objections: [{ quote: 'אין לי זמן' }] });
+
+    const list = await json('/calls', LUKE);
+    const row = list.calls.find((c) => c.id === '3');
+    assert.equal(row.status, 'waiting');
+    assert.equal(row.refresh, 'english');
+    assert.equal(list.refreshCount, 1);
+    assert.equal(list.waitingCount, 2); // call 1 (never analysed) plus call 3 (to redo)
+
+    const res = await json('/analyse', LUKE, { method: 'POST', body: JSON.stringify({ ids: ['3'] }) });
+    assert.equal(res.results[0].saved, true);
+    assert.deepEqual(log.analysed, ['3']); // it really was analysed again, not served from the old record
+  });
+});
+
+test('a current analysis (with a language) is left alone and never redone', async () => {
+  await withServer(async ({ json, log, calls, deps }) => {
+    calls.find((c) => c.id === '3').coachingStatus = 'Analysed';
+    await deps.store.saveAnalysis('3', { callType: 'early_hangup', language: 'English', coachable: false });
+
+    const list = await json('/calls', LUKE);
+    assert.equal(list.calls.find((c) => c.id === '3').status, 'analysed');
+    assert.equal(list.refreshCount, 0);
+
+    await json('/analyse', LUKE, { method: 'POST', body: JSON.stringify({ ids: ['3'] }) });
+    assert.deepEqual(log.analysed, []); // nothing spent
+  });
+});
+
+test('a call marked analysed whose saved analysis has gone missing is offered again too', async () => {
+  await withServer(async ({ json, calls }) => {
+    calls.find((c) => c.id === '3').coachingStatus = 'Analysed'; // marked, but nothing saved
+    const list = await json('/calls', LUKE);
+    const row = list.calls.find((c) => c.id === '3');
+    assert.equal(row.status, 'waiting');
+    assert.equal(row.refresh, 'missing');
   });
 });
