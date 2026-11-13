@@ -200,4 +200,17 @@ function buildTrends(pairs) {
   };
 }
 
-module.exports = { buildTrends };
+// The team patterns, with nothing that points at an individual: no names, no IDs, no link back to
+// a particular call, and no SDR-by-SDR comparison. Short example quotes stay, because seeing what
+// works is the point, but they cannot be traced to a person or opened as a transcript.
+const PEOPLE_KEYS = new Set(['sdrName', 'sdrId', 'callId', 'startedAt', 'sdrs']);
+
+function forEveryone(value) {
+  if (Array.isArray(value)) return value.map(forEveryone);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).filter(([k]) => !PEOPLE_KEYS.has(k)).map(([k, v]) => [k, forEveryone(v)]));
+  }
+  return value;
+}
+
+module.exports = { buildTrends, forEveryone };

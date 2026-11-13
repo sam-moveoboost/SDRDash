@@ -399,8 +399,8 @@ export function TrendsPanel({ data }) {
                   <div className="flex justify-between text-[13px] mb-1.5"><span className="font-medium text-ink">{o.label}</span><span className="text-muted">{o.calls} call{o.calls === 1 ? "" : "s"}, {o.booked} booked</span></div>
                   <div className="flex items-center gap-2 text-[11.5px] text-muted mb-1"><span className="w-[72px]">Stayed</span><div className="flex-1"><Bar value={o.stayedRate} tone="good" /></div><span className="w-9 text-right">{pct(o.stayedRate)}</span></div>
                   <div className="flex items-center gap-2 text-[11.5px] text-muted"><span className="w-[72px]">Hung up</span><div className="flex-1"><Bar value={o.hungUpRate} tone="bad" /></div><span className="w-9 text-right">{pct(o.hungUpRate)}</span></div>
-                  {o.stayExamples[0] && <div className="text-[12px] text-body italic mt-1.5">Kept them on: "{o.stayExamples[0].quote}" ({o.stayExamples[0].sdrName})</div>}
-                  {o.hangUpExamples[0] && <div className="text-[12px] text-body italic mt-1">Lost them: "{o.hangUpExamples[0].quote}" ({o.hangUpExamples[0].sdrName})</div>}
+                  {o.stayExamples[0] && <div className="text-[12px] text-body italic mt-1.5">Kept them on: "{o.stayExamples[0].quote}"{o.stayExamples[0].sdrName ? ` (${o.stayExamples[0].sdrName})` : ''}</div>}
+                  {o.hangUpExamples[0] && <div className="text-[12px] text-body italic mt-1">Lost them: "{o.hangUpExamples[0].quote}"{o.hangUpExamples[0].sdrName ? ` (${o.hangUpExamples[0].sdrName})` : ''}</div>}
                 </li>
               ))}
             </ul>
@@ -414,7 +414,7 @@ export function TrendsPanel({ data }) {
                 <li key={r.category}>
                   <div className="flex justify-between text-[13px] mb-1"><span className="font-medium text-ink">{r.label}</span><span className="text-muted">{r.count}</span></div>
                   <Bar value={r.count / t.hangups.count} tone="bad" />
-                  {r.examples[0] && <div className="text-[12px] text-body italic mt-1">"{r.examples[0].quote}" ({r.examples[0].sdrName})</div>}
+                  {r.examples[0] && <div className="text-[12px] text-body italic mt-1">"{r.examples[0].quote}"{r.examples[0].sdrName ? ` (${r.examples[0].sdrName})` : ''}</div>}
                 </li>
               ))}
             </ul>
@@ -432,7 +432,7 @@ export function TrendsPanel({ data }) {
                 {o.examples.length === 0 ? <div className="text-[12px] text-muted">No well-handled example yet.</div> : o.examples.map((e, i) => (
                   <div key={i} className="mb-2 space-y-1">
                     <Quote>Prospect: "{e.quote}"</Quote>
-                    <Quote>{e.sdrName}: "{e.response}"</Quote>
+                    <Quote>{e.sdrName || 'SDR'}: "{e.response}"</Quote>
                     <div className="text-[11.5px] text-muted flex gap-2 items-center flex-wrap">{e.stayed && <Chip tone="good">they stayed</Chip>}{e.booked && <Chip tone="good">meeting booked</Chip>}<span>{e.why}</span></div>
                   </div>
                 ))}
@@ -467,7 +467,7 @@ export function TrendsPanel({ data }) {
                   {b.examples.map((e, i) => (
                     <div key={i} className="mb-2 rounded-xl border border-line p-2.5 space-y-1">
                       <Quote>Prospect: "{e.quote}"</Quote>
-                      <Quote>{e.sdrName}: "{e.response}"</Quote>
+                      <Quote>{e.sdrName || 'SDR'}: "{e.response}"</Quote>
                       <div className="text-[11.5px] text-muted flex gap-2 items-center flex-wrap">{e.booked && <Chip tone="good">meeting booked</Chip>}{e.stayed && !e.booked && <Chip tone="good">they stayed</Chip>}<span>{e.why}</span></div>
                     </div>
                   ))}
@@ -505,21 +505,23 @@ export function TrendsPanel({ data }) {
         </table>
       </Card>
 
-      <Card title="SDR comparison" note="analysed calls only">
-        <div className="overflow-x-auto">
-          <table className="w-full text-[13px]">
-            <thead><tr className="text-left text-muted text-[11.5px]">{['SDR', 'Analysed', 'Booked', 'Prospect stayed', 'Next step secured', 'Objections handled well', 'Average craft'].map((h) => <th key={h} className="font-medium pb-2 pr-4 whitespace-nowrap">{h}</th>)}</tr></thead>
-            <tbody>
-              {t.sdrs.map((r) => (
-                <tr key={r.id || r.name} className="border-t border-line">
-                  <td className="py-2.5 pr-4 font-medium text-ink">{r.name}</td><td className="py-2.5 pr-4">{r.analysedCalls}</td><td className="py-2.5 pr-4">{r.booked}</td>
-                  <td className="py-2.5 pr-4">{pct(r.stayedRate)}</td><td className="py-2.5 pr-4">{pct(r.nextStepRate)}</td><td className="py-2.5 pr-4">{pct(r.objectionsHandledWellRate)}</td><td className="py-2.5 pr-4">{r.avgCraft == null ? 'n/a' : `${num(r.avgCraft)}/5`}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+      {t.sdrs && (
+        <Card title="SDR comparison" note="analysed calls only">
+          <div className="overflow-x-auto">
+            <table className="w-full text-[13px]">
+              <thead><tr className="text-left text-muted text-[11.5px]">{['SDR', 'Analysed', 'Booked', 'Prospect stayed', 'Next step secured', 'Objections handled well', 'Average craft'].map((h) => <th key={h} className="font-medium pb-2 pr-4 whitespace-nowrap">{h}</th>)}</tr></thead>
+              <tbody>
+                {t.sdrs.map((r) => (
+                  <tr key={r.id || r.name} className="border-t border-line">
+                    <td className="py-2.5 pr-4 font-medium text-ink">{r.name}</td><td className="py-2.5 pr-4">{r.analysedCalls}</td><td className="py-2.5 pr-4">{r.booked}</td>
+                    <td className="py-2.5 pr-4">{pct(r.stayedRate)}</td><td className="py-2.5 pr-4">{pct(r.nextStepRate)}</td><td className="py-2.5 pr-4">{pct(r.objectionsHandledWellRate)}</td><td className="py-2.5 pr-4">{r.avgCraft == null ? 'n/a' : `${num(r.avgCraft)}/5`}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

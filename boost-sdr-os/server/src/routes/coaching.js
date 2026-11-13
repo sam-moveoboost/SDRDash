@@ -19,7 +19,7 @@ const defaults = {
 const { parseTranscript } = require('../lib/transcript');
 const { statsFor, bySdr } = require('../lib/metrics');
 const { summarise } = require('../lib/focus');
-const { buildTrends } = require('../lib/trends');
+const { buildTrends, forEveryone } = require('../lib/trends');
 const { reviewPriority } = require('../lib/priority');
 
 const CALLS_TTL_MS = 3 * 60 * 1000;
@@ -206,22 +206,32 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
       calls: rows,
       waitingCount: waitingRows.length,
       refreshCount: refreshing.length,
+      // Every call in the period that could be analysed: already analysed plus still waiting.
+      transcriptTotals: { valid: analysedCalls.length + waiting.length, analysed: analysedCalls.length, waiting: waiting.length },
       coverage,
       rules: { from: new Date(cfg.COACHING_FROM_MS).toISOString().slice(0, 10), minChars: cfg.MIN_TRANSCRIPT_CHARS },
     });
   }));
 
-  // Team-wide patterns. Managers only: SDRs are refused even if they ask for their own.
+  // Team-wide patterns: top objections, the best ways they were handled, how calls open, who books.
+  // Everyone sees the whole team's patterns, with nothing that points at an individual or opens a
+  // transcript. Managers also get names, links to calls, the SDR comparison, and can look at one SDR.
   router.get('/trends', handle(async (req, res) => {
-    if (!req.viewer.isAdmin) {
-      return res.status(403).json({ error: 'forbidden', message: 'Trends are for managers.' });
-    }
-    const scope = scopeOr403(req, res);
-    if (!scope) return;
     const days = parseDays(req.query.days);
-    const analysedCalls = inScope(await loadCalls(days), scope.sdrId).filter(isCandidate).filter(isAnalysed);
+    let sdrId = null; // everyone else always gets the whole team, whatever they ask for
+    if (req.viewer.isAdmin) {
+      const scope = scopeOr403(req, res);
+      if (!scope) return;
+      sdrId = scope.sdrId;
+    }
+    const analysedCalls = inScope(await loadCalls(days), sdrId).filter(isCandidate).filter(isAnalysed);
     const pairs = (await loadAnalyses(analysedCalls)).filter((p) => p.analysis);
-    res.json({ scope: { sdrId: scope.sdrId, days }, analysedCount: analysedCalls.length, trends: buildTrends(pairs) });
+    const trends = buildTrends(pairs);
+    res.json({
+      scope: req.viewer.isAdmin ? { sdrId, days } : { days, everyone: true },
+      analysedCount: analysedCalls.length,
+      trends: req.viewer.isAdmin ? trends : forEveryone(trends),
+    });
   }));
 
   router.get('/calls/:id/transcript', handle(async (req, res) => {

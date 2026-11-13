@@ -102,6 +102,7 @@ const hebrewCall = {
 
 export const demoCalls = {
   waitingCount: 2,
+  transcriptTotals: { valid: 5, analysed: 3, waiting: 2 },
   rules: { from: '2026-11-01', minChars: 250 },
   coverage: [
     { sdrId: '3', sdrName: 'Tayla Jones', answered: 41, withTranscript: 38 },
