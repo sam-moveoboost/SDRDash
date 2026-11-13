@@ -20,6 +20,7 @@ const { parseTranscript } = require('../lib/transcript');
 const { statsFor, bySdr } = require('../lib/metrics');
 const { summarise } = require('../lib/focus');
 const { buildTrends } = require('../lib/trends');
+const { reviewPriority } = require('../lib/priority');
 
 const CALLS_TTL_MS = 3 * 60 * 1000;
 const FRESH_CALL_MS = 60 * 60 * 1000; // a transcript can still arrive for about an hour
@@ -181,7 +182,7 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
     ];
     const finishedRows = done
       .filter((p) => !refreshOf(p.analysis))
-      .map((p) => row(p.call, { status: 'analysed', refresh: null, transcript: { available: true }, analysis: p.analysis, detailsMissing: false }))
+      .map((p) => row(p.call, { status: 'analysed', refresh: null, transcript: { available: true }, analysis: p.analysis, detailsMissing: false, priority: reviewPriority(p.analysis, p.call) }))
       .sort(byNewest)
       .slice(0, MAX_ROWS);
     const rows = [...waitingRows, ...finishedRows].sort(byNewest);

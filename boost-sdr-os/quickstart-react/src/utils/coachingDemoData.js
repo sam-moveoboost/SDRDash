@@ -109,10 +109,10 @@ export const demoCalls = {
     { sdrId: '1', sdrName: 'Luke Birchley', answered: 33, withTranscript: 0 },
   ],
   calls: [
-    { id: 'd1', sdrId: '1', sdrName: 'Luke Birchley', startedAt: '2026-11-02 14:56', createdAt: '2026-11-02T14:57:00Z', durationMin: 11, outcome: 'Outbound answered', tags: ['MeetingBooked'], recordingUrl: null, status: 'analysed', transcript: { available: true }, analysis },
+    { id: 'd1', sdrId: '1', sdrName: 'Luke Birchley', startedAt: '2026-11-02 14:56', createdAt: '2026-11-02T14:57:00Z', durationMin: 11, outcome: 'Outbound answered', tags: ['MeetingBooked'], recordingUrl: null, status: 'analysed', priority: { score: 8, level: 'high', reasons: ['Long conversation', '1 objection handled poorly', 'Weak: Discovery'] }, transcript: { available: true }, analysis },
     { id: 'd2', sdrId: '2', sdrName: 'Emad Mahamid', startedAt: '2026-11-02 14:44', createdAt: '2026-11-02T14:44:00Z', durationMin: 4, outcome: 'Outbound answered', tags: [], recordingUrl: null, status: 'waiting', transcript: { available: true, chars: 1800 }, analysis: null },
-    { id: 'd3', sdrId: '3', sdrName: 'Tayla Jones', startedAt: '2026-11-04 10:14', createdAt: '2026-11-04T10:14:00Z', durationMin: 0, outcome: 'Outbound answered', tags: [], recordingUrl: null, status: 'analysed', transcript: { available: true }, analysis: hangup },
-    { id: 'd5', sdrId: '2', sdrName: 'Emad Mahamid', startedAt: '2026-11-03 11:05', createdAt: '2026-11-03T11:05:00Z', durationMin: 3, outcome: 'Outbound answered', tags: [], recordingUrl: null, status: 'analysed', transcript: { available: true }, analysis: hebrewCall },
+    { id: 'd3', sdrId: '3', sdrName: 'Tayla Jones', startedAt: '2026-11-04 10:14', createdAt: '2026-11-04T10:14:00Z', durationMin: 0, outcome: 'Outbound answered', tags: [], recordingUrl: null, status: 'analysed', priority: { score: 4, level: 'medium', reasons: ['Early hang-up', '1 objection handled poorly', 'A missed moment to learn from'] }, transcript: { available: true }, analysis: hangup },
+    { id: 'd5', sdrId: '2', sdrName: 'Emad Mahamid', startedAt: '2026-11-03 11:05', createdAt: '2026-11-03T11:05:00Z', durationMin: 3, outcome: 'Outbound answered', tags: [], recordingUrl: null, status: 'analysed', priority: { score: 3, level: 'low', reasons: ['Went well'] }, transcript: { available: true }, analysis: hebrewCall },
     { id: 'd4', sdrId: '3', sdrName: 'Tayla Jones', startedAt: '2026-11-04 10:22', createdAt: '2026-11-04T10:22:00Z', durationMin: 1, outcome: 'Outbound answered', tags: [], recordingUrl: null, status: 'waiting', transcript: { available: true, chars: 640 }, analysis: null },
   ],
 };
