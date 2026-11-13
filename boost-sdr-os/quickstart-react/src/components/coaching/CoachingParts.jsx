@@ -157,9 +157,9 @@ export function CoverageTable({ coverage }) {
   );
 }
 
-export function FocusPanel({ coaching, who }) {
+export function FocusPanel({ coaching, who, canAnalyse = true }) {
   if (!coaching || coaching.analysedCalls === 0) {
-    return <Empty>No calls have been analysed yet. Use the Analyse calls panel at the top of the page to start.</Empty>;
+    return <Empty>{canAnalyse ? 'No calls have been analysed yet. Use the Analyse calls panel at the top of the page to start.' : 'None of your calls have been analysed yet. Your managers run the analysis, so check back soon.'}</Empty>;
   }
   const tone = (v) => (v >= 0.66 ? 'good' : v >= 0.4 ? 'warn' : 'bad');
   return (
