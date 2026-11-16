@@ -70,7 +70,7 @@ function makeDeps({ persist = true, claudeFails = false, claudePingFails = false
         analyseCall: async ({ call }) => {
           if (claudeFails) throw new Error('Claude API HTTP 529');
           log.analysed.push(call.id);
-          return { callType: 'conversation', language: 'English', schema: 2, coachable: true, openerResult: 'stayed_engaged', nextStepSecured: true, meddpicc: {}, craft: {}, objections: [] };
+          return { callType: 'conversation', language: 'English', schema: 3, coachable: true, openerResult: 'stayed_engaged', nextStepSecured: true, meddpicc: {}, craft: {}, objections: [] };
         },
       },
       store: {
@@ -232,7 +232,7 @@ test('everyone can see the team trends, but nothing that points at an individual
     for (const id of ['1', '2']) {
       calls.find((c) => c.id === id).coachingStatus = 'Analysed';
       await deps.store.saveAnalysis(id, {
-        callType: 'conversation', language: 'English', schema: 2, coachable: true, openerResult: 'stayed_engaged', nextStepSecured: true, craft: {},
+        callType: 'conversation', language: 'English', schema: 3, coachable: true, openerResult: 'stayed_engaged', nextStepSecured: true, craft: {},
         prospect: { seniority: 'manager', role: 'Head of Sales', industry: 'software' },
         opener: { style: 'permission_based', quote: 'Got a minute?', quoteEn: 'Got a minute?' },
         objections: [{ category: 'no_time', stage: 'opener', quote: 'No time', quoteEn: 'No time', responseQuote: 'Ten minutes next week?', responseQuoteEn: 'Ten minutes next week?', handled: id === '1' ? 'well' : 'poorly', why: 'x' }],
@@ -336,8 +336,8 @@ test('trends cover hang-ups, openers and early objections, and leave out voicema
   ]);
   assert.equal(t.analysedCalls, 2); // the voicemail is left out
   assert.equal(t.hangups.count, 1);
-  assert.equal(t.openers.find((o) => o.style === 'permission_based').stayedRate, 1);
-  assert.equal(t.openers.find((o) => o.style === 'direct_pitch').hungUpRate, 1);
+  assert.equal(t.openers.find((o) => o.style === 'cold_permission_ask').stayedRate, 1);
+  assert.equal(t.openers.find((o) => o.style === 'credentials_first').hungUpRate, 1);
   assert.equal(t.earlyObjections[0].count, 2);
   assert.equal(t.earlyObjections[0].examples[0].sdrName, 'Luke'); // the one that worked
   assert.equal(t.bestHandling[0].examples[0].stayed, true);
@@ -662,7 +662,7 @@ test('an analysis saved before the English change is offered for redoing, and re
 test('a current analysis (with a language) is left alone and never redone', async () => {
   await withServer(async ({ json, log, calls, deps }) => {
     calls.find((c) => c.id === '3').coachingStatus = 'Analysed';
-    await deps.store.saveAnalysis('3', { callType: 'early_hangup', language: 'English', schema: 2, coachable: false });
+    await deps.store.saveAnalysis('3', { callType: 'early_hangup', language: 'English', schema: 3, coachable: false });
 
     const list = await json('/calls', LUKE);
     assert.equal(list.calls.find((c) => c.id === '3').status, 'analysed');
@@ -708,7 +708,7 @@ test('calls still waiting are always listed, even when many finished calls come 
     for (let i = 0; i < 210; i++) {
       const id = `done${i}`;
       calls.push(mkCall({ id, createdAt: '2026-11-10T10:00:00Z', startedAt: '2026-11-10 10:00', coachingStatus: 'Analysed', tags: ['Gatekeeper'] }));
-      await deps.store.saveAnalysis(id, { callType: 'conversation', language: 'English', schema: 2, coachable: true, meddpicc: {}, craft: {}, objections: [] });
+      await deps.store.saveAnalysis(id, { callType: 'conversation', language: 'English', schema: 3, coachable: true, meddpicc: {}, craft: {}, objections: [] });
     }
     const list = await json('/calls', LUKE);
     const waitingRows = list.calls.filter((c) => c.status === 'waiting');
@@ -801,7 +801,7 @@ test('scores always stay between 1 and 10', () => {
 test('finished calls come back with a priority, in the list the page shows', async () => {
   await withServer(async ({ json, calls, deps }) => {
     calls.find((c) => c.id === '3').coachingStatus = 'Analysed';
-    await deps.store.saveAnalysis('3', { callType: 'early_hangup', language: 'English', schema: 2, coachable: false, objections: [], craft: {} });
+    await deps.store.saveAnalysis('3', { callType: 'early_hangup', language: 'English', schema: 3, coachable: false, objections: [], craft: {} });
     const row = (await json('/calls', LUKE)).calls.find((c) => c.id === '3');
     assert.equal(row.status, 'analysed');
     assert.equal(row.priority.level, 'low');
@@ -818,4 +818,21 @@ test('the list says how many valid transcripts there are, analysed and waiting',
     assert.deepEqual(after.transcriptTotals, { valid: 2, analysed: 1, waiting: 1 });
     assert.deepEqual((await json('/calls', SAM)).transcriptTotals, { valid: 3, analysed: 1, waiting: 2 }); // plus Emad's call
   });
+});
+
+test('"no time" and "bad timing" count as one objection, and older names fold into the new groups', () => {
+  const mk = (id, category) => ({
+    call: { id, sdrName: 'Luke', tags: [] },
+    analysis: { coachable: true, callType: 'conversation', openerResult: 'stayed_engaged', nextStepSecured: false, craft: {}, prospect: { seniority: 'unknown' },
+      opener: { style: 'referral_or_context', quote: 'we spoke before' },
+      objections: [{ category, stage: 'middle', quote: 'q', quoteEn: 'q', responseQuote: 'r', responseQuoteEn: 'r', handled: 'well', why: 'x' }] },
+  });
+  const t = buildTrends([mk('1', 'no_time'), mk('2', 'bad_timing'), mk('3', 'not_a_good_time'), mk('4', 'using_competitor'), mk('5', 'already_covered'), mk('6', 'too_small_or_no_need')]);
+  const row = (c) => t.topObjections.find((o) => o.category === c);
+  assert.equal(row('not_a_good_time').count, 3);
+  assert.equal(row('not_a_good_time').label, 'Not a good time');
+  assert.equal(row('already_covered').count, 2);
+  assert.equal(row('too_small_or_no_need').count, 1);
+  assert.equal(t.openers.find((o) => o.style === 'warm_followup').calls, 6); // older "referral" name
+  assert.deepEqual(t.openerFit, { inType: 6, total: 6 });
 });

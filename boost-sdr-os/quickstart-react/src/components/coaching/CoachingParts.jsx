@@ -18,6 +18,7 @@ const OPENER_RESULT_LABELS = {
   stayed_engaged: 'Prospect stayed', brushed_off: 'Brushed off', hung_up: 'Prospect hung up', blocked_by_gatekeeper: 'Blocked by gatekeeper', unclear: 'Unclear',
 };
 const OPENER_STYLE_LABELS = { warm_followup: 'Warm follow-up', cold_permission_ask: 'Cold permission ask', credentials_first: 'Credentials first', named_person_ask: 'Asking for a person', pain_question_hook: 'Pain-point question', other: 'Other' };
+const OBJECTION_GROUP_LABELS = { not_interested: 'Not interested', not_a_good_time: 'Not a good time', no_time: 'Not a good time', bad_timing: 'Not a good time', send_email: 'Send me an email', already_covered: 'Already covered', already_have_solution: 'Already covered', using_competitor: 'Already covered', no_budget: 'No budget', too_small_or_no_need: 'Too small or no need', wrong_person: 'Wrong person', other: 'Other' };
 const openerTone = (r) => (r === 'stayed_engaged' ? 'good' : r === 'hung_up' || r === 'brushed_off' ? 'bad' : 'muted');
 
 export const pct = (v, dp = 0) => (v == null ? 'n/a' : `${(v * 100).toFixed(dp)}%`);
@@ -326,7 +327,7 @@ export function CallDetail({ call, demo }) {
           <div className="space-y-3">
             {a.objections.map((o, i) => (
               <div key={i} className="rounded-xl border border-line p-3">
-                <div className="flex items-center gap-2 mb-2"><Chip tone="info">{o.category.replace(/_/g, ' ')}</Chip>{o.stage && <Chip>{o.stage === 'opener' ? 'in the opener' : o.stage === 'close' ? 'at the close' : 'mid-call'}</Chip>}<Chip tone={o.handled === 'well' ? 'good' : o.handled === 'poorly' ? 'bad' : 'warn'}>handled {o.handled}</Chip></div>
+                <div className="flex items-center gap-2 mb-2"><Chip tone="info">{OBJECTION_GROUP_LABELS[o.category] || o.category.replace(/_/g, ' ')}</Chip>{o.stage && <Chip>{o.stage === 'opener' ? 'in the opener' : o.stage === 'close' ? 'at the close' : 'mid-call'}</Chip>}<Chip tone={o.handled === 'well' ? 'good' : o.handled === 'poorly' ? 'bad' : 'warn'}>handled {o.handled}</Chip></div>
                 <Said label="Prospect: " en={o.quoteEn} original={o.quote} />
                 {o.responseQuote && <div className="mt-1.5"><Said label="SDR: " en={o.responseQuoteEn} original={o.responseQuote} /></div>}
                 {o.why && <div className="text-[12px] text-muted mt-1.5">{o.why}</div>}
@@ -392,7 +393,7 @@ export function TrendsPanel({ data }) {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card title="How calls open" note="who stays and who hangs up">
+        <Card title="How calls open" note={t.openerFit && t.openerFit.total ? `${pct(t.openerFit.inType / t.openerFit.total)} fit a type` : 'who stays and who hangs up'}>
           {t.openers.length === 0 ? <Empty>No openers recorded yet.</Empty> : (
             <ul className="space-y-4">
               {t.openers.map((o) => (
@@ -430,6 +431,7 @@ export function TrendsPanel({ data }) {
             {t.earlyObjections.map((o) => (
               <div key={o.category} className="rounded-xl border border-line p-3">
                 <div className="flex justify-between text-[13px] mb-1"><span className="font-medium text-ink">{o.label}</span><span className="text-muted">{o.count} times</span></div>
+                  {o.description && <div className="text-[11.5px] text-muted mb-1.5">{o.description}</div>}
                 <div className="text-[11.5px] text-muted mb-2 flex gap-3 flex-wrap"><span>{o.stayedAfter} stayed on the line</span><span>{o.hungUpAfter} hung up</span><span>{o.handledWell} handled well</span></div>
                 {o.examples.length === 0 ? <div className="text-[12px] text-muted">No well-handled example yet.</div> : o.examples.map((e, i) => (
                   <div key={i} className="mb-2 space-y-1">
@@ -451,6 +453,7 @@ export function TrendsPanel({ data }) {
               {t.topObjections.map((o) => (
                 <li key={o.category}>
                   <div className="flex justify-between text-[13px] mb-1"><span className="font-medium text-ink">{o.label}</span><span className="text-muted">{o.count} ({pct(o.share)})</span></div>
+                  {o.description && <div className="text-[11.5px] text-muted mb-1.5">{o.description}</div>}
                   <Bar value={o.count / maxCount} />
                   <div className="text-[11.5px] text-muted mt-1 flex gap-3 flex-wrap"><span>{o.handledWell} handled well</span><span>{o.handledPoorly} handled poorly</span><span>{o.bookedAfter} still booked</span></div>
                   {o.examples[0] && <div className="text-[12px] text-body italic mt-1">"{o.examples[0].quote}"</div>}

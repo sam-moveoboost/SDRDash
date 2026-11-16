@@ -4,7 +4,7 @@
 // Short calls are included: openers and early hang-ups are exactly what managers
 // want to see. Only voicemail and phone menus are left out.
 
-const { OBJECTION_LABELS, OPENER_LABELS, OPENER_DESCRIPTIONS, SENIORITY_LABELS } = require('./analysis');
+const { OBJECTION_LABELS, OBJECTION_DESCRIPTIONS, OPENER_LABELS, OPENER_DESCRIPTIONS, SENIORITY_LABELS, modernCategory, modernOpener } = require('./analysis');
 
 const NON_HUMAN = new Set(['voicemail', 'automated_menu']);
 
@@ -37,8 +37,21 @@ function groupRate(items, keyFn, labelFn = (k) => k, limit = 8) {
 // Best examples first: the call booked, then the prospect stayed, then a next step was secured.
 const successScore = (p) => Number(isBooked(p.call)) * 4 + Number(stayed(p.analysis)) * 2 + Number(p.analysis.nextStepSecured);
 
+// Analyses saved under earlier rules use older group names; show them under the current groups.
+function modernise(p) {
+  const a = p.analysis;
+  return {
+    ...p,
+    analysis: {
+      ...a,
+      opener: a.opener ? { ...a.opener, style: modernOpener(a.opener.style) } : a.opener,
+      objections: (a.objections || []).map((o) => ({ ...o, category: modernCategory(o.category) })),
+    },
+  };
+}
+
 function buildTrends(pairs) {
-  const human = pairs.filter((p) => p.analysis && !NON_HUMAN.has(p.analysis.callType));
+  const human = pairs.filter((p) => p.analysis && !NON_HUMAN.has(p.analysis.callType)).map(modernise);
   const real = human.filter((p) => p.analysis.coachable);
   const booked = human.filter((p) => isBooked(p.call));
 
@@ -53,6 +66,7 @@ function buildTrends(pairs) {
   const catSummary = (category, items) => ({
     category,
     label: OBJECTION_LABELS[category] || category,
+    description: OBJECTION_DESCRIPTIONS[category] || null,
     count: items.length,
     handledWell: items.filter((o) => o.handled === 'well').length,
     handledPoorly: items.filter((o) => o.handled === 'poorly').length,
@@ -194,6 +208,7 @@ function buildTrends(pairs) {
     bestHandling,
     earlyObjections,
     openers,
+    openerFit: { inType: human.filter((p) => p.analysis.opener?.style && p.analysis.opener.style !== 'other').length, total: human.filter((p) => p.analysis.opener?.style).length },
     hangups,
     profile,
     talk: { booked: talk(booked), notBooked: talk(human.filter((p) => !isBooked(p.call))) },

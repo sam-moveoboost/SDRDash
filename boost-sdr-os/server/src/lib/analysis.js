@@ -27,17 +27,25 @@ const CRAFT = [
 
 const CALL_TYPES = ['conversation', 'early_hangup', 'gatekeeper', 'voicemail', 'automated_menu', 'wrong_person', 'other'];
 const OPENER_RESULTS = ['stayed_engaged', 'brushed_off', 'hung_up', 'blocked_by_gatekeeper', 'unclear'];
+// Objection groups, kept broad so "other" stays rare. "Not a good time" covers both "I have no time"
+// and "bad timing" (they are the same thing said two ways); "already covered" covers an existing
+// tool, a competitor or partner, an in-house team, or already doing it with AI.
 const OBJECTION_CATEGORIES = [
-  'not_interested', 'no_time', 'send_email', 'already_have_solution', 'using_competitor',
-  'no_budget', 'wrong_person', 'bad_timing', 'other',
+  'not_interested', 'not_a_good_time', 'send_email', 'already_covered',
+  'no_budget', 'too_small_or_no_need', 'wrong_person', 'other',
 ];
+// Names used by analyses saved under earlier rules, mapped onto the groups above.
+const LEGACY_OBJECTION = { no_time: 'not_a_good_time', bad_timing: 'not_a_good_time', already_have_solution: 'already_covered', using_competitor: 'already_covered' };
+const LEGACY_OPENER = { permission_based: 'cold_permission_ask', direct_pitch: 'credentials_first', referral_or_context: 'warm_followup', pattern_interrupt: 'pain_question_hook' };
+const modernCategory = (c) => LEGACY_OBJECTION[c] || c;
+const modernOpener = (c) => LEGACY_OPENER[c] || c;
 // Five opening types, grouped from a read of the real transcripts since 1 Nov (65 valid ones):
 // about half referred to an earlier connection, a fifth were a cold request for a moment, and the
 // rest were credentials first, asking for a named person, or opening with a pain-point question.
 const OPENER_STYLES = ['warm_followup', 'cold_permission_ask', 'credentials_first', 'named_person_ask', 'pain_question_hook', 'other'];
 
 // Bump when the shape or the rules of an analysis change, so earlier analyses are offered for redoing.
-const ANALYSIS_SCHEMA = 2;
+const ANALYSIS_SCHEMA = 3;
 const SENIORITY = ['c_level', 'vp_director', 'manager', 'individual', 'unknown'];
 const STAGES = ['opener', 'middle', 'close'];
 
@@ -144,7 +152,17 @@ Opener style: judge only from how the SDR opened (their first lines after the gr
 - credentials_first: the SDR explains what the company does and names clients or partners to build credibility (for example "we work with monday.com and Anthropic and clients like ...") before or while asking for a minute.
 - named_person_ask: the SDR opens by asking for a named person, or checking they have the right company or number, and holds back the pitch (for example "is that Galaxy Realty?", "can I speak to Alex Stewart?").
 - pain_question_hook: the SDR states a common problem in the prospect's industry and asks how they handle it, as the hook (for example "how do you handle leads that sit untouched in the CRM?").
-- other: anything that does not clearly fit one of the five. Use it sparingly.
+- other: use ONLY when there was no real opening to judge (the call joined mid-sentence, or the SDR said nothing usable). If the opening is unusual, still pick the closest of the five. Aim for "other" on fewer than one call in five.
+Tie-breaks: an introduction (name and company) followed by "how are you" or any request to continue, with no earlier connection, is cold_permission_ask. Going straight into what boost does or who it works with is credentials_first. Any reference to a past meeting, call, event or person is warm_followup, even if a question follows.
+
+Objection category: choose the closest group and use "other" only when none fits.
+- not_interested: a plain no, "we do not take sales calls", "not for us".
+- not_a_good_time: busy, in a meeting, "not a great time", "can you call later", "I have no time". These are one group, however they are worded.
+- send_email: asks for an email, brochure or information instead of talking.
+- already_covered: already has a tool, partner, competitor or an in-house team, or is already doing this (for example already using AI).
+- no_budget: no money, no budget, too expensive, spend frozen.
+- too_small_or_no_need: the team is too small or not big enough, or they say they do not need it.
+- wrong_person: not the right contact, or someone else decides.
 
 Record your analysis by calling the record_call_analysis tool, using exactly this shape:
 {
@@ -225,7 +243,7 @@ function validate(raw, turns) {
       industry: raw.prospect?.company_type_or_industry ? String(raw.prospect.company_type_or_industry).slice(0, 80) : null,
     },
     opener: {
-      style: oneOf(raw.opener?.style, OPENER_STYLES, 'other'),
+      style: oneOf(modernOpener(raw.opener?.style), OPENER_STYLES, 'other'),
       quote: openerQuote,
       quoteEn: openerQuote ? english(openerQuote, raw.opener?.quote_en) : null,
       note: String(raw.opener?.note || '').slice(0, 300),
@@ -254,7 +272,7 @@ function validate(raw, turns) {
     .map((o) => {
       const responseQuote = o.response_quote && quoteIsReal(tNorm, o.response_quote) ? String(o.response_quote) : null;
       return {
-        category: oneOf(o.category, OBJECTION_CATEGORIES, 'other'),
+        category: oneOf(modernCategory(o.category), OBJECTION_CATEGORIES, 'other'),
         stage: oneOf(o.stage, STAGES, 'middle'),
         quote: String(o.quote),
         quoteEn: english(String(o.quote), o.quote_en),
@@ -373,14 +391,23 @@ async function ping({ fetchImpl = fetch } = {}) {
 
 const OBJECTION_LABELS = {
   not_interested: 'Not interested',
-  no_time: 'No time',
+  not_a_good_time: 'Not a good time',
   send_email: 'Send me an email',
-  already_have_solution: 'Already have a solution',
-  using_competitor: 'Using a competitor',
+  already_covered: 'Already covered',
   no_budget: 'No budget',
+  too_small_or_no_need: 'Too small or no need',
   wrong_person: 'Wrong person',
-  bad_timing: 'Bad timing',
   other: 'Other',
+};
+const OBJECTION_DESCRIPTIONS = {
+  not_interested: 'A plain no, or "we do not take sales calls".',
+  not_a_good_time: 'Busy, in a meeting, "not a great time", "call me later" or "no time".',
+  send_email: 'Asks for an email or information instead of talking.',
+  already_covered: 'Already has a tool, partner, competitor or in-house team, or is already doing AI.',
+  no_budget: 'No money, no budget, too expensive or spend frozen.',
+  too_small_or_no_need: 'Team too small, not big enough, or "we do not need it".',
+  wrong_person: 'Not the right contact, or the decision sits with someone else.',
+  other: 'Does not clearly fit one of these.',
 };
 const OPENER_LABELS = {
   warm_followup: 'Warm follow-up',
@@ -417,5 +444,5 @@ const CALL_TYPE_LABELS = {
 
 module.exports = {
   analyseCall, ping, validate, extractJson, MEDDPICC, CRAFT, SYSTEM, ANALYSIS_SCHEMA,
-  OBJECTION_LABELS, OPENER_LABELS, OPENER_DESCRIPTIONS, SENIORITY_LABELS, CALL_TYPE_LABELS,
+  OBJECTION_LABELS, OBJECTION_DESCRIPTIONS, OPENER_LABELS, OPENER_DESCRIPTIONS, modernCategory, modernOpener, SENIORITY_LABELS, CALL_TYPE_LABELS,
 };
