@@ -31,7 +31,7 @@ export const demoOverview = {
   coachingFrom: '2026-11-01',
   connectionCheck: { analysed: 12, taggedConnectedButVoicemail: 1, untaggedButVoicemail: 2 },
   coaching: {
-    analysedCalls: 12,
+    totalAnalysed: 17, craftCalls: 16, analysedCalls: 12,
     enoughForFocus: true,
     minCallsForFocus: 3,
     nextStepRate: 0.42,
@@ -150,12 +150,12 @@ export const demoTrends = {
       ],
     },
     profile: {
+      bookedCount: 4, industryMissing: 1,
       bySeniority: [
-        { label: 'Manager', calls: 5, booked: 2, bookedRate: 0.4 }, { label: 'VP or director', calls: 4, booked: 2, bookedRate: 0.5 },
-        { label: 'C-level', calls: 2, booked: 0, bookedRate: 0 }, { label: 'Not stated', calls: 1, booked: 0, bookedRate: 0 },
+        { label: 'VP or director', count: 2, share: 0.5 }, { label: 'Manager', count: 1, share: 0.25 }, { label: 'Not recorded', count: 1, share: 0.25, missing: true },
       ],
       byIndustry: [
-        { label: 'software', calls: 4, booked: 2, bookedRate: 0.5 }, { label: 'professional services', calls: 3, booked: 1, bookedRate: 0.33 },
+        { label: 'software', count: 2, share: 0.5 }, { label: 'professional services', count: 1, share: 0.25 }, { label: 'Not recorded', count: 1, share: 0.25, missing: true },
       ],
       bookedRoles: [{ label: 'head of sales', count: 2 }, { label: 'operations manager', count: 1 }],
     },

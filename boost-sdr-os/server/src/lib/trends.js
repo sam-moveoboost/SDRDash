@@ -156,9 +156,24 @@ function buildTrends(pairs) {
   };
 
   // ---- who is being booked ----
+  // Who books: only calls that booked a meeting. Where the call never stated the industry (or seniority)
+  // it shows as "Not recorded", so a gap is visible and can be filled in rather than hiding the booking.
+  const bookedBreakdown = (keyFn, labelFn = (k) => k) => {
+    const m = new Map();
+    for (const p of booked) {
+      const k = keyFn(p) || null;
+      m.set(k, (m.get(k) || 0) + 1);
+    }
+    return [...m.entries()]
+      .map(([k, count]) => ({ label: k == null ? 'Not recorded' : labelFn(k), count, share: rate(count, booked.length), missing: k == null }))
+      .sort((a, b) => Number(a.missing) - Number(b.missing) || b.count - a.count)
+      .slice(0, 8);
+  };
   const profile = {
-    bySeniority: groupRate(human, (p) => p.analysis.prospect?.seniority, (k) => SENIORITY_LABELS[k] || k),
-    byIndustry: groupRate(human, (p) => norm(p.analysis.prospect?.industry)),
+    bookedCount: booked.length,
+    bySeniority: bookedBreakdown((p) => (p.analysis.prospect?.seniority !== 'unknown' ? p.analysis.prospect?.seniority : null), (k) => SENIORITY_LABELS[k] || k),
+    byIndustry: bookedBreakdown((p) => norm(p.analysis.prospect?.industry)),
+    industryMissing: booked.filter((p) => !norm(p.analysis.prospect?.industry)).length,
     bookedRoles: (() => {
       const m = new Map();
       for (const p of booked) {

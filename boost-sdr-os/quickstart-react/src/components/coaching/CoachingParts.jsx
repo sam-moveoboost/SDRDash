@@ -18,7 +18,7 @@ const OPENER_RESULT_LABELS = {
   stayed_engaged: 'Prospect stayed', brushed_off: 'Brushed off', hung_up: 'Prospect hung up', blocked_by_gatekeeper: 'Blocked by gatekeeper', unclear: 'Unclear',
 };
 const OPENER_STYLE_LABELS = { warm_followup: 'Warm follow-up', cold_permission_ask: 'Cold permission ask', credentials_first: 'Credentials first', named_person_ask: 'Asking for a person', pain_question_hook: 'Pain-point question', other: 'Other' };
-const OBJECTION_GROUP_LABELS = { not_interested: 'Not interested', not_a_good_time: 'Not a good time', no_time: 'Not a good time', bad_timing: 'Not a good time', send_email: 'Send me an email', already_covered: 'Already covered', already_have_solution: 'Already covered', using_competitor: 'Already covered', no_budget: 'No budget', too_small_or_no_need: 'Too small or no need', wrong_person: 'Wrong person', other: 'Other' };
+const OBJECTION_GROUP_LABELS = { not_interested: 'Not interested', not_a_good_time: 'Not a good time', no_time: 'Not a good time', bad_timing: 'Not a good time', send_email: 'Send me an email', already_covered: 'Already covered', already_have_solution: 'Already covered', using_competitor: 'Already covered', no_budget: 'No budget', too_small_or_no_need: 'Too small or no need', wrong_person: 'Wrong person', data_source_challenge: 'Asks how they got the number', other: 'Other' };
 const openerTone = (r) => (r === 'stayed_engaged' ? 'good' : r === 'hung_up' || r === 'brushed_off' ? 'bad' : 'muted');
 
 export const pct = (v, dp = 0) => (v == null ? 'n/a' : `${(v * 100).toFixed(dp)}%`);
@@ -135,7 +135,7 @@ export function TeamTable({ team, onPick }) {
   );
 }
 
-export function CoverageTable({ coverage }) {
+export function CoverageTable({ coverage, onPick }) {
   if (!coverage?.length) return <Empty>No answered calls in this period.</Empty>;
   return (
     <div className="overflow-x-auto">
@@ -146,7 +146,11 @@ export function CoverageTable({ coverage }) {
             const share = c.answered ? c.withTranscript / c.answered : null;
             return (
               <tr key={c.sdrId || c.sdrName} className="border-t border-line">
-                <td className="py-2.5 pr-4 font-medium text-ink">{c.sdrName}</td>
+                <td className="py-2.5 pr-4 font-medium text-ink">
+                  {onPick ? (
+                    <button type="button" onClick={() => onPick(c.sdrId || `name:${c.sdrName}`)} title={`Show ${c.sdrName}'s calls to review`} className="bg-transparent border-0 p-0 font-medium text-ink underline decoration-dotted underline-offset-4 cursor-pointer hover:text-info">{c.sdrName}</button>
+                  ) : c.sdrName}
+                </td>
                 <td className="py-2.5 pr-4">{c.answered}</td>
                 <td className="py-2.5 pr-4">{c.withTranscript}</td>
                 <td className="py-2.5 pr-4 w-[240px]"><div className="flex items-center gap-3"><div className="flex-1"><Bar value={share} tone={share == null ? 'navy' : share >= 0.5 ? 'good' : share > 0 ? 'warn' : 'bad'} /></div><span className="text-muted w-10 text-right">{pct(share)}</span></div></td>
@@ -160,13 +164,13 @@ export function CoverageTable({ coverage }) {
 }
 
 export function FocusPanel({ coaching, who, canAnalyse = true }) {
-  if (!coaching || coaching.analysedCalls === 0) {
+  if (!coaching || (coaching.totalAnalysed ?? coaching.analysedCalls) === 0) {
     return <Empty>{canAnalyse ? 'No calls have been analysed yet. Use the Analyse calls panel at the top of the page to start.' : 'None of your calls have been analysed yet. Your managers run the analysis, so check back soon.'}</Empty>;
   }
   const tone = (v) => (v >= 0.66 ? 'good' : v >= 0.4 ? 'warn' : 'bad');
   return (
     <div className="grid gap-4 lg:grid-cols-3">
-      <Card title="Where to focus" note={`${coaching.analysedCalls} analysed calls`}>
+      <Card title="Where to focus" note={`${coaching.totalAnalysed ?? coaching.analysedCalls} analysed, ${coaching.analysedCalls} full conversations`}>
         {coaching.enoughForFocus ? (
           <ul className="space-y-3">
             {coaching.focus.map((f) => (
@@ -177,7 +181,7 @@ export function FocusPanel({ coaching, who, canAnalyse = true }) {
             ))}
           </ul>
         ) : (
-          <Empty>Early days for {who}. Focus areas appear once {coaching.minCallsForFocus} calls are analysed.</Empty>
+          <Empty>Early days for {who}. Only {coaching.analysedCalls} of the {coaching.totalAnalysed ?? coaching.analysedCalls} analysed calls were full two-way conversations; focus areas appear once {coaching.minCallsForFocus} are scored. Short calls and hang-ups are not marked against anyone.</Empty>
         )}
         {coaching.enoughForFocus && coaching.strengths.length > 0 && (
           <div className="mt-4 pt-3 border-t border-line text-[12.5px] text-body">
@@ -185,7 +189,8 @@ export function FocusPanel({ coaching, who, canAnalyse = true }) {
           </div>
         )}
       </Card>
-      <Card title="MEDDPICC coverage" note="share of calls where it came up">
+      <Card title="MEDDPICC coverage" note={`share of ${coaching.analysedCalls} full conversations`}>
+        {coaching.analysedCalls === 0 && <div className="text-[12.5px] text-muted mb-3">MEDDPICC is only scored on full two-way conversations, and none of the analysed calls so far were long enough to count.</div>}
         <ul className="space-y-2.5">
           {MEDDPICC_ORDER.map(([k, label]) => {
             const m = coaching.meddpicc?.[k];
@@ -199,7 +204,7 @@ export function FocusPanel({ coaching, who, canAnalyse = true }) {
         </ul>
         <div className="text-[11.5px] text-muted mt-3">Cold calls rarely reach paper process or decision criteria, so low numbers there are normal.</div>
       </Card>
-      <Card title="Call craft" note="average, out of 5">
+      <Card title="Call craft" note={`average out of 5, ${coaching.craftCalls ?? coaching.analysedCalls} calls scored`}>
         <ul className="space-y-2.5">
           {CRAFT_ORDER.map(([k, label]) => {
             const c = coaching.craft?.[k];
@@ -484,8 +489,8 @@ export function TrendsPanel({ data }) {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <GroupCard title="Who books, by seniority" rows={t.profile.bySeniority} />
-        <GroupCard title="Who books, by industry" rows={t.profile.byIndustry} empty="Industry is only recorded when it comes up on the call." />
+        <GroupCard title="Who books, by seniority" rows={t.profile.bySeniority} bookedCount={t.profile.bookedCount} empty="No booked calls have been analysed yet." />
+        <GroupCard title="Who books, by industry" rows={t.profile.byIndustry} bookedCount={t.profile.bookedCount} missing={t.profile.industryMissing} what="industry" empty="No booked calls have been analysed yet." />
         <Card title="Roles that booked">
           {t.profile.bookedRoles.length === 0 ? <Empty>No roles recorded on booked calls yet.</Empty> : (
             <div className="flex flex-wrap gap-2">{t.profile.bookedRoles.map((r) => <Chip key={r.label} tone="good">{r.label} ({r.count})</Chip>)}</div>
@@ -531,18 +536,23 @@ export function TrendsPanel({ data }) {
   );
 }
 
-function GroupCard({ title, rows, empty = 'Nothing recorded yet.' }) {
+function GroupCard({ title, rows, empty = 'Nothing recorded yet.', bookedCount = 0, missing = 0, what }) {
   return (
-    <Card title={title} note="booked / calls">
+    <Card title={title} note={bookedCount ? `${bookedCount} booked call${bookedCount === 1 ? '' : 's'}` : 'booked calls only'}>
       {!rows?.length ? <Empty>{empty}</Empty> : (
         <ul className="space-y-2.5">
           {rows.map((r) => (
             <li key={r.label}>
-              <div className="flex justify-between text-[12.5px] mb-1"><span className="text-body first-letter:uppercase">{r.label}</span><span className="text-muted">{r.booked} / {r.calls} ({pct(r.bookedRate)})</span></div>
-              <Bar value={r.bookedRate} tone="good" />
+              <div className="flex justify-between text-[12.5px] mb-1"><span className={`text-body first-letter:uppercase ${r.missing ? 'italic text-muted' : ''}`}>{r.label}</span><span className="text-muted">{r.count} ({pct(r.share)})</span></div>
+              <Bar value={r.share} tone={r.missing ? 'navy' : 'good'} />
             </li>
           ))}
         </ul>
+      )}
+      {what && missing > 0 && (
+        <div className="mt-3 pt-3 border-t border-line text-[12px] text-muted">
+          {missing} of {bookedCount} booked {missing === 1 ? 'call has' : 'calls have'} no {what} recorded. It is only captured when the prospect says it on the call, so it needs adding for these.
+        </div>
       )}
     </Card>
   );

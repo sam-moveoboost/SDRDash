@@ -178,7 +178,7 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
     // Every call that still needs analysing is always sent, so "Analyse all" really covers them all.
     // Finished calls fill the rest of the list, newest first, up to a cap.
     const waitingRows = [
-      ...refreshing.map((p) => row(p.call, { status: 'waiting', refresh: refreshOf(p.analysis), transcript: { available: true }, analysis: p.analysis, detailsMissing: !p.analysis })),
+      ...refreshing.map((p) => row(p.call, { status: 'waiting', refresh: refreshOf(p.analysis), transcript: { available: true }, analysis: p.analysis, detailsMissing: !p.analysis, priority: p.analysis ? reviewPriority(p.analysis, p.call) : null })),
       ...waiting.map((p) => row(p.call, { status: 'waiting', refresh: null, transcript: { available: true, chars: p.parsed.stats.chars }, analysis: null })),
     ];
     const finishedRows = done

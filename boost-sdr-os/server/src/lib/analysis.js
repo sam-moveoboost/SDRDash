@@ -32,7 +32,7 @@ const OPENER_RESULTS = ['stayed_engaged', 'brushed_off', 'hung_up', 'blocked_by_
 // tool, a competitor or partner, an in-house team, or already doing it with AI.
 const OBJECTION_CATEGORIES = [
   'not_interested', 'not_a_good_time', 'send_email', 'already_covered',
-  'no_budget', 'too_small_or_no_need', 'wrong_person', 'other',
+  'no_budget', 'too_small_or_no_need', 'wrong_person', 'data_source_challenge', 'other',
 ];
 // Names used by analyses saved under earlier rules, mapped onto the groups above.
 const LEGACY_OBJECTION = { no_time: 'not_a_good_time', bad_timing: 'not_a_good_time', already_have_solution: 'already_covered', using_competitor: 'already_covered' };
@@ -153,16 +153,18 @@ Opener style: judge only from how the SDR opened (their first lines after the gr
 - named_person_ask: the SDR opens by asking for a named person, or checking they have the right company or number, and holds back the pitch (for example "is that Galaxy Realty?", "can I speak to Alex Stewart?").
 - pain_question_hook: the SDR states a common problem in the prospect's industry and asks how they handle it, as the hook (for example "how do you handle leads that sit untouched in the CRM?").
 - other: use ONLY when there was no real opening to judge (the call joined mid-sentence, or the SDR said nothing usable). If the opening is unusual, still pick the closest of the five. Aim for "other" on fewer than one call in five.
-Tie-breaks: an introduction (name and company) followed by "how are you" or any request to continue, with no earlier connection, is cold_permission_ask. Going straight into what boost does or who it works with is credentials_first. Any reference to a past meeting, call, event or person is warm_followup, even if a question follows.
+Tie-breaks: ignore any automated screener turn ("record your name and reason") and judge the real opening after it. Label by the first thing the SDR says to the person; if they confirm the person and then pitch in the same turn, label by the pitch. An introduction (name and company) followed by "how are you" or any request to continue, with no earlier connection, is cold_permission_ask. Going straight into what boost does or who it works with is credentials_first. Any reference to a past meeting, call, event or person is warm_followup, even if a question follows.
 
 Objection category: choose the closest group and use "other" only when none fits.
 - not_interested: a plain no, "we do not take sales calls", "not for us".
-- not_a_good_time: busy, in a meeting, "not a great time", "can you call later", "I have no time". These are one group, however they are worded.
+- not_a_good_time: busy, in a meeting, "not a great time", "can you call later", "I have no time", or priorities and bandwidth are elsewhere right now. These are one group, however they are worded.
 - send_email: asks for an email, brochure or information instead of talking.
 - already_covered: already has a tool, partner, competitor or an in-house team, or is already doing this (for example already using AI).
 - no_budget: no money, no budget, too expensive, spend frozen.
 - too_small_or_no_need: the team is too small or not big enough, or they say they do not need it.
-- wrong_person: not the right contact, or someone else decides.
+- wrong_person: not the right contact, has left the role or company, or someone else decides.
+- data_source_challenge: asks how the SDR got their number or details.
+Give each distinct objection its own entry. If the prospect misunderstood what boost does, pick the closest group and explain in "why".
 
 Record your analysis by calling the record_call_analysis tool, using exactly this shape:
 {
@@ -397,6 +399,7 @@ const OBJECTION_LABELS = {
   no_budget: 'No budget',
   too_small_or_no_need: 'Too small or no need',
   wrong_person: 'Wrong person',
+  data_source_challenge: 'Asks how they got the number',
   other: 'Other',
 };
 const OBJECTION_DESCRIPTIONS = {
@@ -406,7 +409,8 @@ const OBJECTION_DESCRIPTIONS = {
   already_covered: 'Already has a tool, partner, competitor or in-house team, or is already doing AI.',
   no_budget: 'No money, no budget, too expensive or spend frozen.',
   too_small_or_no_need: 'Team too small, not big enough, or "we do not need it".',
-  wrong_person: 'Not the right contact, or the decision sits with someone else.',
+  wrong_person: 'Not the right contact, left the role, or the decision sits with someone else.',
+  data_source_challenge: 'Asks how the SDR got their number or details.',
   other: 'Does not clearly fit one of these.',
 };
 const OPENER_LABELS = {

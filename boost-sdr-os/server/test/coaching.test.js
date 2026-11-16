@@ -836,3 +836,25 @@ test('"no time" and "bad timing" count as one objection, and older names fold in
   assert.equal(t.openers.find((o) => o.style === 'warm_followup').calls, 6); // older "referral" name
   assert.deepEqual(t.openerFit, { inType: 6, total: 6 });
 });
+
+test('who books lists booked calls only, and shows a gap when the industry was not recorded', () => {
+  const mk = (id, tags, industry) => ({
+    call: { id, sdrName: 'Luke', tags },
+    analysis: { coachable: true, callType: 'conversation', openerResult: 'stayed_engaged', nextStepSecured: false, craft: {}, prospect: { seniority: 'manager', industry },
+      opener: { style: 'warm_followup', quote: 'x' }, objections: [] },
+  });
+  const t = buildTrends([mk('1', ['MeetingBooked'], 'Software'), mk('2', ['MeetingBooked'], null), mk('3', [], 'Retail'), mk('4', [], 'Retail')]);
+  assert.equal(t.profile.bookedCount, 2);
+  assert.deepEqual(t.profile.byIndustry.map((r) => [r.label, r.count]), [['software', 1], ['Not recorded', 1]]);
+  assert.equal(t.profile.industryMissing, 1);
+});
+
+test('call craft is averaged over every call with a person on the line, not only full conversations', () => {
+  const short = { coachable: false, callType: 'early_hangup', meddpicc: {}, craft: { opening: { score: 2 } } };
+  const full = { coachable: true, callType: 'conversation', meddpicc: { identify_pain: { score: 2 } }, craft: { opening: { score: 4 } } };
+  const s = summarise([short, full]);
+  assert.equal(s.totalAnalysed, 2);
+  assert.equal(s.analysedCalls, 1);
+  assert.equal(s.craft.opening.avg, 3);
+  assert.equal(s.meddpicc.identify_pain.avg, 2); // MEDDPICC still only counts the full conversation
+});
