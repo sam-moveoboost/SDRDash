@@ -10,6 +10,9 @@ const MIN_CALLS_FOR_FOCUS = 3;
 
 function summarise(analyses) {
   const real = analyses.filter((a) => a && a.coachable && a.callType !== 'not_a_conversation');
+  // Call craft is also scored on short calls (the opening, objection handling), so it uses every
+  // call with a person on the line. MEDDPICC is only judged on full two-way conversations.
+  const human = analyses.filter((a) => a && a.callType !== 'voicemail' && a.callType !== 'automated_menu');
   const meddpicc = {};
   for (const { key, label } of MEDDPICC) {
     const scores = real.map((a) => a.meddpicc?.[key]?.score).filter((s) => Number.isFinite(s));
@@ -21,7 +24,7 @@ function summarise(analyses) {
   }
   const craft = {};
   for (const { key, label } of CRAFT) {
-    const scores = real.map((a) => a.craft?.[key]?.score).filter((s) => Number.isFinite(s));
+    const scores = human.map((a) => a.craft?.[key]?.score).filter((s) => Number.isFinite(s));
     craft[key] = { label, avg: scores.length ? scores.reduce((s, v) => s + v, 0) / scores.length : null };
   }
 
@@ -36,7 +39,9 @@ function summarise(analyses) {
   const enough = real.length >= MIN_CALLS_FOR_FOCUS;
   const ranked = [...areas].sort((a, b) => a.value - b.value);
   return {
+    totalAnalysed: human.length,
     analysedCalls: real.length,
+    craftCalls: human.filter((a) => Object.values(a.craft || {}).some((c) => Number.isFinite(c?.score))).length,
     enoughForFocus: enough,
     minCallsForFocus: MIN_CALLS_FOR_FOCUS,
     meddpicc,

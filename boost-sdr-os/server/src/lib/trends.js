@@ -4,7 +4,7 @@
 // Short calls are included: openers and early hang-ups are exactly what managers
 // want to see. Only voicemail and phone menus are left out.
 
-const { OBJECTION_LABELS, OPENER_LABELS, OPENER_DESCRIPTIONS, SENIORITY_LABELS } = require('./analysis');
+const { OBJECTION_LABELS, OBJECTION_DESCRIPTIONS, OPENER_LABELS, OPENER_DESCRIPTIONS, SENIORITY_LABELS, modernCategory, modernOpener } = require('./analysis');
 
 const NON_HUMAN = new Set(['voicemail', 'automated_menu']);
 
@@ -37,8 +37,21 @@ function groupRate(items, keyFn, labelFn = (k) => k, limit = 8) {
 // Best examples first: the call booked, then the prospect stayed, then a next step was secured.
 const successScore = (p) => Number(isBooked(p.call)) * 4 + Number(stayed(p.analysis)) * 2 + Number(p.analysis.nextStepSecured);
 
+// Analyses saved under earlier rules use older group names; show them under the current groups.
+function modernise(p) {
+  const a = p.analysis;
+  return {
+    ...p,
+    analysis: {
+      ...a,
+      opener: a.opener ? { ...a.opener, style: modernOpener(a.opener.style) } : a.opener,
+      objections: (a.objections || []).map((o) => ({ ...o, category: modernCategory(o.category) })),
+    },
+  };
+}
+
 function buildTrends(pairs) {
-  const human = pairs.filter((p) => p.analysis && !NON_HUMAN.has(p.analysis.callType));
+  const human = pairs.filter((p) => p.analysis && !NON_HUMAN.has(p.analysis.callType)).map(modernise);
   const real = human.filter((p) => p.analysis.coachable);
   const booked = human.filter((p) => isBooked(p.call));
 
@@ -53,6 +66,7 @@ function buildTrends(pairs) {
   const catSummary = (category, items) => ({
     category,
     label: OBJECTION_LABELS[category] || category,
+    description: OBJECTION_DESCRIPTIONS[category] || null,
     count: items.length,
     handledWell: items.filter((o) => o.handled === 'well').length,
     handledPoorly: items.filter((o) => o.handled === 'poorly').length,
@@ -142,9 +156,24 @@ function buildTrends(pairs) {
   };
 
   // ---- who is being booked ----
+  // Who books: only calls that booked a meeting. Where the call never stated the industry (or seniority)
+  // it shows as "Not recorded", so a gap is visible and can be filled in rather than hiding the booking.
+  const bookedBreakdown = (keyFn, labelFn = (k) => k) => {
+    const m = new Map();
+    for (const p of booked) {
+      const k = keyFn(p) || null;
+      m.set(k, (m.get(k) || 0) + 1);
+    }
+    return [...m.entries()]
+      .map(([k, count]) => ({ label: k == null ? 'Not recorded' : labelFn(k), count, share: rate(count, booked.length), missing: k == null }))
+      .sort((a, b) => Number(a.missing) - Number(b.missing) || b.count - a.count)
+      .slice(0, 8);
+  };
   const profile = {
-    bySeniority: groupRate(human, (p) => p.analysis.prospect?.seniority, (k) => SENIORITY_LABELS[k] || k),
-    byIndustry: groupRate(human, (p) => norm(p.analysis.prospect?.industry)),
+    bookedCount: booked.length,
+    bySeniority: bookedBreakdown((p) => (p.analysis.prospect?.seniority !== 'unknown' ? p.analysis.prospect?.seniority : null), (k) => SENIORITY_LABELS[k] || k),
+    byIndustry: bookedBreakdown((p) => norm(p.analysis.prospect?.industry)),
+    industryMissing: booked.filter((p) => !norm(p.analysis.prospect?.industry)).length,
     bookedRoles: (() => {
       const m = new Map();
       for (const p of booked) {
@@ -194,6 +223,7 @@ function buildTrends(pairs) {
     bestHandling,
     earlyObjections,
     openers,
+    openerFit: { inType: human.filter((p) => p.analysis.opener?.style && p.analysis.opener.style !== 'other').length, total: human.filter((p) => p.analysis.opener?.style).length },
     hangups,
     profile,
     talk: { booked: talk(booked), notBooked: talk(human.filter((p) => !isBooked(p.call))) },

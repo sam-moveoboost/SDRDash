@@ -112,21 +112,36 @@ async function verifiedBackend() {
   return null;
 }
 
-async function getAnalysis(itemId) {
+// Reads never depend on the write test: an analysis already saved must be found even when the
+// storage was slow once and the write test failed. Every storage is asked (the one used for
+// saving first), each with one retry. "Not found" and "could not read just now" are different
+// answers, so a slow minute never makes finished calls look as if they were never analysed.
+async function getAnalysisChecked(itemId) {
   const key = keyFor(itemId);
-  if (memory.has(key)) return memory.get(key);
-  const backend = await verifiedBackend();
-  if (!backend) return null;
-  try {
-    const value = await withTimeout(backend.get(key), TIMEOUT_MS, 'reading an analysis');
-    if (value && typeof value === 'object' && value.callType) {
-      memory.set(key, value);
-      return value;
+  if (memory.has(key)) return { analysis: memory.get(key), unreadable: false };
+  const order = chosen ? [chosen, ...backends.filter((b) => b !== chosen)] : backends;
+  let failed = false;
+  for (const backend of order) {
+    let answered = false;
+    for (let attempt = 0; attempt < 2 && !answered; attempt += 1) {
+      try {
+        const value = await withTimeout(backend.get(key), TIMEOUT_MS, 'reading an analysis');
+        answered = true;
+        if (value && typeof value === 'object' && value.callType) {
+          memory.set(key, value);
+          return { analysis: value, unreadable: false };
+        }
+      } catch (err) {
+        console.error(`[store] reading ${itemId} from ${backend.name} failed: ${err.message}`);
+      }
     }
-  } catch (_err) {
-    // treated as not analysed
+    if (!answered) failed = true;
   }
-  return null;
+  return { analysis: null, unreadable: failed };
+}
+
+async function getAnalysis(itemId) {
+  return (await getAnalysisChecked(itemId)).analysis;
 }
 
 // True only if the analysis was written and read back from a store that works.
@@ -177,4 +192,4 @@ async function mapLimit(items, limit, fn) {
   return results;
 }
 
-module.exports = { getAnalysis, saveAnalysis, mapLimit, selfTest, _setBackends, _makeBackends: makeBackends };
+module.exports = { getAnalysis, getAnalysisChecked, saveAnalysis, mapLimit, selfTest, _setBackends, _makeBackends: makeBackends };

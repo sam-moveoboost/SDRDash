@@ -36,12 +36,13 @@ export default function Coaching({ user }) {
   const [problem, setProblem] = useState(null);
   const [overview, setOverview] = useState(null);
   const [calls, setCalls] = useState([]);
-  const [meta, setMeta] = useState({ waitingCount: 0, refreshCount: 0, coverage: [], rules: null, totals: null });
+  const [meta, setMeta] = useState({ waitingCount: 0, refreshCount: 0, unreadableCount: 0, coverage: [], rules: null, totals: null });
   const [trends, setTrends] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [analysing, setAnalysing] = useState({ busy: false, message: null });
   const [confirmAll, setConfirmAll] = useState(false);
   const [showWaiting, setShowWaiting] = useState(false);
+  const [reviewSdr, setReviewSdr] = useState('all');
   const [sortBy, setSortBy] = useState('priority'); // 'priority' | 'newest'
   const [levelFilter, setLevelFilter] = useState('all'); // 'all' | 'high' | 'medium' | 'low'
   const stopRef = useRef(false);
@@ -76,7 +77,7 @@ export default function Coaching({ user }) {
         ]);
         if (!alive) return;
         setCalls(cl.calls);
-        setMeta({ waitingCount: cl.waitingCount, refreshCount: cl.refreshCount ?? 0, coverage: cl.coverage, rules: cl.rules, totals: cl.transcriptTotals ?? null });
+        setMeta({ waitingCount: cl.waitingCount, refreshCount: cl.refreshCount ?? 0, unreadableCount: cl.unreadableCount ?? 0, coverage: cl.coverage, rules: cl.rules, totals: cl.transcriptTotals ?? null });
         setTrends(tr);
       } catch (e) {
         if (alive) setProblem(explain(e));
@@ -100,7 +101,15 @@ export default function Coaching({ user }) {
   const redoCount = waiting.filter((c) => c.refresh).length;
 
   // Calls to review: only analysed ones, ordered by how much they are worth a manager's time.
-  const finished = useMemo(() => calls.filter((c) => c.status === 'analysed'), [calls]);
+  // Calls analysed under older rules stay here with their score (flagged to redo); only calls with no analysis at all wait.
+  const analysedAll = useMemo(() => calls.filter((c) => c.analysis), [calls]);
+  const sdrKey = (c) => c.sdrId || `name:${c.sdrName}`;
+  const reviewSdrOptions = useMemo(() => {
+    const m = new Map();
+    for (const c of analysedAll) m.set(sdrKey(c), c.sdrName);
+    return [...m.entries()].map(([key, name]) => ({ key, name })).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  }, [analysedAll]);
+  const finished = useMemo(() => (reviewSdr === 'all' ? analysedAll : analysedAll.filter((c) => sdrKey(c) === reviewSdr)), [analysedAll, reviewSdr]);
   const levelCounts = useMemo(() => finished.reduce((m, c) => { const l = c.priority?.level; if (l) m[l] += 1; return m; }, { high: 0, medium: 0, low: 0 }), [finished]);
   const reviewList = useMemo(() => {
     const shown = levelFilter === 'all' ? finished : finished.filter((c) => c.priority?.level === levelFilter);
@@ -113,7 +122,7 @@ export default function Coaching({ user }) {
     try {
       const cl = await coachingApi.calls(userIdParam, days);
       setCalls(cl.calls);
-      setMeta({ waitingCount: cl.waitingCount, refreshCount: cl.refreshCount ?? 0, coverage: cl.coverage, rules: cl.rules, totals: cl.transcriptTotals ?? null });
+      setMeta({ waitingCount: cl.waitingCount, refreshCount: cl.refreshCount ?? 0, unreadableCount: cl.unreadableCount ?? 0, coverage: cl.coverage, rules: cl.rules, totals: cl.transcriptTotals ?? null });
     } catch { /* the page keeps showing what it has */ }
   }, [userIdParam, days]);
 
@@ -283,6 +292,13 @@ export default function Coaching({ user }) {
             <StatCard label="Calls analysed" value={overview.analysedCount} meta={`connected calls since ${fmtDay(overview.coachingFrom)}`} />
           </div>
 
+          {meta.unreadableCount > 0 && (
+            <div className="mb-6 rounded-xl bg-amber-soft text-amber-ink text-[13px] px-4 py-3 flex items-center justify-between gap-4 flex-wrap">
+              <span>{meta.unreadableCount} analysed call{meta.unreadableCount === 1 ? '' : 's'} could not be read from storage just now (it was slow). Nothing is lost and they are not counted as waiting. Press Refresh in a minute.</span>
+              <button type="button" onClick={() => setTick((t) => t + 1)} className="bg-transparent border-0 underline cursor-pointer text-amber-ink">Refresh</button>
+            </div>
+          )}
+
           {/* Managers run the analysis. SDRs see the results for their own calls. */}
           {isAdmin && (
             <Section title="Analyse calls" sub="Claude reads each call's transcript and scores it. Calls that are already analysed are skipped.">
@@ -394,7 +410,7 @@ export default function Coaching({ user }) {
           {isAdmin && sdrId === 'all' && meta.coverage.length > 0 && (
             <Section title="Transcript coverage" sub="Answered calls that have a transcript to coach from. A gap here usually means call recording or transcription is not switched on for that person in Aircall.">
               <Card>
-                <CoverageTable coverage={meta.coverage} />
+                <CoverageTable coverage={meta.coverage} onPick={(key) => { setReviewSdr(key); setLevelFilter('all'); setOpenId(null); document.getElementById('calls-to-review')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} />
                 {overview.connectionCheck?.analysed > 0 && (
                   <div className="text-[12px] text-muted mt-3 pt-3 border-t border-line">
                     Cross-check against the transcripts: of {overview.connectionCheck.analysed} analysed calls, {overview.connectionCheck.taggedConnectedButVoicemail} tagged as a real connection turned out to be a voicemail or phone menu, and {overview.connectionCheck.untaggedButVoicemail} untagged or no-answer calls did too.
@@ -404,6 +420,7 @@ export default function Coaching({ user }) {
             </Section>
           )}
 
+          <div id="calls-to-review" />
           <Section
             title="Calls to review"
             sub="Analysed calls, with a priority out of 10. Long conversations, poorly handled objections, weak call craft and lots of feedback score high. Quick hang-ups and calls that went well score lower."
@@ -419,6 +436,12 @@ export default function Coaching({ user }) {
                     {label}
                   </button>
                 ))}
+                {isAdmin && reviewSdrOptions.length > 0 && (
+                  <select value={reviewSdr} onChange={(e) => { setReviewSdr(e.target.value); setOpenId(null); }} className="bg-card border border-line rounded-full px-3 py-1.5 text-[12.5px] font-medium text-ink cursor-pointer">
+                    <option value="all">Everyone</option>
+                    {reviewSdrOptions.map((o) => <option key={o.key} value={o.key}>{o.name}</option>)}
+                  </select>
+                )}
                 <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="bg-card border border-line rounded-full px-3 py-1.5 text-[12.5px] font-medium text-ink cursor-pointer">
                   <option value="priority">Highest priority first</option>
                   <option value="newest">Newest first</option>
@@ -451,6 +474,7 @@ export default function Coaching({ user }) {
                           {(pr?.reasons || []).slice(0, 3).map((r) => <Chip key={r} tone={/poorly|Weak|missed|Lots of/.test(r) ? 'warn' : /well-handled|strong moment|Meeting booked/.test(r) ? 'good' : 'muted'}>{r}</Chip>)}
                           {c.tags.includes('MeetingBooked') && <Chip tone="good">Meeting booked</Chip>}
                           {a?.nextStepSecured && <Chip tone="info">Next step secured</Chip>}
+                          {c.refresh === 'outdated' && <Chip tone="warn">Redo with new rules</Chip>}
                         </span>
                         <span className="text-muted text-[12px]">{open ? 'Hide' : 'Open'}</span>
                       </button>

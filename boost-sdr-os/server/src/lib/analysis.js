@@ -27,17 +27,25 @@ const CRAFT = [
 
 const CALL_TYPES = ['conversation', 'early_hangup', 'gatekeeper', 'voicemail', 'automated_menu', 'wrong_person', 'other'];
 const OPENER_RESULTS = ['stayed_engaged', 'brushed_off', 'hung_up', 'blocked_by_gatekeeper', 'unclear'];
+// Objection groups, kept broad so "other" stays rare. "Not a good time" covers both "I have no time"
+// and "bad timing" (they are the same thing said two ways); "already covered" covers an existing
+// tool, a competitor or partner, an in-house team, or already doing it with AI.
 const OBJECTION_CATEGORIES = [
-  'not_interested', 'no_time', 'send_email', 'already_have_solution', 'using_competitor',
-  'no_budget', 'wrong_person', 'bad_timing', 'other',
+  'not_interested', 'not_a_good_time', 'send_email', 'already_covered',
+  'no_budget', 'too_small_or_no_need', 'wrong_person', 'data_source_challenge', 'other',
 ];
+// Names used by analyses saved under earlier rules, mapped onto the groups above.
+const LEGACY_OBJECTION = { no_time: 'not_a_good_time', bad_timing: 'not_a_good_time', already_have_solution: 'already_covered', using_competitor: 'already_covered' };
+const LEGACY_OPENER = { permission_based: 'cold_permission_ask', direct_pitch: 'credentials_first', referral_or_context: 'warm_followup', pattern_interrupt: 'pain_question_hook' };
+const modernCategory = (c) => LEGACY_OBJECTION[c] || c;
+const modernOpener = (c) => LEGACY_OPENER[c] || c;
 // Five opening types, grouped from a read of the real transcripts since 1 Nov (65 valid ones):
 // about half referred to an earlier connection, a fifth were a cold request for a moment, and the
 // rest were credentials first, asking for a named person, or opening with a pain-point question.
 const OPENER_STYLES = ['warm_followup', 'cold_permission_ask', 'credentials_first', 'named_person_ask', 'pain_question_hook', 'other'];
 
 // Bump when the shape or the rules of an analysis change, so earlier analyses are offered for redoing.
-const ANALYSIS_SCHEMA = 2;
+const ANALYSIS_SCHEMA = 3;
 const SENIORITY = ['c_level', 'vp_director', 'manager', 'individual', 'unknown'];
 const STAGES = ['opener', 'middle', 'close'];
 
@@ -133,7 +141,10 @@ Rules:
 - Calls may be in Hebrew or another language. Write every finding in English: the summary, the notes, the reasons, the suggestions and the explanations. Never answer in the language of the call.
 - Every quote is given twice. The main field ("quote", "evidence" or "response_quote") is copied word for word in the original language, exactly as it appears in the transcript, short (under 30 words) and never invented. That copy is checked against the transcript, so never translate it. The matching field ending in _en is a faithful English translation of the same words (identical to the original when the call is already in English).
 - Base everything on the transcript. If something is unclear, say so instead of guessing.
-- "try_next_time" must be one to three concrete actions for the next call, ideally with a suggested phrase. For early hang-ups, focus on the first ten seconds.
+- "try_next_time" must be one to three concrete actions for the next call, each tied to something that actually happened on this call. Quote the SDR's own words that should change (short, exact) and give the replacement wording the SDR could say, written as natural speech and not as a script. Never give generic advice such as "ask more open questions" or "build rapport". For early hang-ups, focus on the first ten seconds.
+- "summary": two or three plain sentences a manager could read in ten seconds: who the prospect was, what the SDR did well or badly, and how it ended. Name the single most important thing to coach.
+- "best_moment" and "missed_moment": pick the moment that teaches the most, quote it, and say specifically why it worked or what a stronger SDR would have said instead. Use null only when nothing on the call qualifies.
+- Coach on what the SDR controls (the opening, listening, how they answered the objection, the ask for the next step), not on the prospect's behaviour. Praise only specific things, and keep the tone of a manager who wants this person to improve.
 - Be honest. Praise only what happened.
 - "objections": each genuine objection or brush-off from the prospect (up to four) with the SDR's actual reply and where it came ("opener" means within the first couple of exchanges). Use an empty list if there were none.
 - "prospect" and "opener": only use what is said on the call. Use null or "unknown" when it is not stated; never guess a job title.
@@ -144,7 +155,19 @@ Opener style: judge only from how the SDR opened (their first lines after the gr
 - credentials_first: the SDR explains what the company does and names clients or partners to build credibility (for example "we work with monday.com and Anthropic and clients like ...") before or while asking for a minute.
 - named_person_ask: the SDR opens by asking for a named person, or checking they have the right company or number, and holds back the pitch (for example "is that Galaxy Realty?", "can I speak to Alex Stewart?").
 - pain_question_hook: the SDR states a common problem in the prospect's industry and asks how they handle it, as the hook (for example "how do you handle leads that sit untouched in the CRM?").
-- other: anything that does not clearly fit one of the five. Use it sparingly.
+- other: use ONLY when there was no real opening to judge (the call joined mid-sentence, or the SDR said nothing usable). If the opening is unusual, still pick the closest of the five. Aim for "other" on fewer than one call in five.
+Tie-breaks: ignore any automated screener turn ("record your name and reason") and judge the real opening after it. Label by the first thing the SDR says to the person; if they confirm the person and then pitch in the same turn, label by the pitch. An introduction (name and company) followed by "how are you" or any request to continue, with no earlier connection, is cold_permission_ask. Going straight into what boost does or who it works with is credentials_first. Any reference to a past meeting, call, event or person is warm_followup, even if a question follows.
+
+Objection category: choose the closest group and use "other" only when none fits.
+- not_interested: a plain no, "we do not take sales calls", "not for us".
+- not_a_good_time: busy, in a meeting, "not a great time", "can you call later", "I have no time", or priorities and bandwidth are elsewhere right now. These are one group, however they are worded.
+- send_email: asks for an email, brochure or information instead of talking.
+- already_covered: already has a tool, partner, competitor or an in-house team, or is already doing this (for example already using AI).
+- no_budget: no money, no budget, too expensive, spend frozen.
+- too_small_or_no_need: the team is too small or not big enough, or they say they do not need it.
+- wrong_person: not the right contact, has left the role or company, or someone else decides.
+- data_source_challenge: asks how the SDR got their number or details.
+Give each distinct objection its own entry. If the prospect misunderstood what boost does, pick the closest group and explain in "why".
 
 Record your analysis by calling the record_call_analysis tool, using exactly this shape:
 {
@@ -225,7 +248,7 @@ function validate(raw, turns) {
       industry: raw.prospect?.company_type_or_industry ? String(raw.prospect.company_type_or_industry).slice(0, 80) : null,
     },
     opener: {
-      style: oneOf(raw.opener?.style, OPENER_STYLES, 'other'),
+      style: oneOf(modernOpener(raw.opener?.style), OPENER_STYLES, 'other'),
       quote: openerQuote,
       quoteEn: openerQuote ? english(openerQuote, raw.opener?.quote_en) : null,
       note: String(raw.opener?.note || '').slice(0, 300),
@@ -254,7 +277,7 @@ function validate(raw, turns) {
     .map((o) => {
       const responseQuote = o.response_quote && quoteIsReal(tNorm, o.response_quote) ? String(o.response_quote) : null;
       return {
-        category: oneOf(o.category, OBJECTION_CATEGORIES, 'other'),
+        category: oneOf(modernCategory(o.category), OBJECTION_CATEGORIES, 'other'),
         stage: oneOf(o.stage, STAGES, 'middle'),
         quote: String(o.quote),
         quoteEn: english(String(o.quote), o.quote_en),
@@ -373,14 +396,25 @@ async function ping({ fetchImpl = fetch } = {}) {
 
 const OBJECTION_LABELS = {
   not_interested: 'Not interested',
-  no_time: 'No time',
+  not_a_good_time: 'Not a good time',
   send_email: 'Send me an email',
-  already_have_solution: 'Already have a solution',
-  using_competitor: 'Using a competitor',
+  already_covered: 'Already covered',
   no_budget: 'No budget',
+  too_small_or_no_need: 'Too small or no need',
   wrong_person: 'Wrong person',
-  bad_timing: 'Bad timing',
+  data_source_challenge: 'Asks how they got the number',
   other: 'Other',
+};
+const OBJECTION_DESCRIPTIONS = {
+  not_interested: 'A plain no, or "we do not take sales calls".',
+  not_a_good_time: 'Busy, in a meeting, "not a great time", "call me later" or "no time".',
+  send_email: 'Asks for an email or information instead of talking.',
+  already_covered: 'Already has a tool, partner, competitor or in-house team, or is already doing AI.',
+  no_budget: 'No money, no budget, too expensive or spend frozen.',
+  too_small_or_no_need: 'Team too small, not big enough, or "we do not need it".',
+  wrong_person: 'Not the right contact, left the role, or the decision sits with someone else.',
+  data_source_challenge: 'Asks how the SDR got their number or details.',
+  other: 'Does not clearly fit one of these.',
 };
 const OPENER_LABELS = {
   warm_followup: 'Warm follow-up',
@@ -417,5 +451,5 @@ const CALL_TYPE_LABELS = {
 
 module.exports = {
   analyseCall, ping, validate, extractJson, MEDDPICC, CRAFT, SYSTEM, ANALYSIS_SCHEMA,
-  OBJECTION_LABELS, OPENER_LABELS, OPENER_DESCRIPTIONS, SENIORITY_LABELS, CALL_TYPE_LABELS,
+  OBJECTION_LABELS, OBJECTION_DESCRIPTIONS, OPENER_LABELS, OPENER_DESCRIPTIONS, modernCategory, modernOpener, SENIORITY_LABELS, CALL_TYPE_LABELS,
 };

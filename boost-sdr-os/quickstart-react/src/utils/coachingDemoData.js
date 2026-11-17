@@ -31,7 +31,7 @@ export const demoOverview = {
   coachingFrom: '2026-11-01',
   connectionCheck: { analysed: 12, taggedConnectedButVoicemail: 1, untaggedButVoicemail: 2 },
   coaching: {
-    analysedCalls: 12,
+    totalAnalysed: 17, craftCalls: 16, analysedCalls: 12,
     enoughForFocus: true,
     minCallsForFocus: 3,
     nextStepRate: 0.42,
@@ -71,7 +71,7 @@ const analysis = {
   },
   prospect: { role: 'Sales manager', seniority: 'manager', industry: 'software' },
   opener: { style: 'cold_permission_ask', quote: 'have you got a minute', note: 'Asked permission before pitching.' },
-  objections: [{ category: 'no_time', stage: 'middle', quote: 'we are really busy right now', responseQuote: 'totally get it, would ten minutes next week be easier', handled: 'well', why: 'Acknowledged, then made the ask smaller.' }],
+  objections: [{ category: 'not_a_good_time', stage: 'middle', quote: 'we are really busy right now', responseQuote: 'totally get it, would ten minutes next week be easier', handled: 'well', why: 'Acknowledged, then made the ask smaller.' }],
   bestMoment: { quote: 'totally get it, would ten minutes next week be easier', why: 'Turned a brush-off into a specific next step.' },
   missedMoment: { quote: 'it is a mess', better: 'Ask what the mess costs them each week before moving on.' },
   tryNextTime: ['When someone says it is a mess, ask: "what does that cost you in a typical week?"', 'Name the decision maker: "who else would need to see this?"'],
@@ -94,7 +94,7 @@ const hebrewCall = {
   craft: { opening: { score: 4, note: 'Asked permission before pitching.' }, discovery: { score: null, note: '' }, objection_handling: { score: 4, note: 'Acknowledged the objection, then made the ask smaller.' }, next_step_ask: { score: 4, note: 'Asked for a specific time.' }, tone_and_control: { score: 4, note: 'Calm and respectful.' } },
   prospect: { role: null, seniority: 'unknown', industry: null },
   opener: { style: 'cold_permission_ask', quote: 'יש לך רגע', quoteEn: 'do you have a moment', note: 'Asked permission first.' },
-  objections: [{ category: 'no_time', stage: 'opener', quote: 'אין לי זמן עכשיו', quoteEn: 'I do not have time right now', responseQuote: 'אפשר עשר דקות בשבוע הבא', responseQuoteEn: 'could we do ten minutes next week', handled: 'well', why: 'Acknowledged, then made the ask smaller.' }],
+  objections: [{ category: 'not_a_good_time', stage: 'opener', quote: 'אין לי זמן עכשיו', quoteEn: 'I do not have time right now', responseQuote: 'אפשר עשר דקות בשבוע הבא', responseQuoteEn: 'could we do ten minutes next week', handled: 'well', why: 'Acknowledged, then made the ask smaller.' }],
   bestMoment: { quote: 'מבין לגמרי', quoteEn: 'I completely understand', why: 'Showed empathy before making the ask.' },
   missedMoment: null,
   tryNextTime: ['Ask one question about how they run their pipeline today before booking the follow-up.'],
@@ -125,17 +125,18 @@ export const demoTrends = {
     analysedCalls: 12, coachableCalls: 7, bookedCalls: 4, objectionCount: 17,
     topObjections: [
       { category: 'send_email', label: 'Send me an email', count: 6, share: 0.35, handledWell: 2, handledPoorly: 3, bookedAfter: 1, examples: [{ quote: 'just send me something over', sdrName: 'Emad Mahamid' }] },
-      { category: 'no_time', label: 'No time', count: 5, share: 0.29, handledWell: 4, handledPoorly: 0, bookedAfter: 3, examples: [{ quote: 'we are really busy right now', sdrName: 'Tayla Jones' }] },
+      { category: 'not_a_good_time', label: 'Not a good time', count: 5, share: 0.29, handledWell: 4, handledPoorly: 0, bookedAfter: 3, examples: [{ quote: 'we are really busy right now', sdrName: 'Tayla Jones' }] },
       { category: 'not_interested', label: 'Not interested', count: 4, share: 0.24, handledWell: 1, handledPoorly: 3, bookedAfter: 0, examples: [] },
-      { category: 'already_have_solution', label: 'Already have a solution', count: 2, share: 0.12, handledWell: 1, handledPoorly: 1, bookedAfter: 0, examples: [{ quote: 'we already run everything in monday', sdrName: 'Tayla Jones' }] },
+      { category: 'already_covered', label: 'Already covered', count: 2, share: 0.12, handledWell: 1, handledPoorly: 1, bookedAfter: 0, examples: [{ quote: 'we already run everything in monday', sdrName: 'Tayla Jones' }] },
     ],
     bestHandling: [
-      { category: 'no_time', label: 'No time', examples: [{ sdrName: 'Tayla Jones', quote: 'we are really busy right now', response: 'totally get it, would ten minutes next week be easier', why: 'Acknowledged, then made the ask smaller.', booked: true, stayed: true, startedAt: '2026-11-02 14:56', callId: 'd1' }] },
+      { category: 'not_a_good_time', label: 'Not a good time', examples: [{ sdrName: 'Tayla Jones', quote: 'we are really busy right now', response: 'totally get it, would ten minutes next week be easier', why: 'Acknowledged, then made the ask smaller.', booked: true, stayed: true, startedAt: '2026-11-02 14:56', callId: 'd1' }] },
     ],
     earlyObjections: [
       { category: 'not_interested', label: 'Not interested', count: 4, handledWell: 1, handledPoorly: 3, bookedAfter: 0, stayedAfter: 1, hungUpAfter: 3, examples: [{ sdrName: 'Tayla Jones', stage: 'opener', quote: 'not interested thanks', response: 'fair enough, can I ask one quick question before you go', why: 'Accepted it, then made the next ask tiny.', booked: false, stayed: true, startedAt: '2026-11-04 10:12', callId: 'd5' }] },
       { category: 'send_email', label: 'Send me an email', count: 3, handledWell: 1, handledPoorly: 2, bookedAfter: 0, stayedAfter: 1, hungUpAfter: 1, examples: [] },
     ],
+    openerFit: { inType: 12, total: 12 },
     openers: [
       { style: 'cold_permission_ask', label: 'Cold permission ask', description: 'Gives a name and company, then asks for a moment before saying what they offer.', calls: 6, stayed: 4, stayedRate: 0.67, hungUp: 1, hungUpRate: 0.17, booked: 3, bookedRate: 0.5, nextStepRate: 0.67, stayExamples: [{ quote: 'have you got ten seconds', sdrName: 'Tayla Jones' }], hangUpExamples: [] },
       { style: 'credentials_first', label: 'Credentials first', description: 'Says what the company does and names clients or partners, then asks for a minute.', calls: 5, stayed: 1, stayedRate: 0.2, hungUp: 3, hungUpRate: 0.6, booked: 1, bookedRate: 0.2, nextStepRate: 0.2, stayExamples: [], hangUpExamples: [{ quote: 'we help companies get more out of monday.com', sdrName: 'Luke Birchley' }] },
@@ -149,12 +150,12 @@ export const demoTrends = {
       ],
     },
     profile: {
+      bookedCount: 4, industryMissing: 1,
       bySeniority: [
-        { label: 'Manager', calls: 5, booked: 2, bookedRate: 0.4 }, { label: 'VP or director', calls: 4, booked: 2, bookedRate: 0.5 },
-        { label: 'C-level', calls: 2, booked: 0, bookedRate: 0 }, { label: 'Not stated', calls: 1, booked: 0, bookedRate: 0 },
+        { label: 'VP or director', count: 2, share: 0.5 }, { label: 'Manager', count: 1, share: 0.25 }, { label: 'Not recorded', count: 1, share: 0.25, missing: true },
       ],
       byIndustry: [
-        { label: 'software', calls: 4, booked: 2, bookedRate: 0.5 }, { label: 'professional services', calls: 3, booked: 1, bookedRate: 0.33 },
+        { label: 'software', count: 2, share: 0.5 }, { label: 'professional services', count: 1, share: 0.25 }, { label: 'Not recorded', count: 1, share: 0.25, missing: true },
       ],
       bookedRoles: [{ label: 'head of sales', count: 2 }, { label: 'operations manager', count: 1 }],
     },
