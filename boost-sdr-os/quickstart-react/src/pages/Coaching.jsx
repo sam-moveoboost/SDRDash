@@ -203,8 +203,11 @@ export default function Coaching({ user }) {
     const progress = () => {
       const finished = done + unsaved + failed + lost;
       let eta = ` Each takes about ${SECONDS_PER_CALL} seconds, two at a time.`;
-      if (finished >= 2) {
-        const minutes = Math.max(1, Math.ceil(((ids.length - finished) * ((Date.now() - started) / finished)) / 60000));
+      // Only calls that really went through Claude say how long one takes; quick refusals would
+      // make the estimate far too hopeful.
+      const analysed = done + unsaved;
+      if (analysed >= 3) {
+        const minutes = Math.max(1, Math.ceil(((ids.length - finished) * ((Date.now() - started) / analysed)) / 60000));
         eta = ` About ${minutes} minute${minutes === 1 ? '' : 's'} left.`;
       }
       return `Analysing: ${finished} of ${ids.length} finished.${eta} You can leave this page open and carry on.`;

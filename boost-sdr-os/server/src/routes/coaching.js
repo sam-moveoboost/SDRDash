@@ -277,7 +277,7 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
   // is confirmed, so a call is never marked done unless its analysis is kept.
   // Analyses one call and says what happened. Used by the request that waits for the answer and by
   // the background jobs below.
-  async function analyseOne(id, viewer) {
+  async function analyseOne(id, viewer, { patient = false } = {}) {
     // Time each step and name the one that fails, so a problem is easy to find in the logs.
     let stepName = 'start';
     const t0 = Date.now();
@@ -295,7 +295,13 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
         return { id, error: 'not_found' };
       }
       if (isAnalysed(call)) {
-        const checked = await step('read saved analysis', () => store.getAnalysisChecked(id));
+        let checked = await step('read saved analysis', () => store.getAnalysisChecked(id));
+        // A background run can afford to wait while storage catches up (it loads saved analyses in
+        // small batches after a restart), instead of giving up on the call straight away.
+        for (let wait = 0; patient && !checked.analysis && checked.unreadable && wait < 18; wait += 1) {
+          await new Promise((resolve) => { setTimeout(resolve, 5000); });
+          checked = await store.getAnalysisChecked(id);
+        }
         if (!checked.analysis && checked.unreadable) {
           return { id, error: 'storage_unreadable', message: 'The saved analysis could not be read just now because storage was slow. It was not redone, so nothing was paid for twice. Try again in a minute.' };
         }
@@ -367,7 +373,7 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
       jobWorkers += 1;
       job.state = 'running';
       job.at = now();
-      analyseOne(id, viewer)
+      analyseOne(id, viewer, { patient: true })
         .then((result) => { jobs.set(id, { state: result.error ? 'failed' : 'done', viewerId: viewer.userId, result, at: now() }); })
         .catch((err) => { jobs.set(id, { state: 'failed', viewerId: viewer.userId, result: { id, error: 'failed', message: err.message }, at: now() }); })
         .finally(() => { jobWorkers -= 1; runJobs(); });
