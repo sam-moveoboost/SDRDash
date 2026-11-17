@@ -297,7 +297,9 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
           continue;
         }
 
-        const result = await step('analyse with Claude', () => analysis.analyseCall({ turns: parsed.turns, call }));
+        // The CRM record (industry, company, title) gives the analysis context the call may never state.
+        const prospect = typeof mondayApi.fetchProspect === 'function' ? await step('look up the prospect', () => mondayApi.fetchProspect(call)) : null;
+        const result = await step('analyse with Claude', () => analysis.analyseCall({ turns: parsed.turns, call, prospect }));
         const { sdrShare, sdrQuestions, longestSdrTurnWords, chars } = parsed.stats;
         result.stats = { sdrShare, sdrQuestions, longestSdrTurnWords, chars };
 
