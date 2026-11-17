@@ -62,4 +62,8 @@ export const coachingApi = {
   transcript: (id) => request(`/calls/${encodeURIComponent(id)}/transcript`),
   selftest: () => request('/selftest'),
   analyse: (ids) => request('/analyse', { method: 'POST', body: { ids } }),
+  // Background analysis: start it, then ask how it is going with short requests.
+  analyseStart: (ids) => request('/analyse/start', { method: 'POST', body: { ids } }),
+  analyseStatus: (ids) => request(`/analyse/status${qs({ ids: ids.join(',') })}`),
+  analyseCancel: (ids) => request('/analyse/cancel', { method: 'POST', body: { ids } }),
 };

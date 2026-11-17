@@ -275,76 +275,142 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
   // Analyses calls (the app sends one at a time) and saves the result privately in the
   // app's own storage. The board only gets the "Analysed" status, set after the save
   // is confirmed, so a call is never marked done unless its analysis is kept.
+  // Analyses one call and says what happened. Used by the request that waits for the answer and by
+  // the background jobs below.
+  async function analyseOne(id, viewer) {
+    // Time each step and name the one that fails, so a problem is easy to find in the logs.
+    let stepName = 'start';
+    const t0 = Date.now();
+    const step = async (name, fn) => {
+      stepName = name;
+      const s0 = Date.now();
+      const out = await fn();
+      console.log(`[analyse] ${id} ${name} ${Date.now() - s0}ms`);
+      return out;
+    };
+    try {
+      const call = await step('find call', () => getCall(id));
+      // Same rule as everywhere else: SDRs can only analyse their own calls.
+      if (!call || (!viewer.isAdmin && call.sdrId !== viewer.userId) || !isCandidate(call)) {
+        return { id, error: 'not_found' };
+      }
+      if (isAnalysed(call)) {
+        const checked = await step('read saved analysis', () => store.getAnalysisChecked(id));
+        if (!checked.analysis && checked.unreadable) {
+          return { id, error: 'storage_unreadable', message: 'The saved analysis could not be read just now because storage was slow. It was not redone, so nothing was paid for twice. Try again in a minute.' };
+        }
+        const existing = checked.analysis;
+        if (existing && existing.schema >= ANALYSIS_SCHEMA) {
+          return { id, analysis: existing, saved: true, marked: true };
+        }
+        // Marked done, but the saved analysis is missing or was made under older rules: redo it.
+      }
+      const raw = await step('read transcript', async () => (await loadTranscripts([call]))[id]);
+      const parsed = parseTranscript(raw, call.agentName);
+      if (!usable(parsed)) {
+        return { id, error: parsed ? 'too_short' : 'no_transcript' };
+      }
+
+      // The CRM record (industry, company, title) gives the analysis context the call may never state.
+      const prospect = typeof mondayApi.fetchProspect === 'function' ? await step('look up the prospect', () => mondayApi.fetchProspect(call)) : null;
+      const result = await step('analyse with Claude', () => analysis.analyseCall({ turns: parsed.turns, call, prospect }));
+      const { sdrShare, sdrQuestions, longestSdrTurnWords, chars } = parsed.stats;
+      result.stats = { sdrShare, sdrQuestions, longestSdrTurnWords, chars };
+
+      // The board is only marked once the analysis is confirmed saved permanently.
+      const saved = await step('save analysis', () => store.saveAnalysis(id, result));
+      let marked = false;
+      if (saved) {
+        try {
+          await step('mark as analysed on the board', () => mondayApi.markAnalysed(id));
+          marked = true;
+          call.coachingStatus = cfg.STATUS_ANALYSED; // keep the cached list in step
+        } catch (err) {
+          console.error(`[analyse] ${id} could not mark the board: ${err.message}`);
+        }
+      }
+      console.log(`[analyse] ${id} done in ${Date.now() - t0}ms (saved ${saved}, marked ${marked})`);
+      return { id, analysis: result, saved, marked };
+    } catch (err) {
+      if (err.code === 'not_configured') throw err;
+      console.error(`[analyse] ${id} failed at "${stepName}" after ${Date.now() - t0}ms: ${err.message}`);
+      return { id, error: 'failed', step: stepName, message: `${stepName}: ${err.message}` };
+    }
+  }
+
+  // The request that waits for the answer (kept for small jobs and for tests).
   router.post('/analyse', express.json(), handle(async (req, res) => {
     const ids = [...new Set((req.body?.ids || []).map(String))].slice(0, cfg.MAX_ANALYSE_PER_REQUEST);
     if (!ids.length) return res.status(400).json({ error: 'bad_request', message: 'No calls given.' });
-
     const results = [];
-    for (const id of ids) {
-      // Time each step and name the one that fails, so a problem is easy to find in the logs.
-      let stepName = 'start';
-      const t0 = Date.now();
-      const step = async (name, fn) => {
-        stepName = name;
-        const s0 = Date.now();
-        const out = await fn();
-        console.log(`[analyse] ${id} ${name} ${Date.now() - s0}ms`);
-        return out;
-      };
-      try {
-        const call = await step('find call', () => getCall(id));
-        // Same rule as everywhere else: SDRs can only analyse their own calls.
-        if (!call || (!req.viewer.isAdmin && call.sdrId !== req.viewer.userId) || !isCandidate(call)) {
-          results.push({ id, error: 'not_found' });
-          continue;
-        }
-        if (isAnalysed(call)) {
-          const checked = await step('read saved analysis', () => store.getAnalysisChecked(id));
-          if (!checked.analysis && checked.unreadable) {
-            results.push({ id, error: 'storage_unreadable', message: 'The saved analysis could not be read just now because storage was slow. It was not redone, so nothing was paid for twice. Try again in a minute.' });
-            continue;
-          }
-          const existing = checked.analysis;
-          if (existing && existing.schema >= ANALYSIS_SCHEMA) {
-            results.push({ id, analysis: existing, saved: true, marked: true });
-            continue;
-          }
-          // Marked done, but the saved analysis is missing or was made under older rules: redo it.
-        }
-        const raw = await step('read transcript', async () => (await loadTranscripts([call]))[id]);
-        const parsed = parseTranscript(raw, call.agentName);
-        if (!usable(parsed)) {
-          results.push({ id, error: parsed ? 'too_short' : 'no_transcript' });
-          continue;
-        }
-
-        // The CRM record (industry, company, title) gives the analysis context the call may never state.
-        const prospect = typeof mondayApi.fetchProspect === 'function' ? await step('look up the prospect', () => mondayApi.fetchProspect(call)) : null;
-        const result = await step('analyse with Claude', () => analysis.analyseCall({ turns: parsed.turns, call, prospect }));
-        const { sdrShare, sdrQuestions, longestSdrTurnWords, chars } = parsed.stats;
-        result.stats = { sdrShare, sdrQuestions, longestSdrTurnWords, chars };
-
-        // The board is only marked once the analysis is confirmed saved permanently.
-        const saved = await step('save analysis', () => store.saveAnalysis(id, result));
-        let marked = false;
-        if (saved) {
-          try {
-            await step('mark as analysed on the board', () => mondayApi.markAnalysed(id));
-            marked = true;
-            call.coachingStatus = cfg.STATUS_ANALYSED; // keep the cached list in step
-          } catch (err) {
-            console.error(`[analyse] ${id} could not mark the board: ${err.message}`);
-          }
-        }
-        console.log(`[analyse] ${id} done in ${Date.now() - t0}ms (saved ${saved}, marked ${marked})`);
-        results.push({ id, analysis: result, saved, marked });
-      } catch (err) {
-        if (err.code === 'not_configured') throw err;
-        console.error(`[analyse] ${id} failed at "${stepName}" after ${Date.now() - t0}ms: ${err.message}`);
-        results.push({ id, error: 'failed', step: stepName, message: `${stepName}: ${err.message}` });
-      }
-    }
+    for (const id of ids) results.push(await analyseOne(id, req.viewer));
     return res.json({ results });
+  }));
+
+  // ---- background analysis ----
+  // One analysis can take a minute now that the coaching is richer, and a long request can be cut off
+  // by the hosting. So the page starts the work and then asks how it is going: the server does the
+  // analysing on its own, a couple at a time, and the page only ever makes short requests. Results
+  // are kept in memory for a while; the analyses themselves are saved permanently as before.
+  const JOB_KEEP_MS = 30 * 60 * 1000;
+  const MAX_JOB_WORKERS = 2;
+  const MAX_JOB_IDS = 200;
+  const jobs = new Map(); // id -> { state, viewerId, result?, at }
+  const jobQueue = [];
+  let jobWorkers = 0;
+
+  function runJobs() {
+    while (jobWorkers < MAX_JOB_WORKERS && jobQueue.length) {
+      const { id, viewer } = jobQueue.shift();
+      const job = jobs.get(id);
+      if (!job || job.state !== 'queued') continue; // cancelled
+      jobWorkers += 1;
+      job.state = 'running';
+      job.at = now();
+      analyseOne(id, viewer)
+        .then((result) => { jobs.set(id, { state: result.error ? 'failed' : 'done', viewerId: viewer.userId, result, at: now() }); })
+        .catch((err) => { jobs.set(id, { state: 'failed', viewerId: viewer.userId, result: { id, error: 'failed', message: err.message }, at: now() }); })
+        .finally(() => { jobWorkers -= 1; runJobs(); });
+    }
+  }
+  const sweepJobs = () => { for (const [id, j] of jobs) if (now() - j.at > JOB_KEEP_MS && j.state !== 'running') jobs.delete(id); };
+  const mayRead = (job, viewer) => viewer.isAdmin || job.viewerId === viewer.userId;
+
+  router.post('/analyse/start', express.json(), handle(async (req, res) => {
+    const ids = [...new Set((req.body?.ids || []).map(String))].slice(0, MAX_JOB_IDS);
+    if (!ids.length) return res.status(400).json({ error: 'bad_request', message: 'No calls given.' });
+    sweepJobs();
+    const accepted = [];
+    for (const id of ids) {
+      const existing = jobs.get(id);
+      if (existing && (existing.state === 'queued' || existing.state === 'running')) { accepted.push(id); continue; } // already on its way
+      jobs.set(id, { state: 'queued', viewerId: req.viewer.userId, at: now() });
+      jobQueue.push({ id, viewer: { userId: req.viewer.userId, isAdmin: req.viewer.isAdmin } });
+      accepted.push(id);
+    }
+    runJobs();
+    return res.status(202).json({ accepted });
+  }));
+
+  router.get('/analyse/status', handle(async (req, res) => {
+    const ids = String(req.query.ids || '').split(',').map((x) => x.trim()).filter(Boolean).slice(0, MAX_JOB_IDS);
+    const out = {};
+    for (const id of ids) {
+      const job = jobs.get(id);
+      if (!job || !mayRead(job, req.viewer)) { out[id] = { state: 'unknown' }; continue; }
+      out[id] = job.state === 'done' || job.state === 'failed' ? { state: job.state, result: job.result } : { state: job.state };
+    }
+    return res.json({ jobs: out, queued: jobQueue.length, running: jobWorkers });
+  }));
+
+  router.post('/analyse/cancel', express.json(), handle(async (req, res) => {
+    const ids = new Set((req.body?.ids || []).map(String));
+    let cancelled = 0;
+    for (const id of ids) {
+      const job = jobs.get(id);
+      if (job && job.state === 'queued' && mayRead(job, req.viewer)) { jobs.delete(id); cancelled += 1; }
+    }
+    return res.json({ cancelled });
   }));
 
   // Managers only: proves Claude, storage and monday can each be reached from the server.

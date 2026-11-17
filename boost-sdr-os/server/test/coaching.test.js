@@ -50,13 +50,16 @@ const fixtures = () => [
 ];
 const RAW = { 7: SHORT, 1: convo('Luke Birchley'), 2: convo('Emad Mahamid'), 3: SHORT, 4: SHORT, 5: convo('Luke Birchley'), 6: TINY };
 
-function makeDeps({ persist = true, claudeFails = false, claudePingFails = false } = {}) {
+function makeDeps({ persist = true, claudeFails = false, claudePingFails = false, hold = false } = {}) {
+  let release = () => {};
+  const holdGate = hold ? new Promise((r) => { release = r; }) : null;
   const calls = fixtures();
   const saved = new Map();
   const unreadable = new Set();
   const log = { analysed: [], marked: [], windows: [] };
   return {
     log,
+    release: () => release(),
     unreadable,
     calls,
     deps: {
@@ -72,6 +75,7 @@ function makeDeps({ persist = true, claudeFails = false, claudePingFails = false
         ping: async () => { if (claudePingFails) throw new Error('Claude did not answer within 15 seconds'); },
         analyseCall: async ({ call, prospect }) => {
           if (claudeFails) throw new Error('Claude API HTTP 529');
+          if (holdGate) await holdGate; // lets a test keep analyses running
           log.analysed.push(call.id);
           log.prospects = log.prospects || {};
           log.prospects[call.id] = prospect;
@@ -1232,4 +1236,60 @@ test('when storage says request limit exceeded, the read finishes in the backgro
   } finally {
     realStore._setTuning(DEFAULT_TUNING);
   }
+});
+
+// ---- background analysis: the page starts the work and asks how it is going ----
+const untilDone = async (json, ids, who) => {
+  for (let i = 0; i < 200; i += 1) {
+    const st = await json(`/analyse/status?ids=${ids.join(',')}`, who);
+    if (ids.every((id) => ['done', 'failed'].includes(st.jobs[id]?.state))) return st;
+    await new Promise((r) => setTimeout(r, 10));
+  }
+  throw new Error('the background analysis never finished');
+};
+
+test('analysis can be started and followed with short requests, and the result is saved as before', async () => {
+  await withServer(async ({ call, json, log }) => {
+    const res = await call('/analyse/start', LUKE, { method: 'POST', body: JSON.stringify({ ids: ['1'] }) });
+    assert.equal(res.status, 202); // answered at once, before any analysing is done
+    const st = await untilDone(json, ['1'], LUKE);
+    assert.equal(st.jobs['1'].state, 'done');
+    assert.equal(st.jobs['1'].result.saved, true);
+    assert.deepEqual(log.analysed, ['1']);
+  });
+});
+
+test('only the person who started a background analysis, or a manager, can read its result', async () => {
+  await withServer(async ({ call, json }) => {
+    await call('/analyse/start', LUKE, { method: 'POST', body: JSON.stringify({ ids: ['1'] }) });
+    await untilDone(json, ['1'], LUKE);
+    const other = await json('/analyse/status?ids=1', EMAD);
+    assert.equal(other.jobs['1'].state, 'unknown');
+    const manager = await json('/analyse/status?ids=1', SAM);
+    assert.equal(manager.jobs['1'].state, 'done');
+  });
+});
+
+test('an SDR cannot start analysis of someone else\'s call', async () => {
+  await withServer(async ({ call, json, log }) => {
+    await call('/analyse/start', LUKE, { method: 'POST', body: JSON.stringify({ ids: ['2'] }) }); // call 2 is Emad's
+    const st = await untilDone(json, ['2'], LUKE);
+    assert.equal(st.jobs['2'].result.error, 'not_found');
+    assert.equal(log.analysed.includes('2'), false);
+  });
+});
+
+test('only two analyses run at once in the background, and one that has not started can be cancelled', async () => {
+  await withServer({ hold: true }, async ({ call, json, release, log }) => {
+    await call('/analyse/start', SAM, { method: 'POST', body: JSON.stringify({ ids: ['1', '2', '3'] }) });
+    await new Promise((r) => setTimeout(r, 30));
+    const st = await json('/analyse/status?ids=1,2,3', SAM);
+    assert.equal(st.running, 2);
+    assert.equal(st.queued, 1);
+    const cancelled = await json('/analyse/cancel', SAM, { method: 'POST', body: JSON.stringify({ ids: ['1', '2', '3'] }) });
+    assert.equal(cancelled.cancelled, 1); // only the one still waiting
+    release();
+    await untilDone(json, ['1', '2'], SAM);
+    assert.deepEqual([...log.analysed].sort(), ['1', '2']);
+  });
 });
