@@ -126,6 +126,16 @@ export default function Coaching({ user }) {
     return () => clearTimeout(timer);
   }, [restart]);
 
+  // Storage only lets so many saved analyses be read per minute, so some load in the background.
+  // While any are still loading, look again every 15 seconds (up to about five minutes).
+  const loadingPasses = useRef(0);
+  useEffect(() => {
+    if (!meta.unreadableCount) { loadingPasses.current = 0; return undefined; }
+    if (loadingPasses.current >= 20) return undefined;
+    const timer = setTimeout(() => { loadingPasses.current += 1; setTick((t) => t + 1); }, 15000);
+    return () => clearTimeout(timer);
+  }, [meta.unreadableCount, calls]);
+
   // Re-read the summaries (focus areas, trends) after new analyses land.
   const refreshSummaries = useCallback(async () => {
     try {
@@ -340,8 +350,8 @@ export default function Coaching({ user }) {
           {meta.unreadableCount > 0 && (
             <div className="mb-6 rounded-xl bg-amber-soft text-amber-ink text-[13px] px-4 py-3 flex items-center justify-between gap-4 flex-wrap">
               <span>
-                {meta.unreadableCount} call{meta.unreadableCount === 1 ? ' is' : 's are'} marked as analysed, but the saved results could not be read from storage just now. They are not counted as waiting, so nothing is paid for twice. Press Refresh in a minute.
-                {meta.unreadableReasons?.length > 0 && <span className="block text-[12px] mt-1">Reason from storage: {meta.unreadableReasons.join('; ')}</span>}
+                {meta.unreadableCount} saved analys{meta.unreadableCount === 1 ? 'is is' : 'es are'} still loading. Storage only allows so many reads per minute, so they are loaded in small batches. Nothing is lost, nothing is paid for twice, and this page checks again by itself.
+                {meta.unreadableReasons?.length > 0 && <span className="block text-[12px] mt-1">Storage said: {meta.unreadableReasons.join('; ')}</span>}
               </span>
               <button type="button" onClick={() => { freshRef.current = true; setTick((t) => t + 1); }} className="bg-transparent border-0 underline cursor-pointer text-amber-ink">Refresh</button>
             </div>
