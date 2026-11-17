@@ -23,7 +23,7 @@ function explain(err) {
     return { kind: 'signin', text: 'Could not confirm who you are. Open this app from inside monday and try again.' };
   }
   if (err?.status === 403) return { kind: 'forbidden', text: err.message };
-  if (err instanceof TypeError) return { kind: 'unreachable', text: 'Could not reach the coaching server.' };
+  if (err instanceof TypeError || [502, 504].includes(err?.status)) return { kind: 'unreachable', text: 'The coaching server is being updated, which usually takes about 4 minutes. This page tries again by itself.' };
   return { kind: 'error', text: err?.message || 'Something went wrong.' };
 }
 
@@ -37,6 +37,7 @@ export default function Coaching({ user }) {
   const [refreshing, setRefreshing] = useState(false); // showing remembered data while the newest loads
   const freshRef = useRef(false); // the Refresh button asks the server to re-read the board
   const [problem, setProblem] = useState(null);
+  const [restart, setRestart] = useState(null); // { tries } while the server cannot be reached
   const [notice, setNotice] = useState(null); // a failed update while earlier data is still on screen
   const [overview, setOverview] = useState(null);
   const [calls, setCalls] = useState([]);
@@ -102,18 +103,28 @@ export default function Coaching({ user }) {
         setTrends(tr);
         setProblem(null);
         setNotice(null);
+        setRestart(null);
         writeCoachingCache(viewerKey, sdrId, days, { overview: ov, calls: cl.calls, meta: nextMeta, trends: tr });
       } catch (e) {
         // With remembered data on screen, a failed update is a soft notice, not a blank page.
         if (!alive) return;
-        if (remembered?.overview) setNotice(`${explain(e).text} Showing what was loaded earlier.`);
-        else setProblem(explain(e));
+        const why = explain(e);
+        if (why.kind === 'unreachable') setRestart((r) => ({ tries: (r?.tries ?? 0) + 1 }));
+        if (remembered?.overview) setNotice(`${why.text} Showing what was loaded earlier.`);
+        else setProblem(why);
       } finally {
         if (alive) { setLoading(false); setRefreshing(false); }
       }
     })();
     return () => { alive = false; };
   }, [demo, days, sdrId, tick, userIdParam, viewerKey]);
+
+  // While the server is being updated, look again every 20 seconds (for about five minutes).
+  useEffect(() => {
+    if (!restart || restart.tries > 15) return undefined;
+    const timer = setTimeout(() => setTick((t) => t + 1), 20000);
+    return () => clearTimeout(timer);
+  }, [restart]);
 
   // Re-read the summaries (focus areas, trends) after new analyses land.
   const refreshSummaries = useCallback(async () => {
