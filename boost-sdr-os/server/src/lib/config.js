@@ -20,6 +20,21 @@ module.exports = {
     recording: 'link_mm19c866',
     duration: 'formula_mm3jzhbk',
     coachingStatus: 'color_mm8sjkwt', // "Coaching analysis" status column, set to Analysed by the app
+    prospects: 'board_relation_mm2cmzgw', // "Outbound prospects": link to the prospect the call was made to
+    externalPhone: 'phone_mm19p9w6', // the number that was called
+  },
+
+  // The Outbound prospects board holds the CRM record for each person called. The industry,
+  // company, job title and seniority come from here, so they do not depend on the prospect
+  // saying them on the call.
+  PROSPECTS_BOARD: '5089407333',
+  PROSPECT_COLS: {
+    industry: 'dropdown_mkz4vqpg', // "Industry (CRM)"
+    company: 'text_mkw7ezh6',
+    title: 'text_mm0wcwfm',
+    seniority: 'text_mm04hrym',
+    employees: 'text_mm095qj2',
+    phones: 'phone_mm1t253',
   },
 
   // Aircall counts a voicemail pick-up as "answered". SDRs tag those calls with one of

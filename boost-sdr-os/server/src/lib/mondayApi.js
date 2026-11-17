@@ -2,7 +2,7 @@
 // depends on (or exposes) a token in the browser.
 
 const { getSecret } = require('./secrets');
-const { CALLS_BOARD, COLS, STATUS_ANALYSED, NOT_CONNECTED_TAGS } = require('./config');
+const { CALLS_BOARD, COLS, STATUS_ANALYSED, NOT_CONNECTED_TAGS, PROSPECTS_BOARD, PROSPECT_COLS } = require('./config');
 
 const API_VERSION = '2024-01';
 
@@ -26,6 +26,7 @@ const ITEM_FIELDS = `
   column_values(ids: [${COLUMN_IDS.map((c) => `"${c}"`).join(', ')}]) {
     id text
     ... on PeopleValue { persons_and_teams { id kind } }
+    ... on BoardRelationValue { linked_item_ids }
   }
 `;
 
@@ -68,6 +69,9 @@ function parseCall(item) {
     tags,
     durationMin,
     recordingUrl: recording,
+    // For looking up the CRM record: the linked prospect, else the number that was called.
+    prospectIds: (col(COLS.prospects)?.linked_item_ids ?? []).map(String),
+    externalPhone: text(COLS.externalPhone).replace(/\D/g, ''),
   };
 }
 
@@ -96,6 +100,47 @@ async function fetchCall(id) {
   const data = await gql(`query($ids: [ID!]) { items(ids: $ids) { board { id } ${ITEM_FIELDS} } }`, { ids: [String(id)] });
   const item = data.items?.[0];
   return item && String(item.board?.id) === String(CALLS_BOARD) ? parseCall(item) : null;
+}
+
+// The CRM record of the person called: Industry (CRM), company, job title, seniority, size.
+// Found through the call's link to the Outbound prospects board, or else by the number that was
+// called. Never throws: a call is analysed the same without it, just with less context.
+const PROSPECT_FIELDS = `id column_values(ids: [${Object.values(PROSPECT_COLS).map((c) => `"${c}"`).join(', ')}]) { id text }`;
+
+function parseProspect(item, source) {
+  const text = (id) => (item.column_values?.find((c) => c.id === id)?.text || '').trim() || null;
+  return {
+    source,
+    industry: text(PROSPECT_COLS.industry),
+    company: text(PROSPECT_COLS.company),
+    title: text(PROSPECT_COLS.title),
+    seniority: text(PROSPECT_COLS.seniority),
+    employees: text(PROSPECT_COLS.employees),
+  };
+}
+
+async function fetchProspect(call) {
+  try {
+    if (call.prospectIds?.length) {
+      const data = await gql(`query($ids: [ID!]) { items(ids: $ids) { ${PROSPECT_FIELDS} } }`, { ids: [call.prospectIds[0]] });
+      const item = data.items?.[0];
+      if (item) return parseProspect(item, 'link');
+    }
+    const digits = String(call.externalPhone || '').replace(/\D/g, '');
+    if (digits.length >= 7) {
+      // Numbers are stored with different prefixes (+972..., 972..., 0...), so match on the last nine digits.
+      const tail = digits.slice(-9);
+      // `tail` is digits only, so it is safe to write into the query directly.
+      const data = await gql(
+        `query { boards(ids: ["${PROSPECTS_BOARD}"]) { items_page(limit: 3, query_params: { rules: [{ column_id: "${PROSPECT_COLS.phones}", compare_value: ["${tail}"], operator: contains_text }] }) { items { ${PROSPECT_FIELDS} } } } }`,
+      );
+      const item = data.boards?.[0]?.items_page?.items?.[0];
+      if (item) return parseProspect(item, 'phone');
+    }
+  } catch (err) {
+    console.error(`[prospect] lookup failed: ${err.message}`);
+  }
+  return null;
 }
 
 // Cheap check that the token works.
@@ -128,4 +173,4 @@ async function markAnalysed(itemId) {
   );
 }
 
-module.exports = { fetchCalls, fetchCall, fetchTranscripts, parseCall, markAnalysed, ping };
+module.exports = { fetchCalls, fetchCall, fetchTranscripts, fetchProspect, parseCall, parseProspect, markAnalysed, ping };

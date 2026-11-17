@@ -64,14 +64,17 @@ function makeDeps({ persist = true, claudeFails = false, claudePingFails = false
         fetchCalls: async (since) => { log.windows.push(since); return calls; },
         fetchCall: async (id) => calls.find((c) => c.id === id) ?? null,
         ping: async () => {},
+        fetchProspect: async () => ({ source: 'phone', industry: 'Real Estate', company: 'Acme Homes', title: 'Sales Director', seniority: 'director', employees: '24' }),
         fetchTranscripts: async (ids) => Object.fromEntries(ids.filter((id) => RAW[id]).map((id) => [id, RAW[id]])),
         markAnalysed: async (id) => { log.marked.push(id); calls.find((c) => c.id === id).coachingStatus = 'Analysed'; },
       },
       analysis: {
         ping: async () => { if (claudePingFails) throw new Error('Claude did not answer within 15 seconds'); },
-        analyseCall: async ({ call }) => {
+        analyseCall: async ({ call, prospect }) => {
           if (claudeFails) throw new Error('Claude API HTTP 529');
           log.analysed.push(call.id);
+          log.prospects = log.prospects || {};
+          log.prospects[call.id] = prospect;
           return { callType: 'conversation', language: 'English', schema: 3, coachable: true, openerResult: 'stayed_engaged', nextStepSecured: true, meddpicc: {}, craft: {}, objections: [] };
         },
       },
@@ -895,5 +898,84 @@ test('calls whose saved analysis could not be read are not offered for re-analys
     assert.equal(list.waitingCount, 1); // only call 1, never analysed
     const res = await json('/analyse', LUKE, { method: 'POST', body: JSON.stringify({ ids: ['3'] }) });
     assert.equal(res.results[0].error, 'storage_unreadable');
+  });
+});
+
+// ---- industry from the CRM record ----
+test('the CRM record of the person called is passed to the analysis', async () => {
+  await withServer(async ({ json, log }) => {
+    const res = await json('/analyse', LUKE, { method: 'POST', body: JSON.stringify({ ids: ['1'] }) });
+    assert.equal(res.results[0].saved, true);
+    assert.equal(log.prospects['1'].industry, 'Real Estate');
+    assert.equal(log.prospects['1'].company, 'Acme Homes');
+  });
+});
+
+test('a failed prospect lookup never stops a call being analysed', async () => {
+  const { fetchProspect } = require('../src/lib/mondayApi');
+  // No token is set, so the lookup fails inside; it must answer null, not throw.
+  const saved = process.env.MONDAY_API_TOKEN;
+  delete process.env.MONDAY_API_TOKEN;
+  try {
+    assert.equal(await fetchProspect({ prospectIds: ['1'], externalPhone: '447403259262' }), null);
+  } finally {
+    if (saved) process.env.MONDAY_API_TOKEN = saved;
+  }
+});
+
+test('a call is linked to its prospect by the board link, and the called number is kept for matching', () => {
+  const { parseCall, parseProspect } = require('../src/lib/mondayApi');
+  const call = parseCall({ id: '1', created_at: '2026-11-02T14:57:03Z', column_values: [
+    { id: 'board_relation_mm2cmzgw', text: 'Nahum', linked_item_ids: ['3362084344'] },
+    { id: 'phone_mm19p9w6', text: '+972 58-595-2424' },
+  ] });
+  assert.deepEqual(call.prospectIds, ['3362084344']);
+  assert.equal(call.externalPhone, '972585952424');
+  const p = parseProspect({ column_values: [
+    { id: 'dropdown_mkz4vqpg', text: 'Real Estate' }, { id: 'text_mkw7ezh6', text: 'Acme Homes' },
+    { id: 'text_mm0wcwfm', text: '' }, { id: 'text_mm04hrym', text: 'director' },
+  ] }, 'phone');
+  assert.equal(p.industry, 'Real Estate');
+  assert.equal(p.title, null);
+  assert.equal(p.source, 'phone');
+});
+
+test('industry: the CRM wins, the model picks from the fixed list otherwise, and gaps stay visible', () => {
+  const turns = [{ who: 'prospect', text: 'hello' }, { who: 'sdr', text: 'hi' }];
+  const base = { call_type: 'conversation', coachable: true, opener_result: 'stayed_engaged', next_step_secured: false, meddpicc: {}, craft: {}, objections: [] };
+  const crm = { industry: 'Real Estate', company: 'Acme Homes', title: 'Sales Director', seniority: 'director' };
+  const a = validate({ ...base, prospect: { seniority: 'unknown', industry: 'Real estate and property', industry_source: 'crm' } }, turns, crm);
+  assert.equal(a.prospect.industryGroup, 'Real estate and property');
+  assert.equal(a.prospect.industrySource, 'crm');
+  assert.equal(a.prospect.company, 'Acme Homes');
+  assert.equal(a.prospect.role, 'Sales Director');
+  assert.equal(a.prospect.seniority, 'vp_director'); // CRM "director" fills a seniority the call never stated
+  // Without a CRM record the model cannot claim "crm"; a made-up label falls back to Other.
+  const b = validate({ ...base, prospect: { industry: 'Underwater basket weaving', industry_source: 'crm' } }, turns);
+  assert.equal(b.prospect.industryGroup, 'Other');
+  assert.equal(b.prospect.industrySource, 'unknown');
+  const c = validate({ ...base, prospect: { industry: 'Energy and utilities', industry_source: 'company_name' } }, turns);
+  assert.equal(c.prospect.industrySource, 'company_name');
+});
+
+test('who books by industry uses the fixed-list pick and flags booked calls where nothing was known', () => {
+  const mk = (id, group, source) => ({
+    call: { id, sdrName: 'Luke', tags: ['MeetingBooked'] },
+    analysis: { coachable: true, callType: 'conversation', openerResult: 'stayed_engaged', nextStepSecured: true, craft: {}, objections: [],
+      prospect: { seniority: 'manager', industryGroup: group, industrySource: source }, opener: { style: 'warm_followup', quote: 'x' } },
+  });
+  const t = buildTrends([mk('1', 'Energy and utilities', 'crm'), mk('2', 'Energy and utilities', 'company_name'), mk('3', 'Other', 'unknown')]);
+  assert.deepEqual(t.profile.byIndustry.map((r) => [r.label, r.count]), [['energy and utilities', 2], ['Not recorded', 1]]);
+  assert.equal(t.profile.industryMissing, 1);
+});
+
+test('the CRM record reaches Claude as context in the request', async () => {
+  const { analyseCall } = require('../src/lib/analysis');
+  await withKey(async () => {
+    let body;
+    const fetchImpl = async (_u, init) => { body = JSON.parse(init.body); return toolReply({ call_type: 'conversation', coachable: true, opener_result: 'stayed_engaged', next_step_secured: false, meddpicc: {}, craft: {}, objections: [] }); };
+    await analyseCall({ turns: quoteTurns, call: { durationMin: 1 }, prospect: { company: 'Acme Homes', industry: 'Real Estate', title: 'Sales Director' } }, { fetchImpl });
+    assert.match(body.messages[0].content, /Company: Acme Homes/);
+    assert.match(body.messages[0].content, /Industry \(CRM\): Real Estate/);
   });
 });

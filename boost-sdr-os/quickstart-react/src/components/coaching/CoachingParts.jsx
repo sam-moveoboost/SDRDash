@@ -551,7 +551,7 @@ function GroupCard({ title, rows, empty = 'Nothing recorded yet.', bookedCount =
       )}
       {what && missing > 0 && (
         <div className="mt-3 pt-3 border-t border-line text-[12px] text-muted">
-          {missing} of {bookedCount} booked {missing === 1 ? 'call has' : 'calls have'} no {what} recorded. It is only captured when the prospect says it on the call, so it needs adding for these.
+          {missing} of {bookedCount} booked {missing === 1 ? 'call has' : 'calls have'} no {what} recorded. It comes from the CRM record when the call matches a prospect, and otherwise from the call or the company name. These did not match one, so adding the industry on the prospect board fills it in.
         </div>
       )}
     </Card>

@@ -47,6 +47,16 @@ const OPENER_STYLES = ['warm_followup', 'cold_permission_ask', 'credentials_firs
 // Bump when the shape or the rules of an analysis change, so earlier analyses are offered for redoing.
 const ANALYSIS_SCHEMA = 3;
 const SENIORITY = ['c_level', 'vp_director', 'manager', 'individual', 'unknown'];
+// One fixed list so "Who books, by industry" groups cleanly instead of every call having its own wording.
+const INDUSTRIES = [
+  'Software and IT', 'Real estate and property', 'Energy and utilities', 'Professional services', 'Financial services',
+  'Construction and engineering', 'Manufacturing and industrial', 'Retail and e-commerce', 'Healthcare and life sciences',
+  'Education and non-profit', 'Marketing and media', 'Transport and logistics', 'Hospitality and leisure', 'Public sector', 'Other',
+];
+const INDUSTRY_SOURCES = ['crm', 'call', 'company_name', 'unknown'];
+// How the CRM writes seniority, mapped onto the app's levels.
+const CRM_SENIORITY = { 'c suite': 'c_level', c_suite: 'c_level', owner: 'c_level', founder: 'c_level', partner: 'c_level', vp: 'vp_director', director: 'vp_director', head: 'vp_director', manager: 'manager', senior: 'individual', entry: 'individual', intern: 'individual' };
+const crmSeniority = (v) => CRM_SENIORITY[String(v || '').trim().toLowerCase()] || null;
 const STAGES = ['opener', 'middle', 'close'];
 
 const list = (xs) => xs.map((s) => `"${s}"`).join(' | ');
@@ -93,6 +103,8 @@ const ANALYSIS_TOOL = {
           role_or_title: { type: ['string', 'null'] },
           seniority: { type: 'string', enum: SENIORITY },
           company_type_or_industry: { type: ['string', 'null'] },
+          industry: { type: 'string', enum: INDUSTRIES },
+          industry_source: { type: 'string', enum: INDUSTRY_SOURCES },
         },
       },
       opener: {
@@ -148,6 +160,7 @@ Rules:
 - Be honest. Praise only what happened.
 - "objections": each genuine objection or brush-off from the prospect (up to four) with the SDR's actual reply and where it came ("opener" means within the first couple of exchanges). Use an empty list if there were none.
 - "prospect" and "opener": only use what is said on the call. Use null or "unknown" when it is not stated; never guess a job title.
+- "industry": always choose the closest item from the fixed list, so industries can be compared across calls. If the message includes a CRM record, use its industry (mapped onto the list) and set industry_source to "crm". Otherwise use what is said on the call ("call"), or, when the company name makes the industry clear, that ("company_name"). If it cannot be told, use "Other" with industry_source "unknown". The CRM record is context from our own database and can be incomplete; the call itself wins if they clearly disagree.
 
 Opener style: judge only from how the SDR opened (their first lines after the greeting), not from how the call went. Choose exactly one:
 - warm_followup: the first lines refer to an earlier meeting, event, conversation, a named person who referred them, or a previous call attempt (for example "we met at the event", "we spoke before", "Gershon suggested I call you", "it's Emad again").
@@ -180,7 +193,7 @@ Record your analysis by calling the record_call_analysis tool, using exactly thi
   "next_step_secured": boolean,
   "meddpicc": { ${MEDDPICC.map((m) => `"${m.key}": { "score": 0|1|2, "evidence": "verbatim quote in the original language, or empty string", "evidence_en": "English translation of the evidence" }`).join(', ')} },
   "craft": { ${CRAFT.map((c) => `"${c.key}": { "score": 1-5 or null, "note": "one sentence" }`).join(', ')} },
-  "prospect": { "role_or_title": "as said on the call, or null", "seniority": ${list(SENIORITY)}, "company_type_or_industry": "as said or clearly implied, or null" },
+  "prospect": { "role_or_title": "as said on the call, or null", "seniority": ${list(SENIORITY)}, "company_type_or_industry": "as said or clearly implied, or null", "industry": ${list(INDUSTRIES)}, "industry_source": ${list(INDUSTRY_SOURCES)} },
   "opener": { "style": ${list(OPENER_STYLES)}, "quote": "verbatim, original language: how the SDR opened, the first thing said after the greeting", "quote_en": "English translation", "note": "one sentence" },
   "objections": [ { "category": ${list(OBJECTION_CATEGORIES)}, "stage": ${list(STAGES)}, "quote": "verbatim prospect words, original language", "quote_en": "English translation", "response_quote": "verbatim SDR reply in the original language, or empty string", "response_quote_en": "English translation of the reply", "handled": "well" | "ok" | "poorly", "why": "one sentence" } ],
   "best_moment": { "quote": "verbatim, original language", "quote_en": "English translation", "why": "one sentence" } | null,
@@ -227,7 +240,7 @@ const english = (original, translated) => {
 };
 
 // Cleans the model output and removes any quote that is not really in the transcript.
-function validate(raw, turns) {
+function validate(raw, turns, crm = null) {
   const tNorm = norm(turns.map((t) => t.text).join(' '));
   const openerQuote = raw.opener?.quote && quoteIsReal(tNorm, raw.opener.quote) ? String(raw.opener.quote) : null;
   const out = {
@@ -246,6 +259,9 @@ function validate(raw, turns) {
       role: raw.prospect?.role_or_title ? String(raw.prospect.role_or_title).slice(0, 80) : null,
       seniority: oneOf(raw.prospect?.seniority, SENIORITY, 'unknown'),
       industry: raw.prospect?.company_type_or_industry ? String(raw.prospect.company_type_or_industry).slice(0, 80) : null,
+      industryGroup: null,
+      industrySource: 'unknown',
+      company: null,
     },
     opener: {
       style: oneOf(modernOpener(raw.opener?.style), OPENER_STYLES, 'other'),
@@ -259,6 +275,17 @@ function validate(raw, turns) {
     tryNextTime: Array.isArray(raw.try_next_time) ? raw.try_next_time.map(String).slice(0, 3) : [],
     analysedAt: new Date().toISOString(),
   };
+
+  // Industry: the CRM record wins when there is one; otherwise the model's pick from the fixed list.
+  const picked = oneOf(raw.prospect?.industry, INDUSTRIES, 'Other');
+  const pickedSource = oneOf(raw.prospect?.industry_source, INDUSTRY_SOURCES, 'unknown');
+  out.prospect.industryGroup = picked;
+  out.prospect.industrySource = crm?.industry ? 'crm' : pickedSource === 'crm' ? 'unknown' : pickedSource;
+  if (crm) {
+    out.prospect.company = crm.company ? String(crm.company).slice(0, 80) : null;
+    if (!out.prospect.role && crm.title) out.prospect.role = String(crm.title).slice(0, 80);
+    if (out.prospect.seniority === 'unknown') out.prospect.seniority = crmSeniority(crm.seniority) || 'unknown';
+  }
 
   for (const { key } of MEDDPICC) {
     const m = raw.meddpicc?.[key] || {};
@@ -342,19 +369,27 @@ function readAnalysis(json) {
   return extractJson(blocks.filter((b) => b.type === 'text').map((b) => b.text).join(''));
 }
 
-async function analyseCall({ turns, call }, { fetchImpl = fetch } = {}) {
+async function analyseCall({ turns, call, prospect = null }, { fetchImpl = fetch } = {}) {
   const apiKey = getSecret('ANTHROPIC_API_KEY');
   if (!apiKey) throw Object.assign(new Error('The server is missing ANTHROPIC_API_KEY.'), { code: 'not_configured' });
 
   const length = call.durationMin == null ? 'unknown length' : `about ${Math.round(call.durationMin)} minute${Math.round(call.durationMin) === 1 ? '' : 's'}`;
-  const user = `Call length: ${length}.\n\nTranscript:\n${renderForModel(turns)}\n\nRecord your analysis by calling the record_call_analysis tool.`;
+  const crmLines = prospect ? [
+    prospect.company && `Company: ${prospect.company}`,
+    prospect.title && `Job title: ${prospect.title}`,
+    prospect.seniority && `Seniority: ${prospect.seniority}`,
+    prospect.employees && `Employees: ${prospect.employees}`,
+    prospect.industry && `Industry (CRM): ${prospect.industry}`,
+  ].filter(Boolean) : [];
+  const crm = crmLines.length ? `\n\nCRM record for the person called (from our own database, may be incomplete):\n${crmLines.join('\n')}` : '';
+  const user = `Call length: ${length}.${crm}\n\nTranscript:\n${renderForModel(turns)}\n\nRecord your analysis by calling the record_call_analysis tool.`;
 
   // An unreadable answer is retried once; any other failure is reported straight away.
   let lastError;
   for (let attempt = 0; attempt < 2; attempt++) {
     const json = await askClaude(user, apiKey, fetchImpl);
     try {
-      return validate(readAnalysis(json), turns);
+      return validate(readAnalysis(json), turns, prospect);
     } catch (err) {
       const unreadable = err instanceof SyntaxError || /did not return JSON/.test(err.message);
       if (!unreadable) throw err;
@@ -450,6 +485,6 @@ const CALL_TYPE_LABELS = {
 };
 
 module.exports = {
-  analyseCall, ping, validate, extractJson, MEDDPICC, CRAFT, SYSTEM, ANALYSIS_SCHEMA,
+  analyseCall, ping, validate, extractJson, MEDDPICC, CRAFT, SYSTEM, ANALYSIS_SCHEMA, INDUSTRIES,
   OBJECTION_LABELS, OBJECTION_DESCRIPTIONS, OPENER_LABELS, OPENER_DESCRIPTIONS, modernCategory, modernOpener, SENIORITY_LABELS, CALL_TYPE_LABELS,
 };

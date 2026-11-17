@@ -50,6 +50,15 @@ function modernise(p) {
   };
 }
 
+// The industry to show for a call: the fixed-list pick (CRM, call or company name), or the older
+// free-text wording on analyses made before that. "Other" with no source means nothing was known.
+function industryOf(a) {
+  const pr = a.prospect || {};
+  if (pr.industryGroup && !(pr.industryGroup === 'Other' && pr.industrySource === 'unknown')) return norm(pr.industryGroup);
+  if (pr.industryGroup) return null;
+  return norm(pr.industry) || null;
+}
+
 function buildTrends(pairs) {
   const human = pairs.filter((p) => p.analysis && !NON_HUMAN.has(p.analysis.callType)).map(modernise);
   const real = human.filter((p) => p.analysis.coachable);
@@ -172,8 +181,8 @@ function buildTrends(pairs) {
   const profile = {
     bookedCount: booked.length,
     bySeniority: bookedBreakdown((p) => (p.analysis.prospect?.seniority !== 'unknown' ? p.analysis.prospect?.seniority : null), (k) => SENIORITY_LABELS[k] || k),
-    byIndustry: bookedBreakdown((p) => norm(p.analysis.prospect?.industry)),
-    industryMissing: booked.filter((p) => !norm(p.analysis.prospect?.industry)).length,
+    byIndustry: bookedBreakdown((p) => industryOf(p.analysis)),
+    industryMissing: booked.filter((p) => !industryOf(p.analysis)).length,
     bookedRoles: (() => {
       const m = new Map();
       for (const p of booked) {
