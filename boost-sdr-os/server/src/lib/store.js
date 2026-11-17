@@ -124,10 +124,14 @@ function getAnalysisChecked(itemId) {
   return reading.get(key);
 }
 
+// Some stores answer "no such key" by throwing. That is an answer ("not there"), not a failure to read.
+const NOT_FOUND = /not.?found|404|no such|does not exist|doesn.?t exist|no value/i;
+
 async function readAnalysis(itemId) {
   const key = keyFor(itemId);
   const order = chosen ? [chosen, ...backends.filter((b) => b !== chosen)] : backends;
   let failed = false;
+  const errors = [];
   for (const backend of order) {
     let answered = false;
     for (let attempt = 0; attempt < 2 && !answered; attempt += 1) {
@@ -139,12 +143,17 @@ async function readAnalysis(itemId) {
           return { analysis: value, unreadable: false };
         }
       } catch (err) {
-        console.error(`[store] reading ${itemId} from ${backend.name} failed: ${err.message}`);
+        if (NOT_FOUND.test(err.message)) {
+          answered = true; // the store said it has nothing under that key
+        } else {
+          console.error(`[store] reading ${itemId} from ${backend.name} failed: ${err.message}`);
+          if (attempt === 1 || !errors.some((e) => e.startsWith(backend.name))) errors.push(`${backend.name}: ${err.message}`);
+        }
       }
     }
     if (!answered) failed = true;
   }
-  return { analysis: null, unreadable: failed };
+  return { analysis: null, unreadable: failed, errors: failed ? errors : [] };
 }
 
 async function getAnalysis(itemId) {

@@ -40,7 +40,7 @@ export default function Coaching({ user }) {
   const [notice, setNotice] = useState(null); // a failed update while earlier data is still on screen
   const [overview, setOverview] = useState(null);
   const [calls, setCalls] = useState([]);
-  const [meta, setMeta] = useState({ waitingCount: 0, refreshCount: 0, unreadableCount: 0, coverage: [], rules: null, totals: null });
+  const [meta, setMeta] = useState({ waitingCount: 0, refreshCount: 0, unreadableCount: 0, unreadableReasons: [], coverage: [], rules: null, totals: null });
   const [trends, setTrends] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [analysing, setAnalysing] = useState({ busy: false, message: null });
@@ -95,7 +95,7 @@ export default function Coaching({ user }) {
           coachingApi.trends(userIdParam, days, fresh),
         ]);
         if (!alive) return;
-        const nextMeta = { waitingCount: cl.waitingCount, refreshCount: cl.refreshCount ?? 0, unreadableCount: cl.unreadableCount ?? 0, coverage: cl.coverage, rules: cl.rules, totals: cl.transcriptTotals ?? null };
+        const nextMeta = { waitingCount: cl.waitingCount, refreshCount: cl.refreshCount ?? 0, unreadableCount: cl.unreadableCount ?? 0, unreadableReasons: cl.unreadableReasons ?? [], coverage: cl.coverage, rules: cl.rules, totals: cl.transcriptTotals ?? null };
         setOverview(ov);
         setCalls(cl.calls);
         setMeta(nextMeta);
@@ -149,7 +149,7 @@ export default function Coaching({ user }) {
     try {
       const cl = await coachingApi.calls(userIdParam, days);
       setCalls(cl.calls);
-      setMeta({ waitingCount: cl.waitingCount, refreshCount: cl.refreshCount ?? 0, unreadableCount: cl.unreadableCount ?? 0, coverage: cl.coverage, rules: cl.rules, totals: cl.transcriptTotals ?? null });
+      setMeta({ waitingCount: cl.waitingCount, refreshCount: cl.refreshCount ?? 0, unreadableCount: cl.unreadableCount ?? 0, unreadableReasons: cl.unreadableReasons ?? [], coverage: cl.coverage, rules: cl.rules, totals: cl.transcriptTotals ?? null });
     } catch { /* the page keeps showing what it has */ }
   }, [userIdParam, days]);
 
@@ -328,7 +328,10 @@ export default function Coaching({ user }) {
 
           {meta.unreadableCount > 0 && (
             <div className="mb-6 rounded-xl bg-amber-soft text-amber-ink text-[13px] px-4 py-3 flex items-center justify-between gap-4 flex-wrap">
-              <span>{meta.unreadableCount} analysed call{meta.unreadableCount === 1 ? '' : 's'} could not be read from storage just now (it was slow). Nothing is lost and they are not counted as waiting. Press Refresh in a minute.</span>
+              <span>
+                {meta.unreadableCount} call{meta.unreadableCount === 1 ? ' is' : 's are'} marked as analysed, but the saved results could not be read from storage just now. They are not counted as waiting, so nothing is paid for twice. Press Refresh in a minute.
+                {meta.unreadableReasons?.length > 0 && <span className="block text-[12px] mt-1">Reason from storage: {meta.unreadableReasons.join('; ')}</span>}
+              </span>
               <button type="button" onClick={() => { freshRef.current = true; setTick((t) => t + 1); }} className="bg-transparent border-0 underline cursor-pointer text-amber-ink">Refresh</button>
             </div>
           )}
