@@ -16,7 +16,12 @@ async function sessionToken() {
   return res.data;
 }
 
-async function request(path, { method = 'GET', body } = {}) {
+// A restart of the server shows up as a dropped connection or a gateway error for a few minutes.
+// Reads try again a couple of times quickly; the page then keeps trying by itself (see Coaching.jsx).
+const looksLikeRestart = (err) => err instanceof TypeError || ([502, 503, 504].includes(err?.status) && err?.code !== 'not_configured');
+const wait = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
+
+async function requestOnce(path, { method = 'GET', body } = {}) {
   const token = await sessionToken();
   const res = await fetch(`${SERVER_URL}/coaching${path}`, {
     method,
@@ -29,6 +34,19 @@ async function request(path, { method = 'GET', body } = {}) {
     throw Object.assign(new Error(json?.message || `The server answered ${res.status}.`), { status: res.status, code: json?.error });
   }
   return json;
+}
+
+async function request(path, opts = {}) {
+  const isRead = !opts.method || opts.method === 'GET';
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await requestOnce(path, opts);
+    } catch (err) {
+      // Only reads are repeated; an analysis is never sent twice behind the person's back.
+      if (!isRead || attempt >= 2 || !looksLikeRestart(err)) throw err;
+      await wait(1500 * (attempt + 1));
+    }
+  }
 }
 
 const qs = (params) => {
