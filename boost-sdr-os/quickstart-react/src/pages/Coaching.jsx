@@ -11,8 +11,7 @@ const DAY_OPTIONS = [14, 30, 60, 90];
 const fmtDay = (iso) => new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
 const BATCH = 5;
 const ALL_WORKERS = 2; // calls analysed at the same time when running them all
-const SECONDS_PER_CALL = 30; // rough guide for the time estimate
-const MAX_FAILURES_IN_A_ROW = 3; // stop rather than keep hitting a problem
+const SECONDS_PER_CALL = 45; // rough guide for the time estimate
 
 // Turns a failed request into something a person can act on.
 function explain(err) {
@@ -174,70 +173,84 @@ export default function Coaching({ user }) {
     } catch { /* the page keeps showing what it has */ }
   }, [userIdParam, days]);
 
-  // Analyses the given calls, one request per call (each takes 20 to 40 seconds, and one long
-  // request for several can be cut off by the hosting). Running them all uses a couple of workers
-  // at once, can be stopped, and stops by itself after a few failures in a row.
-  const runAnalysis = async (ids, { workers = 1 } = {}) => {
+  // Starts the analysis on the server and follows it with short requests. The server does the work a
+  // couple of calls at a time on its own, so a slow call can no longer be cut off by the hosting;
+  // this page only asks how it is going. Stopping cancels what has not started yet.
+  const runAnalysis = async (ids) => {
     if (demo) { setAnalysing({ busy: false, message: 'This is sample data, so nothing was analysed.' }); return; }
     if (!ids.length) return;
 
     stopRef.current = false;
     setConfirmAll(false);
     const started = Date.now();
-    let next = 0;
+    setAnalysing({ busy: true, message: `Starting ${ids.length} call${ids.length === 1 ? '' : 's'}...` });
+    try {
+      await coachingApi.analyseStart(ids);
+    } catch (e) {
+      setAnalysing({ busy: false, message: explain(e).text });
+      return;
+    }
+
+    const pending = new Set(ids);
     let done = 0;
     let unsaved = 0;
     let failed = 0;
-    let streak = 0;
-    let cutOff = false;
-    let lastError = null;
+    let lost = 0;
     let lastMessage = null;
+    let pollErrors = 0;
+    let gaveUp = false;
 
     const progress = () => {
-      const finished = done + unsaved + failed;
-      let eta = ` Each takes about ${SECONDS_PER_CALL} seconds.`;
+      const finished = done + unsaved + failed + lost;
+      let eta = ` Each takes about ${SECONDS_PER_CALL} seconds, two at a time.`;
       if (finished >= 2) {
         const minutes = Math.max(1, Math.ceil(((ids.length - finished) * ((Date.now() - started) / finished)) / 60000));
         eta = ` About ${minutes} minute${minutes === 1 ? '' : 's'} left.`;
       }
-      return `Analysing call ${Math.min(finished + 1, ids.length)} of ${ids.length}.${eta}`;
+      return `Analysing: ${finished} of ${ids.length} finished.${eta} You can leave this page open and carry on.`;
     };
 
-    const worker = async () => {
-      while (!stopRef.current && !cutOff && streak < MAX_FAILURES_IN_A_ROW && next < ids.length) {
-        const id = ids[next];
-        next += 1;
-        setAnalysing({ busy: true, message: progress() });
-        try {
-          const { results } = await coachingApi.analyse([id]);
-          const r = results?.[0];
-          if (r?.analysis) {
-            // Only a saved analysis counts as done. If it could not be kept permanently the
-            // call stays in the waiting list so it is offered again.
-            setCalls((prev) => prev.map((c) => (c.id === id ? { ...c, analysis: r.analysis, status: r.saved ? 'analysed' : c.status, refresh: r.saved ? null : c.refresh, detailsMissing: false } : c)));
-            if (r.saved) { done += 1; streak = 0; } else { unsaved += 1; streak += 1; }
-          } else {
-            failed += 1;
-            streak += 1;
-            if (r?.message) lastMessage = r.message;
-          }
-        } catch (e) {
+    while (pending.size && !stopRef.current) {
+      await new Promise((resolve) => { setTimeout(resolve, 3000); });
+      let status;
+      try {
+        status = await coachingApi.analyseStatus([...pending]);
+        pollErrors = 0;
+      } catch {
+        pollErrors += 1; // a dropped connection or a restart: keep asking for a while
+        if (pollErrors >= 20) { gaveUp = true; break; }
+        setAnalysing({ busy: true, message: 'Waiting for the server to answer...' });
+        continue;
+      }
+      for (const id of [...pending]) {
+        const job = status.jobs?.[id];
+        if (!job) continue;
+        if (job.state === 'unknown') { pending.delete(id); lost += 1; continue; } // the server restarted and forgot it
+        if (job.state !== 'done' && job.state !== 'failed') continue;
+        pending.delete(id);
+        const r = job.result;
+        if (r?.analysis) {
+          // Only a saved analysis counts as done. If it could not be kept permanently the call
+          // stays in the waiting list so it is offered again.
+          setCalls((prev) => prev.map((c) => (c.id === id ? { ...c, analysis: r.analysis, status: r.saved ? 'analysed' : c.status, refresh: r.saved ? null : c.refresh, detailsMissing: false, priority: c.priority } : c)));
+          if (r.saved) done += 1; else unsaved += 1;
+        } else {
           failed += 1;
-          streak += 1;
-          lastError = e;
-          if (e instanceof TypeError) cutOff = true; // connection dropped; stop rather than repeat it
+          if (r?.message) lastMessage = r.message;
         }
       }
-    };
-    await Promise.all(Array.from({ length: workers }, worker));
+      setAnalysing({ busy: true, message: progress() });
+    }
+
+    if (stopRef.current && pending.size) {
+      try { await coachingApi.analyseCancel([...pending]); } catch { /* it will simply finish */ }
+    }
 
     let message = failed ? `${done} analysed, ${failed} could not be.` : `${done} analysed.`;
     if (unsaved) message += ` ${unsaved} could not be saved permanently, so ${unsaved === 1 ? 'it' : 'they'} will be offered again.`;
-    if (cutOff) message = `${done} analysed. The server stopped answering part way, so try again. Anything that finished is saved.`;
-    else if (streak >= MAX_FAILURES_IN_A_ROW) {
-      message = `Stopped after ${MAX_FAILURES_IN_A_ROW} failures in a row (${done} analysed). ${lastMessage || (lastError && explain(lastError).text) || 'The analysis did not complete.'}`;
-    } else if (stopRef.current) message = `Stopped. ${message}`;
-    else if (!done && lastError) message = explain(lastError).text;
+    if (lost) message += ` The server restarted part way, so ${lost} ${lost === 1 ? 'was' : 'were'} not finished. Press the button again; anything that finished is saved.`;
+    if (gaveUp) message = `${done} analysed. The server did not answer for a while. Anything that finished is saved, so press the button again in a few minutes.`;
+    else if (stopRef.current) message = `Stopped. ${message} Up to two calls already running will still finish in the background.`;
     else if (!done && lastMessage) message = `Could not analyse. ${lastMessage}`;
     setAnalysing({ busy: false, message });
 
@@ -245,8 +258,8 @@ export default function Coaching({ user }) {
     if (done) refreshSummaries();
   };
 
-  const analyseNext = () => runAnalysis(waiting.slice(0, BATCH).map((c) => c.id), { workers: 1 });
-  const analyseAll = () => runAnalysis(waiting.map((c) => c.id), { workers: ALL_WORKERS });
+  const analyseNext = () => runAnalysis(waiting.slice(0, BATCH).map((c) => c.id));
+  const analyseAll = () => runAnalysis(waiting.map((c) => c.id));
   const estimateMinutes = Math.max(1, Math.ceil((waiting.length * SECONDS_PER_CALL) / ALL_WORKERS / 60));
 
   const runCheck = async () => {
@@ -376,7 +389,7 @@ export default function Coaching({ user }) {
                   <div className="flex items-center gap-2.5 flex-wrap">
                     {analysing.busy ? (
                       <button type="button" onClick={() => { stopRef.current = true; }} className="rounded-full bg-card border border-line text-ink text-sm font-medium px-4 py-2 cursor-pointer hover:bg-sunken">
-                        Stop after this call
+                        Stop
                       </button>
                     ) : (
                       <>
@@ -401,7 +414,7 @@ export default function Coaching({ user }) {
                 {confirmAll && !analysing.busy && (
                   <div className="mt-4 rounded-xl border border-line bg-sunken px-4 py-3 text-[13px] flex items-center justify-between gap-4 flex-wrap">
                     <span className="text-body">
-                      This analyses all {waiting.length} waiting calls, {ALL_WORKERS} at a time. It will take roughly {estimateMinutes} minute{estimateMinutes === 1 ? '' : 's'}, uses Claude for each call, and needs this tab left open. You can stop at any point and nothing already finished is lost.
+                      This analyses all {waiting.length} waiting calls, {ALL_WORKERS} at a time. It will take roughly {estimateMinutes} minute{estimateMinutes === 1 ? '' : 's'}, uses Claude for each call, and runs on the server, so it carries on if you close this tab. You can stop at any point and nothing already finished is lost.
                     </span>
                     <span className="flex gap-2">
                       <button type="button" onClick={analyseAll} className="rounded-full bg-navy text-white text-sm font-medium px-4 py-1.5 border-0 cursor-pointer">Start</button>
