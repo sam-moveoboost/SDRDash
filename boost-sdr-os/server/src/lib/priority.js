@@ -7,7 +7,7 @@
 //   - a meeting booked (worth hearing how)
 //   - a long, real conversation (more to learn from)
 // Calls with nothing to learn from sit at the bottom: voicemail, gatekeepers, quick hang-ups, and
-// conversations where nothing stood out.
+// conversations with no lessons recorded.
 //
 // It is worked out from the saved analysis each time it is needed, so it costs nothing extra and any
 // change to these rules applies to calls that were analysed earlier.
@@ -47,15 +47,20 @@ function reviewPriority(analysis, call = {}) {
   }
 
   const objections = analysis.objections || [];
-  const poor = objections.filter((o) => o.handled === 'poorly').length;
-  const well = objections.filter((o) => o.handled === 'well').length;
+  const exchanges = analysis.keyExchanges || [];
+  const missedEx = exchanges.filter((e) => e.verdict === 'missed').length;
+  const partlyEx = exchanges.filter((e) => e.verdict === 'partly').length;
+  const landedEx = exchanges.filter((e) => e.verdict === 'landed').length;
+  // An objection can also appear as a key exchange; count the larger of the two, not both.
+  const poor = Math.max(objections.filter((o) => o.handled === 'poorly').length, missedEx);
+  const well = Math.max(objections.filter((o) => o.handled === 'well').length, landedEx);
   const weak = Object.entries(analysis.craft || {})
     .filter(([, c]) => Number.isFinite(c?.score) && c.score <= WEAK_CRAFT_SCORE)
     .map(([key]) => CRAFT_LABELS[key] || key);
   const missed = Boolean(analysis.missedMoment);
   const strong = Boolean(analysis.bestMoment);
   const booked = Array.isArray(call.tags) && call.tags.includes('MeetingBooked');
-  const feedbackPoints = weak.length + poor + (missed ? 1 : 0) + (analysis.tryNextTime || []).length;
+  const feedbackPoints = weak.length + poor + partlyEx + (missed ? 1 : 0) + (analysis.tryNextTime || []).length;
 
   const minutes = Number.isFinite(call.durationMin) ? call.durationMin : 0;
   const chars = analysis.stats?.chars ?? 0;
@@ -77,15 +82,19 @@ function reviewPriority(analysis, call = {}) {
 
   if (poor) {
     score += examplePoints(poor, 3.5, 1.5, 5);
-    reasons.push(`${plural(poor, 'objection')} handled poorly`);
+    reasons.push(missedEx >= poor && missedEx ? `${plural(missedEx, 'answer')} that did not land` : `${plural(poor, 'objection')} handled poorly`);
   }
   if (well) {
     score += examplePoints(well, 3.5, 1, 5);
-    reasons.push(well === 1 ? 'A well-handled objection' : `${well} well-handled objections`);
+    reasons.push(landedEx >= well && landedEx ? (landedEx === 1 ? 'An answer that landed well' : `${landedEx} answers that landed well`) : (well === 1 ? 'A well-handled objection' : `${well} well-handled objections`));
   }
   if (weak.length) {
     score += Math.min(3, weak.length * 1.5);
     reasons.push(`Weak: ${weak.slice(0, 3).join(', ')}`);
+  }
+  if (partlyEx) {
+    score += Math.min(1.5, partlyEx * 0.75);
+    reasons.push(`${plural(partlyEx, 'answer')} that only partly landed`);
   }
   if (missed) {
     score += 1.5;
@@ -103,7 +112,6 @@ function reviewPriority(analysis, call = {}) {
     score += 0.5;
     reasons.push('Lots of feedback');
   }
-  if (coachable && !poor && !well && !weak.length && !missed && !strong && !booked) reasons.push('Nothing stood out');
 
   if (!coachable) score = Math.min(score, SHORT_CALL_CAP);
   const rounded = clamp(Math.round(score), 1, 10);

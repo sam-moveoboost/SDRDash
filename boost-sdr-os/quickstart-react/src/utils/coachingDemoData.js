@@ -71,6 +71,10 @@ const analysis = {
   },
   prospect: { role: 'Sales manager', seniority: 'manager', industry: 'software' },
   opener: { style: 'cold_permission_ask', quote: 'have you got a minute', note: 'Asked permission before pitching.' },
+  keyExchanges: [
+    { kind: 'prospect_question', prospectQuote: 'what do you actually offer', sdrQuote: 'it is not a solution, well it is a solution', verdict: 'missed', whatHappened: 'A simple question got a shifting answer ("not a solution", then "a solution"), so the prospect asked again.', better: 'We make sure none of your leads sit untouched. Is that something you have?' },
+    { kind: 'next_step', prospectQuote: 'call me tomorrow at nine', sdrQuote: 'could we book twenty minutes tomorrow morning', verdict: 'landed', whatHappened: 'Asked for a specific time and got one.', better: 'Keep proposing a concrete slot.' },
+  ],
   objections: [{ category: 'not_a_good_time', stage: 'middle', quote: 'we are really busy right now', responseQuote: 'totally get it, would ten minutes next week be easier', handled: 'well', why: 'Acknowledged, then made the ask smaller.' }],
   bestMoment: { quote: 'totally get it, would ten minutes next week be easier', why: 'Turned a brush-off into a specific next step.' },
   missedMoment: { quote: 'it is a mess', better: 'Ask what the mess costs them each week before moving on.' },
@@ -136,7 +140,13 @@ export const demoTrends = {
       { category: 'not_interested', label: 'Not interested', count: 4, handledWell: 1, handledPoorly: 3, bookedAfter: 0, stayedAfter: 1, hungUpAfter: 3, examples: [{ sdrName: 'Tayla Jones', stage: 'opener', quote: 'not interested thanks', response: 'fair enough, can I ask one quick question before you go', why: 'Accepted it, then made the next ask tiny.', booked: false, stayed: true, startedAt: '2026-11-04 10:12', callId: 'd5' }] },
       { category: 'send_email', label: 'Send me an email', count: 3, handledWell: 1, handledPoorly: 2, bookedAfter: 0, stayedAfter: 1, hungUpAfter: 1, examples: [] },
     ],
-    openerFit: { inType: 12, total: 12 },
+    positioningCalls: 12,
+    bestPositioning: 'ai_only',
+    positioning: [
+      { key: 'ai_only', label: 'AI business', description: 'Said we are an AI business or build AI, with no mention of monday.com.', calls: 5, stayed: 4, stayedRate: 0.8, hungUp: 1, hungUpRate: 0.2, engagedRate: 0.6, booked: 2, bookedRate: 0.4, nextStepRate: 0.4, avgDurationMin: 3.4, smallSample: false, stayExamples: [{ quote: 'we build AI agents for sales teams' }], hangUpExamples: [] },
+      { key: 'monday_only', label: 'monday.com business', description: 'Said we are a monday.com partner or implement monday.com, with no mention of AI.', calls: 4, stayed: 1, stayedRate: 0.25, hungUp: 3, hungUpRate: 0.75, engagedRate: 0.25, booked: 1, bookedRate: 0.25, nextStepRate: 0.25, avgDurationMin: 1.6, smallSample: true, stayExamples: [], hangUpExamples: [{ quote: 'we are a monday.com partner' }] },
+      { key: 'not_said', label: 'Did not say who we are', description: 'Did not say, or only said it later. Includes calls that ended before it could be said.', calls: 3, stayed: 1, stayedRate: 0.33, hungUp: 2, hungUpRate: 0.67, engagedRate: 0.33, booked: 0, bookedRate: 0, nextStepRate: 0, avgDurationMin: 0.9, smallSample: true, stayExamples: [], hangUpExamples: [] },
+    ],
     openers: [
       { style: 'cold_permission_ask', label: 'Cold permission ask', description: 'Gives a name and company, then asks for a moment before saying what they offer.', calls: 6, stayed: 4, stayedRate: 0.67, hungUp: 1, hungUpRate: 0.17, booked: 3, bookedRate: 0.5, nextStepRate: 0.67, stayExamples: [{ quote: 'have you got ten seconds', sdrName: 'Tayla Jones' }], hangUpExamples: [] },
       { style: 'credentials_first', label: 'Credentials first', description: 'Says what the company does and names clients or partners, then asks for a minute.', calls: 5, stayed: 1, stayedRate: 0.2, hungUp: 3, hungUpRate: 0.6, booked: 1, bookedRate: 0.2, nextStepRate: 0.2, stayExamples: [], hangUpExamples: [{ quote: 'we help companies get more out of monday.com', sdrName: 'Luke Birchley' }] },
