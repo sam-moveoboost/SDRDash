@@ -75,7 +75,7 @@ function makeDeps({ persist = true, claudeFails = false, claudePingFails = false
           log.analysed.push(call.id);
           log.prospects = log.prospects || {};
           log.prospects[call.id] = prospect;
-          return { callType: 'conversation', language: 'English', schema: 3, coachable: true, openerResult: 'stayed_engaged', nextStepSecured: true, meddpicc: {}, craft: {}, objections: [] };
+          return { callType: 'conversation', language: 'English', schema: 4, coachable: true, openerResult: 'stayed_engaged', nextStepSecured: true, meddpicc: {}, craft: {}, objections: [] };
         },
       },
       store: {
@@ -238,7 +238,7 @@ test('everyone can see the team trends, but nothing that points at an individual
     for (const id of ['1', '2']) {
       calls.find((c) => c.id === id).coachingStatus = 'Analysed';
       await deps.store.saveAnalysis(id, {
-        callType: 'conversation', language: 'English', schema: 3, coachable: true, openerResult: 'stayed_engaged', nextStepSecured: true, craft: {},
+        callType: 'conversation', language: 'English', schema: 4, coachable: true, openerResult: 'stayed_engaged', nextStepSecured: true, craft: {},
         prospect: { seniority: 'manager', role: 'Head of Sales', industry: 'software' },
         opener: { style: 'permission_based', quote: 'Got a minute?', quoteEn: 'Got a minute?' },
         objections: [{ category: 'no_time', stage: 'opener', quote: 'No time', quoteEn: 'No time', responseQuote: 'Ten minutes next week?', responseQuoteEn: 'Ten minutes next week?', handled: id === '1' ? 'well' : 'poorly', why: 'x' }],
@@ -668,7 +668,7 @@ test('an analysis saved before the English change is offered for redoing, and re
 test('a current analysis (with a language) is left alone and never redone', async () => {
   await withServer(async ({ json, log, calls, deps }) => {
     calls.find((c) => c.id === '3').coachingStatus = 'Analysed';
-    await deps.store.saveAnalysis('3', { callType: 'early_hangup', language: 'English', schema: 3, coachable: false });
+    await deps.store.saveAnalysis('3', { callType: 'early_hangup', language: 'English', schema: 4, coachable: false });
 
     const list = await json('/calls', LUKE);
     assert.equal(list.calls.find((c) => c.id === '3').status, 'analysed');
@@ -714,7 +714,7 @@ test('calls still waiting are always listed, even when many finished calls come 
     for (let i = 0; i < 210; i++) {
       const id = `done${i}`;
       calls.push(mkCall({ id, createdAt: '2026-11-10T10:00:00Z', startedAt: '2026-11-10 10:00', coachingStatus: 'Analysed', tags: ['Gatekeeper'] }));
-      await deps.store.saveAnalysis(id, { callType: 'conversation', language: 'English', schema: 3, coachable: true, meddpicc: {}, craft: {}, objections: [] });
+      await deps.store.saveAnalysis(id, { callType: 'conversation', language: 'English', schema: 4, coachable: true, meddpicc: {}, craft: {}, objections: [] });
     }
     const list = await json('/calls', LUKE);
     const waitingRows = list.calls.filter((c) => c.status === 'waiting');
@@ -807,7 +807,7 @@ test('scores always stay between 1 and 10', () => {
 test('finished calls come back with a priority, in the list the page shows', async () => {
   await withServer(async ({ json, calls, deps }) => {
     calls.find((c) => c.id === '3').coachingStatus = 'Analysed';
-    await deps.store.saveAnalysis('3', { callType: 'early_hangup', language: 'English', schema: 3, coachable: false, objections: [], craft: {} });
+    await deps.store.saveAnalysis('3', { callType: 'early_hangup', language: 'English', schema: 4, coachable: false, objections: [], craft: {} });
     const row = (await json('/calls', LUKE)).calls.find((c) => c.id === '3');
     assert.equal(row.status, 'analysed');
     assert.equal(row.priority.level, 'low');
@@ -1040,4 +1040,72 @@ test('three readers of the same saved analysis cause one read from storage', asy
   assert.equal(a.analysis.callType, 'conversation');
   assert.equal(b.analysis.callType, 'conversation');
   assert.equal(c.analysis.callType, 'conversation');
+});
+
+// ---- what we say we are ----
+const posTurns = [
+  { who: 'sdr', text: 'Hi, it is Sam from boost, we are an AI business that builds agents for sales teams.' },
+  { who: 'prospect', text: 'Oh interesting, tell me more about that.' },
+];
+const posBase = { call_type: 'conversation', coachable: true, opener_result: 'stayed_engaged', next_step_secured: false, meddpicc: {}, craft: {}, objections: [] };
+
+test('what the SDR says boost is gets recorded with a checked quote and the prospect reaction', () => {
+  const a = validate({ ...posBase, positioning: { lead: 'ai', mentions_monday: false, mentions_ai: true, when: 'opening', quote: 'we are an AI business that builds agents', quote_en: 'we are an AI business that builds agents', reaction: 'engaged' } }, posTurns);
+  assert.equal(a.positioning.lead, 'ai');
+  assert.equal(a.positioning.mentionsAi, true);
+  assert.equal(a.positioning.mentionsMonday, false);
+  assert.equal(a.positioning.reaction, 'engaged');
+  assert.equal(a.positioning.quote, 'we are an AI business that builds agents');
+  // A quote that is not in the transcript is dropped, not trusted.
+  const b = validate({ ...posBase, positioning: { lead: 'monday', when: 'opening', quote: 'we are the best monday.com partner in Europe', reaction: 'neutral' } }, posTurns);
+  assert.equal(b.positioning.quote, null);
+  assert.equal(b.positioning.mentionsMonday, true); // the lead always counts as mentioned
+  // Never said means nothing is mentioned, whatever else came back.
+  const c = validate({ ...posBase, positioning: { lead: 'ai', mentions_ai: true, when: 'never' } }, posTurns);
+  assert.equal(c.positioning.lead, 'none');
+  assert.equal(c.positioning.mentionsAi, false);
+});
+
+test('trends compare saying monday.com, AI, both or something else, and leave out older analyses', () => {
+  const mk = (id, pos, over = {}) => ({
+    call: { id, sdrName: 'Luke', tags: over.booked ? ['MeetingBooked'] : [], durationMin: over.mins ?? 3 },
+    analysis: { coachable: true, callType: 'conversation', openerResult: over.stayed === false ? 'hung_up' : 'stayed_engaged', nextStepSecured: false, craft: {}, objections: [],
+      prospect: { seniority: 'manager' }, opener: { style: 'warm_followup', quote: 'x' },
+      ...(pos ? { positioning: { lead: 'none', mentionsMonday: false, mentionsAi: false, when: 'opening', quote: 'we are x', quoteEn: 'we are x', reaction: 'engaged', ...pos } } : {}) },
+  });
+  const pairs = [
+    ...[1, 2, 3, 4, 5].map((i) => mk(`a${i}`, { lead: 'ai', mentionsAi: true }, { booked: i < 3 })),
+    ...[1, 2, 3, 4, 5].map((i) => mk(`m${i}`, { lead: 'monday', mentionsMonday: true }, { stayed: i < 3 })),
+    mk('b1', { lead: 'monday', mentionsMonday: true, mentionsAi: true }),
+    mk('b2', { lead: 'ai', mentionsMonday: true, mentionsAi: true }),
+    mk('n1', { lead: 'none', when: 'never' }, { stayed: false }),
+    mk('n2', { lead: 'ai', mentionsAi: true, when: 'later' }), // said only later: counts as not said
+    mk('old', null), // made before this was recorded
+  ];
+  const t = buildTrends(pairs);
+  const g = (k) => t.positioning.find((r) => r.key === k);
+  assert.equal(t.positioningCalls, 14); // the old analysis is not counted
+  assert.equal(g('ai_only').calls, 5);
+  assert.equal(g('ai_only').stayedRate, 1);
+  assert.equal(g('ai_only').booked, 2);
+  assert.equal(g('monday_only').stayedRate, 0.4);
+  assert.equal(g('both_monday_first').calls, 1);
+  assert.equal(g('both_ai_first').calls, 1);
+  assert.equal(g('not_said').calls, 2);
+  assert.equal(g('both_ai_first').smallSample, true);
+  assert.equal(g('ai_only').smallSample, false);
+  assert.equal(t.bestPositioning, 'ai_only'); // most people stay, with enough calls to say so
+  assert.equal(g('ai_only').avgDurationMin, 3);
+});
+
+test('what we say we are is shown to everyone without a name or a link to a call', () => {
+  const { forEveryone } = require('../src/lib/trends');
+  const t = buildTrends([{
+    call: { id: '1', sdrName: 'Luke', sdrId: '111', tags: [], durationMin: 2 },
+    analysis: { coachable: true, callType: 'conversation', openerResult: 'stayed_engaged', nextStepSecured: false, craft: {}, objections: [], prospect: {}, opener: { style: 'other', quote: null },
+      positioning: { lead: 'ai', mentionsAi: true, mentionsMonday: false, when: 'opening', quote: 'we do AI', quoteEn: 'we do AI', reaction: 'engaged' } },
+  }]);
+  const text = JSON.stringify(forEveryone(t));
+  assert.equal(text.includes('Luke'), false);
+  assert.equal(text.includes('we do AI'), true);
 });

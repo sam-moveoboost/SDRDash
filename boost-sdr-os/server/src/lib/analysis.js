@@ -26,6 +26,10 @@ const CRAFT = [
 ];
 
 const CALL_TYPES = ['conversation', 'early_hangup', 'gatekeeper', 'voicemail', 'automated_menu', 'wrong_person', 'other'];
+// How the SDR describes who boost is in the first part of the call, and how the prospect reacts.
+const POSITIONING_LEADS = ['monday', 'ai', 'other', 'none'];
+const POSITIONING_WHEN = ['opening', 'early', 'later', 'never'];
+const POSITIONING_REACTIONS = ['engaged', 'neutral', 'pushed_back', 'ended', 'unclear'];
 const OPENER_RESULTS = ['stayed_engaged', 'brushed_off', 'hung_up', 'blocked_by_gatekeeper', 'unclear'];
 // Objection groups, kept broad so "other" stays rare. "Not a good time" covers both "I have no time"
 // and "bad timing" (they are the same thing said two ways); "already covered" covers an existing
@@ -45,7 +49,7 @@ const modernOpener = (c) => LEGACY_OPENER[c] || c;
 const OPENER_STYLES = ['warm_followup', 'cold_permission_ask', 'credentials_first', 'named_person_ask', 'pain_question_hook', 'other'];
 
 // Bump when the shape or the rules of an analysis change, so earlier analyses are offered for redoing.
-const ANALYSIS_SCHEMA = 3;
+const ANALYSIS_SCHEMA = 4;
 const SENIORITY = ['c_level', 'vp_director', 'manager', 'individual', 'unknown'];
 // One fixed list so "Who books, by industry" groups cleanly instead of every call having its own wording.
 const INDUSTRIES = [
@@ -111,6 +115,19 @@ const ANALYSIS_TOOL = {
         type: 'object',
         properties: { style: { type: 'string', enum: OPENER_STYLES }, quote: str, quote_en: str, note: str },
       },
+      positioning: {
+        type: 'object',
+        properties: {
+          lead: { type: 'string', enum: POSITIONING_LEADS },
+          mentions_monday: { type: 'boolean' },
+          mentions_ai: { type: 'boolean' },
+          when: { type: 'string', enum: POSITIONING_WHEN },
+          quote: str,
+          quote_en: str,
+          reaction: { type: 'string', enum: POSITIONING_REACTIONS },
+          note: str,
+        },
+      },
       objections: {
         type: 'array',
         items: {
@@ -171,6 +188,14 @@ Opener style: judge only from how the SDR opened (their first lines after the gr
 - other: use ONLY when there was no real opening to judge (the call joined mid-sentence, or the SDR said nothing usable). If the opening is unusual, still pick the closest of the five. Aim for "other" on fewer than one call in five.
 Tie-breaks: ignore any automated screener turn ("record your name and reason") and judge the real opening after it. Label by the first thing the SDR says to the person; if they confirm the person and then pitch in the same turn, label by the pitch. An introduction (name and company) followed by "how are you" or any request to continue, with no earlier connection, is cold_permission_ask. Going straight into what boost does or who it works with is credentials_first. Any reference to a past meeting, call, event or person is warm_followup, even if a question follows.
 
+Positioning (who boost says it is): look at what the SDR says boost is during the first part of the call (roughly the first minute, before the real conversation). Record:
+- lead: the FIRST way the SDR describes what boost is. "monday" if boost is described as a monday.com business or partner (for example "we are a monday.com partner", "we implement monday.com"). "ai" if it is described as an AI business (for example "we build AI agents", "we do AI automation"). "other" if it is described another way (a consultancy, a software company, services, clients or partners named, or only what boost achieves for customers). "none" if the SDR never says who boost is.
+- mentions_monday and mentions_ai: whether monday.com, and whether AI, are mentioned at all as part of what boost is or does in that first part.
+- when: where it first happened: "opening" (the first couple of turns), "early" (within about the first minute), "later", or "never".
+- quote: the SDR's own words for it, verbatim in the original language, under 30 words; an empty string if there are none.
+- reaction: how the prospect responded straight after: "engaged" (asked a question, stayed, showed interest), "neutral", "pushed_back" (for example "what is this about", "not interested"), "ended" (hung up) or "unclear".
+Judge only from what is actually said; do not infer it.
+
 Objection category: choose the closest group and use "other" only when none fits.
 - not_interested: a plain no, "we do not take sales calls", "not for us".
 - not_a_good_time: busy, in a meeting, "not a great time", "can you call later", "I have no time", or priorities and bandwidth are elsewhere right now. These are one group, however they are worded.
@@ -194,6 +219,7 @@ Record your analysis by calling the record_call_analysis tool, using exactly thi
   "meddpicc": { ${MEDDPICC.map((m) => `"${m.key}": { "score": 0|1|2, "evidence": "verbatim quote in the original language, or empty string", "evidence_en": "English translation of the evidence" }`).join(', ')} },
   "craft": { ${CRAFT.map((c) => `"${c.key}": { "score": 1-5 or null, "note": "one sentence" }`).join(', ')} },
   "prospect": { "role_or_title": "as said on the call, or null", "seniority": ${list(SENIORITY)}, "company_type_or_industry": "as said or clearly implied, or null", "industry": ${list(INDUSTRIES)}, "industry_source": ${list(INDUSTRY_SOURCES)} },
+  "positioning": { "lead": ${list(POSITIONING_LEADS)}, "mentions_monday": true|false, "mentions_ai": true|false, "when": ${list(POSITIONING_WHEN)}, "quote": "verbatim, original language: how the SDR described who boost is, or empty", "quote_en": "English translation", "reaction": ${list(POSITIONING_REACTIONS)}, "note": "one sentence" },
   "opener": { "style": ${list(OPENER_STYLES)}, "quote": "verbatim, original language: how the SDR opened, the first thing said after the greeting", "quote_en": "English translation", "note": "one sentence" },
   "objections": [ { "category": ${list(OBJECTION_CATEGORIES)}, "stage": ${list(STAGES)}, "quote": "verbatim prospect words, original language", "quote_en": "English translation", "response_quote": "verbatim SDR reply in the original language, or empty string", "response_quote_en": "English translation of the reply", "handled": "well" | "ok" | "poorly", "why": "one sentence" } ],
   "best_moment": { "quote": "verbatim, original language", "quote_en": "English translation", "why": "one sentence" } | null,
@@ -242,6 +268,10 @@ const english = (original, translated) => {
 // Cleans the model output and removes any quote that is not really in the transcript.
 function validate(raw, turns, crm = null) {
   const tNorm = norm(turns.map((t) => t.text).join(' '));
+  const posQuote = raw.positioning?.quote && quoteIsReal(tNorm, raw.positioning.quote) ? String(raw.positioning.quote) : null;
+  const posWhen = oneOf(raw.positioning?.when, POSITIONING_WHEN, 'never');
+  let posLead = oneOf(raw.positioning?.lead, POSITIONING_LEADS, 'none');
+  if (posWhen === 'never') posLead = 'none';
   const openerQuote = raw.opener?.quote && quoteIsReal(tNorm, raw.opener.quote) ? String(raw.opener.quote) : null;
   const out = {
     version: RUBRIC_VERSION,
@@ -262,6 +292,17 @@ function validate(raw, turns, crm = null) {
       industryGroup: null,
       industrySource: 'unknown',
       company: null,
+    },
+    positioning: {
+      lead: posLead,
+      // The lead always counts as mentioned; with no lead nothing was said.
+      mentionsMonday: posLead !== 'none' && (posLead === 'monday' || Boolean(raw.positioning?.mentions_monday)),
+      mentionsAi: posLead !== 'none' && (posLead === 'ai' || Boolean(raw.positioning?.mentions_ai)),
+      when: posWhen,
+      quote: posQuote,
+      quoteEn: posQuote ? english(posQuote, raw.positioning?.quote_en) : null,
+      reaction: oneOf(raw.positioning?.reaction, POSITIONING_REACTIONS, 'unclear'),
+      note: String(raw.positioning?.note || '').slice(0, 300),
     },
     opener: {
       style: oneOf(modernOpener(raw.opener?.style), OPENER_STYLES, 'other'),
@@ -451,6 +492,23 @@ const OBJECTION_DESCRIPTIONS = {
   data_source_challenge: 'Asks how the SDR got their number or details.',
   other: 'Does not clearly fit one of these.',
 };
+// The ways of saying who boost is, grouped for the trends (see trends.js).
+const POSITIONING_LABELS = {
+  monday_only: 'monday.com business',
+  ai_only: 'AI business',
+  both_monday_first: 'Both, monday.com first',
+  both_ai_first: 'Both, AI first',
+  other_only: 'Something else',
+  not_said: 'Did not say who we are',
+};
+const POSITIONING_DESCRIPTIONS = {
+  monday_only: 'Said we are a monday.com partner or implement monday.com, with no mention of AI.',
+  ai_only: 'Said we are an AI business or build AI, with no mention of monday.com.',
+  both_monday_first: 'Mentioned both, starting with monday.com.',
+  both_ai_first: 'Mentioned both, starting with AI.',
+  other_only: 'Described something else: a consultancy, services, clients or partners named, or only the results we get.',
+  not_said: 'Did not say, or only said it later. Includes calls that ended before it could be said.',
+};
 const OPENER_LABELS = {
   warm_followup: 'Warm follow-up',
   cold_permission_ask: 'Cold permission ask',
@@ -486,5 +544,5 @@ const CALL_TYPE_LABELS = {
 
 module.exports = {
   analyseCall, ping, validate, extractJson, MEDDPICC, CRAFT, SYSTEM, ANALYSIS_SCHEMA, INDUSTRIES,
-  OBJECTION_LABELS, OBJECTION_DESCRIPTIONS, OPENER_LABELS, OPENER_DESCRIPTIONS, modernCategory, modernOpener, SENIORITY_LABELS, CALL_TYPE_LABELS,
+  OBJECTION_LABELS, OBJECTION_DESCRIPTIONS, POSITIONING_LABELS, POSITIONING_DESCRIPTIONS, OPENER_LABELS, OPENER_DESCRIPTIONS, modernCategory, modernOpener, SENIORITY_LABELS, CALL_TYPE_LABELS,
 };

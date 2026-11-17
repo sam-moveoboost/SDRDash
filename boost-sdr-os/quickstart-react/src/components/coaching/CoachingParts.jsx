@@ -276,6 +276,7 @@ export function CallDetail({ call, demo }) {
         {a.language && a.language.toLowerCase() !== 'english' && <Chip tone="info">Translated from {a.language}</Chip>}
         {a.openerResult && <Chip tone={openerTone(a.openerResult)}>{OPENER_RESULT_LABELS[a.openerResult] || a.openerResult}</Chip>}
         {a.endedBy && a.endedBy !== 'unclear' && <Chip>Ended by the {a.endedBy === 'sdr' ? 'SDR' : 'prospect'}</Chip>}
+        {a.positioning && a.positioning.lead !== 'none' && <Chip tone="info">We said: {({ monday: 'monday.com business', ai: 'AI business', other: 'something else' })[a.positioning.lead]}</Chip>}
         {a.opener?.style && <Chip tone="info">Opener: {OPENER_STYLE_LABELS[a.opener.style] || a.opener.style.replace(/_/g, ' ')}</Chip>}
       </div>
       {a.opener?.quote && (
@@ -398,20 +399,31 @@ export function TrendsPanel({ data }) {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card title="How calls open" note={t.openerFit && t.openerFit.total ? `${pct(t.openerFit.inType / t.openerFit.total)} fit a type` : 'who stays and who hangs up'}>
-          {t.openers.length === 0 ? <Empty>No openers recorded yet.</Empty> : (
-            <ul className="space-y-4">
-              {t.openers.map((o) => (
-                <li key={o.style}>
-                  <div className="flex justify-between text-[13px] mb-0.5"><span className="font-medium text-ink">{o.label}</span><span className="text-muted">{o.calls} call{o.calls === 1 ? "" : "s"}, {o.booked} booked</span></div>
-                  {o.description && <div className="text-[11.5px] text-muted mb-1.5">{o.description}</div>}
-                  <div className="flex items-center gap-2 text-[11.5px] text-muted mb-1"><span className="w-[72px]">Stayed</span><div className="flex-1"><Bar value={o.stayedRate} tone="good" /></div><span className="w-9 text-right">{pct(o.stayedRate)}</span></div>
-                  <div className="flex items-center gap-2 text-[11.5px] text-muted"><span className="w-[72px]">Hung up</span><div className="flex-1"><Bar value={o.hungUpRate} tone="bad" /></div><span className="w-9 text-right">{pct(o.hungUpRate)}</span></div>
-                  {o.stayExamples[0] && <div className="text-[12px] text-body italic mt-1.5">Kept them on: "{o.stayExamples[0].quote}"{o.stayExamples[0].sdrName ? ` (${o.stayExamples[0].sdrName})` : ''}</div>}
-                  {o.hangUpExamples[0] && <div className="text-[12px] text-body italic mt-1">Lost them: "{o.hangUpExamples[0].quote}"{o.hangUpExamples[0].sdrName ? ` (${o.hangUpExamples[0].sdrName})` : ''}</div>}
-                </li>
-              ))}
-            </ul>
+        <Card title="What we say we are" note={t.positioningCalls ? `${t.positioningCalls} calls` : 'what keeps people on the call'}>
+          {!t.positioning?.length ? <Empty>No calls analysed with this yet. It appears once calls are analysed again with the latest rules.</Empty> : (
+            <>
+              <div className="text-[12px] text-muted mb-3">How we describe who we are in the first part of the call, and how often people stay on the line afterwards.</div>
+              <ul className="space-y-4">
+                {t.positioning.map((o) => (
+                  <li key={o.key}>
+                    <div className="flex justify-between items-center gap-2 text-[13px] mb-0.5">
+                      <span className="font-medium text-ink flex items-center gap-2 flex-wrap">
+                        {o.label}
+                        {t.bestPositioning === o.key && <Chip tone="good">Keeps most people on</Chip>}
+                        {o.smallSample && <Chip>Too few calls to judge</Chip>}
+                      </span>
+                      <span className="text-muted whitespace-nowrap">{o.calls} call{o.calls === 1 ? '' : 's'}, {o.booked} booked</span>
+                    </div>
+                    {o.description && <div className="text-[11.5px] text-muted mb-1.5">{o.description}</div>}
+                    <div className="flex items-center gap-2 text-[11.5px] text-muted mb-1"><span className="w-[72px]">Stayed on</span><div className="flex-1"><Bar value={o.stayedRate} tone="good" /></div><span className="w-9 text-right">{pct(o.stayedRate)}</span></div>
+                    <div className="flex items-center gap-2 text-[11.5px] text-muted"><span className="w-[72px]">Hung up</span><div className="flex-1"><Bar value={o.hungUpRate} tone="bad" /></div><span className="w-9 text-right">{pct(o.hungUpRate)}</span></div>
+                    <div className="text-[11.5px] text-muted mt-1">Average {num(o.avgDurationMin)} min on the call{o.engagedRate != null ? `, ${pct(o.engagedRate)} showed interest straight away` : ''}</div>
+                    {o.stayExamples[0] && <div className="text-[12px] text-body italic mt-1.5">Kept them on: "{o.stayExamples[0].quote}"</div>}
+                    {o.hangUpExamples[0] && <div className="text-[12px] text-body italic mt-1">Lost them: "{o.hangUpExamples[0].quote}"</div>}
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
         </Card>
 

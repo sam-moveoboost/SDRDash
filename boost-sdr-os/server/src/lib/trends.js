@@ -4,7 +4,7 @@
 // Short calls are included: openers and early hang-ups are exactly what managers
 // want to see. Only voicemail and phone menus are left out.
 
-const { OBJECTION_LABELS, OBJECTION_DESCRIPTIONS, OPENER_LABELS, OPENER_DESCRIPTIONS, SENIORITY_LABELS, modernCategory, modernOpener } = require('./analysis');
+const { POSITIONING_LABELS, POSITIONING_DESCRIPTIONS, OBJECTION_LABELS, OBJECTION_DESCRIPTIONS, OPENER_LABELS, OPENER_DESCRIPTIONS, SENIORITY_LABELS, modernCategory, modernOpener } = require('./analysis');
 
 const NON_HUMAN = new Set(['voicemail', 'automated_menu']);
 
@@ -58,6 +58,20 @@ function industryOf(a) {
   if (pr.industryGroup) return null;
   return norm(pr.industry) || null;
 }
+
+// Which group a call's description of who boost is falls in. Said only later, or never, counts as
+// "did not say". Analyses made before this was recorded have no positioning and are left out.
+function positioningGroup(a) {
+  const pos = a.positioning;
+  if (!pos) return null;
+  if (pos.lead === 'none' || pos.when === 'later' || pos.when === 'never') return 'not_said';
+  if (pos.mentionsMonday && pos.mentionsAi) return pos.lead === 'ai' ? 'both_ai_first' : 'both_monday_first';
+  if (pos.mentionsMonday) return 'monday_only';
+  if (pos.mentionsAi) return 'ai_only';
+  return 'other_only';
+}
+const POSITIONING_ORDER = ['monday_only', 'ai_only', 'both_monday_first', 'both_ai_first', 'other_only', 'not_said'];
+const MIN_FOR_VERDICT = 5; // fewer calls than this is too few to say one wording beats another
 
 function buildTrends(pairs) {
   const human = pairs.filter((p) => p.analysis && !NON_HUMAN.has(p.analysis.callType)).map(modernise);
@@ -144,6 +158,36 @@ function buildTrends(pairs) {
       hangUpExamples: group.filter((p) => hungUp(p.analysis)).map(quoteOf).filter(Boolean).slice(0, 2),
     };
   }).sort((a, b) => b.calls - a.calls);
+
+  // ---- what we say we are, and what keeps people on the call ----
+  const withPositioning = human.filter((p) => positioningGroup(p.analysis));
+  const posQuoteOf = (p) => (p.analysis.positioning?.quote ? { quote: p.analysis.positioning.quoteEn || p.analysis.positioning.quote, sdrName: p.call.sdrName } : null);
+  const positioning = POSITIONING_ORDER.map((key) => {
+    const group = withPositioning.filter((p) => positioningGroup(p.analysis) === key);
+    const engaged = group.filter((p) => p.analysis.positioning.reaction === 'engaged').length;
+    return {
+      key,
+      label: POSITIONING_LABELS[key],
+      description: POSITIONING_DESCRIPTIONS[key],
+      calls: group.length,
+      stayed: group.filter((p) => stayed(p.analysis)).length,
+      stayedRate: rate(group.filter((p) => stayed(p.analysis)).length, group.length),
+      hungUp: group.filter((p) => hungUp(p.analysis)).length,
+      hungUpRate: rate(group.filter((p) => hungUp(p.analysis)).length, group.length),
+      engagedRate: rate(engaged, group.length),
+      booked: group.filter((p) => isBooked(p.call)).length,
+      bookedRate: rate(group.filter((p) => isBooked(p.call)).length, group.length),
+      nextStepRate: rate(group.filter((p) => p.analysis.nextStepSecured).length, group.length),
+      avgDurationMin: avg(group.map((p) => p.call.durationMin)),
+      smallSample: group.length < MIN_FOR_VERDICT,
+      stayExamples: group.filter((p) => stayed(p.analysis)).sort((a, b) => successScore(b) - successScore(a)).map(posQuoteOf).filter(Boolean).slice(0, 2),
+      hangUpExamples: group.filter((p) => hungUp(p.analysis)).map(posQuoteOf).filter(Boolean).slice(0, 2),
+    };
+  }).filter((g) => g.calls > 0);
+  // The one that keeps most people on the call, among groups with enough calls to say so.
+  const bestPositioning = positioning
+    .filter((g) => g.calls >= MIN_FOR_VERDICT && g.key !== 'not_said')
+    .sort((a, b) => b.stayedRate - a.stayedRate || b.booked - a.booked)[0]?.key || null;
 
   // ---- hang-ups ----
   const hangs = human.filter((p) => hungUp(p.analysis));
@@ -232,6 +276,9 @@ function buildTrends(pairs) {
     bestHandling,
     earlyObjections,
     openers,
+    positioning,
+    positioningCalls: withPositioning.length,
+    bestPositioning,
     openerFit: { inType: human.filter((p) => p.analysis.opener?.style && p.analysis.opener.style !== 'other').length, total: human.filter((p) => p.analysis.opener?.style).length },
     hangups,
     profile,
