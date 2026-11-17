@@ -23,7 +23,8 @@ const { buildTrends, forEveryone } = require('../lib/trends');
 const { reviewPriority } = require('../lib/priority');
 const { ANALYSIS_SCHEMA } = require('../lib/analysis');
 
-const CALLS_TTL_MS = 3 * 60 * 1000;
+const CALLS_TTL_MS = 2 * 60 * 1000; // newer than this: served as is
+const CALLS_STALE_MS = 6 * 60 * 60 * 1000; // older: served at once while a top-up loads behind it
 const FRESH_CALL_MS = 60 * 60 * 1000; // a transcript can still arrive for about an hour
 const RECHECK_FRESH_MS = 5 * 60 * 1000;
 const RECHECK_OLD_MS = 6 * 60 * 60 * 1000;
@@ -39,12 +40,30 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
   const callsCache = new Map(); // days -> { at, calls }
   const transcriptCache = new Map(); // itemId -> { at, raw|null }
 
-  async function loadCalls(days) {
+  // The calls list is kept and served straight away. When it is older than the TTL it is topped
+  // up in the background (one shared load, however many requests ask), so opening the tab never
+  // waits on monday once the server has the list. `fresh` (the Refresh button) waits for a reload.
+  const loading = new Map(); // days -> in-flight load
+  function reloadCalls(days) {
+    if (!loading.has(days)) {
+      const p = mondayApi.fetchCalls(now() - days * 86400000)
+        .then((calls) => { callsCache.set(days, { at: now(), calls }); return calls; })
+        .finally(() => loading.delete(days));
+      loading.set(days, p);
+    }
+    return loading.get(days);
+  }
+  async function loadCalls(days, { fresh = false } = {}) {
     const hit = callsCache.get(days);
-    if (hit && now() - hit.at < CALLS_TTL_MS) return hit.calls;
-    const calls = await mondayApi.fetchCalls(now() - days * 86400000);
-    callsCache.set(days, { at: now(), calls });
-    return calls;
+    if (hit && !fresh) {
+      const age = now() - hit.at;
+      if (age < CALLS_TTL_MS) return hit.calls;
+      if (age < CALLS_STALE_MS) {
+        reloadCalls(days).catch((err) => console.error(`[calls] background refresh failed: ${err.message}`));
+        return hit.calls;
+      }
+    }
+    return reloadCalls(days);
   }
 
   // Looks up transcripts, remembering "none yet" for a short time on fresh calls
@@ -103,7 +122,7 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
   }
 
   // Saved analyses for calls already marked Analysed.
-  const loadAnalyses = (calls) => store.mapLimit(calls, 8, async (c) => ({ call: c, ...(await store.getAnalysisChecked(c.id)) }));
+  const loadAnalyses = (calls) => store.mapLimit(calls, 16, async (c) => ({ call: c, ...(await store.getAnalysisChecked(c.id)) }));
 
   router.get('/me', (req, res) => res.json({ userId: req.viewer.userId, isAdmin: req.viewer.isAdmin }));
 
@@ -111,7 +130,7 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
     const scope = scopeOr403(req, res);
     if (!scope) return;
     const days = parseDays(req.query.days);
-    const all = await loadCalls(days);
+    const all = await loadCalls(days, { fresh: req.query.fresh === '1' });
     const calls = inScope(all, scope.sdrId);
 
     const analysedCalls = calls.filter(isCandidate).filter(isAnalysed);
@@ -144,7 +163,7 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
     const scope = scopeOr403(req, res);
     if (!scope) return;
     const days = parseDays(req.query.days);
-    const candidates = inScope(await loadCalls(days), scope.sdrId).filter(isCandidate);
+    const candidates = inScope(await loadCalls(days, { fresh: req.query.fresh === '1' }), scope.sdrId).filter(isCandidate);
     const analysedCalls = candidates.filter(isAnalysed);
     const pending = candidates
       .filter((c) => !isAnalysed(c))
@@ -229,7 +248,7 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
       if (!scope) return;
       sdrId = scope.sdrId;
     }
-    const analysedCalls = inScope(await loadCalls(days), sdrId).filter(isCandidate).filter(isAnalysed);
+    const analysedCalls = inScope(await loadCalls(days, { fresh: req.query.fresh === '1' }), sdrId).filter(isCandidate).filter(isAnalysed);
     const pairs = (await loadAnalyses(analysedCalls)).filter((p) => p.analysis);
     const trends = buildTrends(pairs);
     res.json({
@@ -348,6 +367,17 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
     const checks = [claude, ...saving, monday];
     return res.json({ ok: checks.every((c) => c.ok), checks });
   }));
+
+  // Run once when the server starts, so the first person to open the tab does not wait for it.
+  router.warm = async (days = 30) => {
+    try {
+      const all = await loadCalls(days);
+      await loadAnalyses(all.filter(isCandidate).filter(isAnalysed));
+      console.log(`[warm] ${all.length} calls and their analyses are ready`);
+    } catch (err) {
+      console.error(`[warm] could not preload: ${err.message}`);
+    }
+  };
 
   return router;
 }

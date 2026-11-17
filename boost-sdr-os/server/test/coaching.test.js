@@ -979,3 +979,65 @@ test('the CRM record reaches Claude as context in the request', async () => {
     assert.match(body.messages[0].content, /Industry \(CRM\): Real Estate/);
   });
 });
+
+// ---- caching: load once, serve at once, top up behind ----
+async function withClock(fn) {
+  const ctx = makeDeps();
+  let clock = Date.parse('2026-11-04T12:00:00Z');
+  const router = createRouter(ctx.deps, { now: () => clock });
+  const app = express();
+  app.use('/coaching', router);
+  const server = http.createServer(app);
+  await new Promise((r) => server.listen(0, r));
+  const base = `http://127.0.0.1:${server.address().port}/coaching`;
+  const json = async (path, userId = LUKE) => (await fetch(base + path, { headers: { Authorization: `Bearer ${token(userId)}` } })).json();
+  try {
+    await fn({ json, advance: (ms) => { clock += ms; }, router, ...ctx });
+  } finally {
+    server.close();
+  }
+}
+
+test('the three requests the page makes share one read of the board', async () => {
+  await withClock(async ({ json, log }) => {
+    await Promise.all([json('/overview'), json('/calls'), json('/trends')]);
+    assert.equal(log.windows.length, 1);
+  });
+});
+
+test('an old list is served at once and topped up behind, and Refresh waits for the new one', async () => {
+  await withClock(async ({ json, advance, log, calls }) => {
+    await json('/calls');
+    assert.equal(log.windows.length, 1);
+    await json('/calls'); // still fresh: no new read
+    assert.equal(log.windows.length, 1);
+
+    advance(10 * 60 * 1000); // older than the 2 minute limit
+    const stale = await json('/calls'); // answered from what is held
+    assert.ok(stale.calls.length > 0);
+    await new Promise((r) => setTimeout(r, 30)); // the top-up runs behind it
+    assert.equal(log.windows.length, 2);
+
+    calls.push({ ...calls[0], id: '99', createdAt: '2026-11-04T11:00:00Z', startedAt: '2026-11-04 11:00' });
+    await json('/calls?fresh=1');
+    assert.equal(log.windows.length, 3); // Refresh reads again straight away
+  });
+});
+
+test('warming up at start loads the list and the saved analyses without a request', async () => {
+  await withClock(async ({ router, log }) => {
+    await router.warm(30);
+    assert.equal(log.windows.length, 1);
+  });
+});
+
+test('three readers of the same saved analysis cause one read from storage', async () => {
+  let reads = 0;
+  const counting = { name: 'counting', set: async () => true, get: async () => { reads += 1; await new Promise((r) => setTimeout(r, 20)); return { callType: 'conversation' }; } };
+  realStore._setBackends([counting]);
+  const [a, b, c] = await Promise.all([realStore.getAnalysisChecked('77'), realStore.getAnalysisChecked('77'), realStore.getAnalysisChecked('77')]);
+  assert.equal(reads, 1);
+  assert.equal(a.analysis.callType, 'conversation');
+  assert.equal(b.analysis.callType, 'conversation');
+  assert.equal(c.analysis.callType, 'conversation');
+});

@@ -116,9 +116,16 @@ async function verifiedBackend() {
 // storage was slow once and the write test failed. Every storage is asked (the one used for
 // saving first), each with one retry. "Not found" and "could not read just now" are different
 // answers, so a slow minute never makes finished calls look as if they were never analysed.
-async function getAnalysisChecked(itemId) {
+const reading = new Map(); // key -> in-flight read, so the three page requests share each read
+function getAnalysisChecked(itemId) {
   const key = keyFor(itemId);
-  if (memory.has(key)) return { analysis: memory.get(key), unreadable: false };
+  if (memory.has(key)) return Promise.resolve({ analysis: memory.get(key), unreadable: false });
+  if (!reading.has(key)) reading.set(key, readAnalysis(itemId).finally(() => reading.delete(key)));
+  return reading.get(key);
+}
+
+async function readAnalysis(itemId) {
+  const key = keyFor(itemId);
   const order = chosen ? [chosen, ...backends.filter((b) => b !== chosen)] : backends;
   let failed = false;
   for (const backend of order) {
