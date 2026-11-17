@@ -231,6 +231,8 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
       // Calls marked Analysed whose saved result could not be read just now (storage slow). They are
       // not offered for re-analysis, so nothing is paid for twice; Refresh reads them again.
       unreadableCount: unreadable.length,
+      // Why, for managers: the distinct errors the stores gave, so a real fault is not hidden behind "slow".
+      unreadableReasons: req.viewer.isAdmin ? [...new Set(unreadable.flatMap((p) => p.errors || []))].slice(0, 4) : [],
       transcriptTotals: { valid: analysedCalls.length + waiting.length, analysed: analysedCalls.length, waiting: waiting.length },
       coverage,
       rules: { from: new Date(cfg.COACHING_FROM_MS).toISOString().slice(0, 10), minChars: cfg.MIN_TRANSCRIPT_CHARS },

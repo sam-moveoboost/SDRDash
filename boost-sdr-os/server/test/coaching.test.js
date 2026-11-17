@@ -885,7 +885,7 @@ test('a store that cannot be read is reported as unreadable, not as never analys
   assert.equal(got.unreadable, true);
   const clean = fakeBackend('clean');
   realStore._setBackends([clean]);
-  assert.deepEqual(await realStore.getAnalysisChecked('11'), { analysis: null, unreadable: false });
+  assert.deepEqual(await realStore.getAnalysisChecked('11'), { analysis: null, unreadable: false, errors: [] });
 });
 
 test('calls whose saved analysis could not be read are not offered for re-analysis', async () => {
@@ -1182,4 +1182,15 @@ test('"something else" is split into a vague description, only results, and only
   assert.equal(g('other_credentials'), 1);
   const a = validate({ call_type: 'conversation', coachable: true, opener_result: 'stayed_engaged', next_step_secured: false, meddpicc: {}, craft: {}, objections: [], positioning: { lead: 'other', other_kind: 'results_only', when: 'opening' } }, posTurns);
   assert.equal(a.positioning.otherKind, 'results_only');
+});
+
+test('a store that answers "key not found" by throwing means not analysed, not unreadable; a real failure is reported with its reason', async () => {
+  const notFound = { name: 'strict', set: async () => true, get: async () => { throw new Error('Key not found'); } };
+  realStore._setBackends([notFound]);
+  assert.deepEqual(await realStore.getAnalysisChecked('50'), { analysis: null, unreadable: false, errors: [] });
+  const broken = { name: 'broken', set: async () => true, get: async () => { throw new Error('socket hang up'); } };
+  realStore._setBackends([broken]);
+  const got = await realStore.getAnalysisChecked('51');
+  assert.equal(got.unreadable, true);
+  assert.match(got.errors[0], /broken: socket hang up/);
 });
