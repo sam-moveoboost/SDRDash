@@ -601,7 +601,7 @@ test('an unreadable plain-text reply is retried once, and a good second answer i
     let calls = 0;
     const fetchImpl = async () => {
       calls += 1;
-      const text = calls === 1 ? '{ "call_type": "conversation" "coachable": true' : JSON.stringify({ call_type: 'conversation', coachable: true, meddpicc: {}, craft: {}, objections: [] });
+      const text = calls === 1 ? '{ "call_type": "conversation" "coachable": true' : JSON.stringify({ call_type: 'conversation', coachable: true, meddpicc: {}, craft: { opening: { score: 3 } }, objections: [] });
       return { ok: true, json: async () => ({ stop_reason: 'end_turn', content: [{ type: 'text', text }] }) };
     };
     const out = await analyseCall({ turns: quoteTurns, call: { durationMin: 1 } }, { fetchImpl });
@@ -700,7 +700,7 @@ test('Anthropic never receives a forced tool choice, which this model rejects', 
       if (b.tool_choice && b.tool_choice.type !== 'auto') {
         return { ok: false, status: 400, text: async () => JSON.stringify({ error: { message: 'tool_choice: type "tool" and "any" are not supported for this model.' } }) };
       }
-      return toolReply({ call_type: 'conversation', coachable: true, meddpicc: {}, craft: {}, objections: [] });
+      return toolReply({ call_type: 'conversation', coachable: true, meddpicc: {}, craft: { opening: { score: 3 } }, objections: [] });
     };
     await analyseCall({ turns: quoteTurns, call: { durationMin: 1 } }, { fetchImpl });
     await ping({ fetchImpl });
@@ -770,11 +770,11 @@ test('a poorly handled and a well-handled objection are equally worth a look', (
   assert.equal(bad.score, good.score);
 });
 
-test('a conversation where nothing stood out is low, or medium if it was long', () => {
+test('a conversation with no lessons recorded is low (and carries no "nothing stood out" tag), or medium if it was long', () => {
   const plain = reviewPriority(conv(), { durationMin: 2, tags: [] });
   assert.equal(plain.score, 3);
   assert.equal(plain.level, 'low');
-  assert.ok(plain.reasons.includes('Nothing stood out'));
+  assert.equal(plain.reasons.includes('Nothing stood out'), false);
   const long = reviewPriority(conv({ stats: { chars: 5000 } }), { durationMin: 7, tags: [] });
   assert.equal(long.level, 'medium');
 });
@@ -1108,4 +1108,78 @@ test('what we say we are is shown to everyone without a name or a link to a call
   const text = JSON.stringify(forEveryone(t));
   assert.equal(text.includes('Luke'), false);
   assert.equal(text.includes('we do AI'), true);
+});
+
+// ---- real coaching: key exchanges, and no write-off of a real conversation ----
+const longTurns = [
+  { who: 'sdr', text: 'Hi, it is Emad from boost, we help companies with monday.com and AI.' },
+  { who: 'prospect', text: 'What exactly does boost offer? I am not sure I understand.' },
+  { who: 'sdr', text: 'It is not a solution, well it is a solution, we use Claude and CRM and leads and automation for you.' },
+  { who: 'prospect', text: 'Okay but what do you actually offer, in simple words please.' },
+  { who: 'sdr', text: 'We connect your systems so that leads are followed up automatically without anyone chasing them.' },
+  { who: 'prospect', text: 'That sounds more interesting, we do have a lot of leads sitting there untouched.' },
+  { who: 'sdr', text: 'Great, could we book twenty minutes tomorrow morning to show you how it works?' },
+  { who: 'prospect', text: 'Send me an email first and call me tomorrow at nine, that works for me.' },
+];
+
+test('key exchanges pair what the prospect asked with how the SDR answered, and are checked against the transcript', () => {
+  const a = validate({ ...posBase, key_exchanges: [
+    { kind: 'prospect_question', prospect_quote: 'What exactly does boost offer?', prospect_quote_en: 'What exactly does boost offer?', sdr_quote: 'It is not a solution, well it is a solution', sdr_quote_en: 'It is not a solution, well it is a solution', verdict: 'missed', what_happened: 'A shifting answer to a simple question.', better: 'We make sure no lead goes untouched.' },
+    { kind: 'objection', prospect_quote: 'This quote was never said on the call', sdr_quote: 'Neither was this one', verdict: 'landed', what_happened: 'invented' },
+  ] }, longTurns);
+  assert.equal(a.keyExchanges.length, 1); // the invented one is dropped
+  assert.equal(a.keyExchanges[0].verdict, 'missed');
+  assert.equal(a.keyExchanges[0].better, 'We make sure no lead goes untouched.');
+  assert.match(a.keyExchanges[0].sdrQuote, /not a solution/);
+});
+
+test('a call where the prospect really took part is always coachable, whatever the model said', () => {
+  const a = validate({ ...posBase, call_type: 'conversation', coachable: false }, longTurns);
+  assert.equal(a.coachable, true);
+  const hangup = validate({ ...posBase, call_type: 'early_hangup', coachable: false }, [{ who: 'sdr', text: 'Hello' }, { who: 'prospect', text: 'No thanks bye' }]);
+  assert.equal(hangup.coachable, false);
+});
+
+test('a real conversation that comes back with no coaching is sent back once for it', async () => {
+  const { analyseCall } = require('../src/lib/analysis');
+  await withKey(async () => {
+    const bodies = [];
+    const fetchImpl = async (_u, init) => {
+      bodies.push(JSON.parse(init.body));
+      // First answer: scored nothing and said nothing. Second: the real feedback.
+      return bodies.length === 1
+        ? toolReply({ ...posBase, coachable: false, summary: 'Nothing much.' })
+        : toolReply({ ...posBase, craft: { discovery: { score: 2 } }, key_exchanges: [{ kind: 'prospect_question', prospect_quote: 'What exactly does boost offer?', sdr_quote: 'It is not a solution, well it is a solution', verdict: 'missed', what_happened: 'x', better: 'y' }] });
+    };
+    const out = await analyseCall({ turns: longTurns, call: { durationMin: 4 } }, { fetchImpl });
+    assert.equal(bodies.length, 2);
+    assert.match(bodies[1].messages[0].content, /left out the coaching/);
+    assert.equal(out.keyExchanges.length, 1);
+    assert.equal(out.craft.discovery.score, 2);
+  });
+});
+
+test('answers that did not land raise the review priority, and a landed one is an example to copy', () => {
+  const base = conv({ stats: { chars: 5000 } });
+  const withMisses = reviewPriority({ ...base, keyExchanges: [{ verdict: 'missed' }, { verdict: 'missed' }, { verdict: 'landed' }] }, { durationMin: 4, tags: [] });
+  assert.ok(withMisses.score >= 7);
+  assert.ok(withMisses.reasons.includes('2 answers that did not land'));
+  assert.ok(withMisses.reasons.includes('An answer that landed well'));
+  const quiet = reviewPriority(base, { durationMin: 4, tags: [] });
+  assert.ok(withMisses.score > quiet.score);
+});
+
+test('"something else" is split into a vague description, only results, and only clients or partners', () => {
+  const mk = (id, kind) => ({
+    call: { id, sdrName: 'Emad', tags: [], durationMin: 2 },
+    analysis: { coachable: true, callType: 'conversation', openerResult: 'stayed_engaged', nextStepSecured: false, craft: {}, objections: [], prospect: {}, opener: { style: 'other', quote: null },
+      positioning: { lead: 'other', otherKind: kind, mentionsMonday: false, mentionsAi: false, when: 'opening', quote: 'x', quoteEn: 'x', reaction: 'neutral' } },
+  });
+  const t = buildTrends([mk('1', 'generic_company'), mk('2', 'generic_company'), mk('3', 'results_only'), mk('4', 'credentials_only')]);
+  const g = (k) => t.positioning.find((r) => r.key === k)?.calls;
+  assert.equal(g('other_generic'), 2);
+  assert.equal(g('other_results'), 1);
+  assert.equal(g('other_credentials'), 1);
+  const a = validate({ call_type: 'conversation', coachable: true, opener_result: 'stayed_engaged', next_step_secured: false, meddpicc: {}, craft: {}, objections: [], positioning: { lead: 'other', other_kind: 'results_only', when: 'opening' } }, posTurns);
+  assert.equal(a.positioning.otherKind, 'results_only');
 });

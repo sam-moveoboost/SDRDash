@@ -227,6 +227,39 @@ function Quote({ children }) {
 }
 
 // A quote in English. When the call was in another language the original is shown beneath it.
+const KX_KIND_LABELS = { prospect_question: 'Prospect asked', objection: 'Objection', buying_signal: 'Interest shown', discovery: 'Discovery', pitch: 'Pitch', next_step: 'Next step', other: 'Moment' };
+const KX_VERDICT = {
+  landed: { label: 'Landed', tone: 'good', bar: 'border-l-emerald' },
+  partly: { label: 'Partly landed', tone: 'warn', bar: 'border-l-amber' },
+  missed: { label: 'Did not land', tone: 'bad', bar: 'border-l-red' },
+};
+
+// The coaching itself: what the prospect said or asked, how the SDR answered, and a specific critique.
+function KeyExchanges({ items }) {
+  return (
+    <div>
+      <div className="font-heading font-bold text-[12.5px] mb-2">Key moments</div>
+      <div className="space-y-3">
+        {items.map((e, i) => {
+          const v = KX_VERDICT[e.verdict] || KX_VERDICT.partly;
+          return (
+            <div key={i} className={`rounded-xl border border-line border-l-4 ${v.bar} p-3`}>
+              <div className="flex items-center gap-2 mb-2">
+                <Chip tone="info">{KX_KIND_LABELS[e.kind] || 'Moment'}</Chip>
+                <Chip tone={v.tone}>{v.label}</Chip>
+              </div>
+              {e.prospectQuote && <Said label="Prospect: " en={e.prospectQuoteEn} original={e.prospectQuote} />}
+              {e.sdrQuote && <div className="mt-1.5"><Said label="SDR: " en={e.sdrQuoteEn} original={e.sdrQuote} /></div>}
+              {e.whatHappened && <div className="text-[12.5px] text-body mt-2"><span className="font-medium text-ink">What happened: </span>{e.whatHappened}</div>}
+              {e.better && <div className="text-[12.5px] text-body mt-1"><span className="font-medium text-ink">{e.verdict === 'landed' ? 'Worth repeating: ' : 'Try instead: '}</span>{e.better}</div>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function Said({ en, original, label }) {
   const text = en || original;
   if (!text) return null;
@@ -287,8 +320,10 @@ export function CallDetail({ call, demo }) {
         </div>
       )}
 
+      {a.keyExchanges?.length > 0 && <KeyExchanges items={a.keyExchanges} />}
+
       {a.coachable ? (
-        <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid gap-5 lg:grid-cols-2">
           <div>
             <div className="font-heading font-bold text-[12.5px] mb-2">MEDDPICC</div>
             <div className="grid grid-cols-2 gap-2">

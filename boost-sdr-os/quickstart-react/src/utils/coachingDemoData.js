@@ -71,6 +71,10 @@ const analysis = {
   },
   prospect: { role: 'Sales manager', seniority: 'manager', industry: 'software' },
   opener: { style: 'cold_permission_ask', quote: 'have you got a minute', note: 'Asked permission before pitching.' },
+  keyExchanges: [
+    { kind: 'prospect_question', prospectQuote: 'what do you actually offer', sdrQuote: 'it is not a solution, well it is a solution', verdict: 'missed', whatHappened: 'A simple question got a shifting answer ("not a solution", then "a solution"), so the prospect asked again.', better: 'We make sure none of your leads sit untouched. Is that something you have?' },
+    { kind: 'next_step', prospectQuote: 'call me tomorrow at nine', sdrQuote: 'could we book twenty minutes tomorrow morning', verdict: 'landed', whatHappened: 'Asked for a specific time and got one.', better: 'Keep proposing a concrete slot.' },
+  ],
   objections: [{ category: 'not_a_good_time', stage: 'middle', quote: 'we are really busy right now', responseQuote: 'totally get it, would ten minutes next week be easier', handled: 'well', why: 'Acknowledged, then made the ask smaller.' }],
   bestMoment: { quote: 'totally get it, would ten minutes next week be easier', why: 'Turned a brush-off into a specific next step.' },
   missedMoment: { quote: 'it is a mess', better: 'Ask what the mess costs them each week before moving on.' },

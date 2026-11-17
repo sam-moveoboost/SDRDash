@@ -68,9 +68,11 @@ function positioningGroup(a) {
   if (pos.mentionsMonday && pos.mentionsAi) return pos.lead === 'ai' ? 'both_ai_first' : 'both_monday_first';
   if (pos.mentionsMonday) return 'monday_only';
   if (pos.mentionsAi) return 'ai_only';
-  return 'other_only';
+  if (pos.otherKind === 'results_only') return 'other_results';
+  if (pos.otherKind === 'credentials_only') return 'other_credentials';
+  return 'other_generic';
 }
-const POSITIONING_ORDER = ['monday_only', 'ai_only', 'both_monday_first', 'both_ai_first', 'other_only', 'not_said'];
+const POSITIONING_ORDER = ['monday_only', 'ai_only', 'both_monday_first', 'both_ai_first', 'other_generic', 'other_results', 'other_credentials', 'not_said'];
 const MIN_FOR_VERDICT = 5; // fewer calls than this is too few to say one wording beats another
 
 function buildTrends(pairs) {

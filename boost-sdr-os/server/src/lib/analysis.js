@@ -28,8 +28,12 @@ const CRAFT = [
 const CALL_TYPES = ['conversation', 'early_hangup', 'gatekeeper', 'voicemail', 'automated_menu', 'wrong_person', 'other'];
 // How the SDR describes who boost is in the first part of the call, and how the prospect reacts.
 const POSITIONING_LEADS = ['monday', 'ai', 'other', 'none'];
+const POSITIONING_OTHER_KINDS = ['generic_company', 'results_only', 'credentials_only', 'none'];
 const POSITIONING_WHEN = ['opening', 'early', 'later', 'never'];
 const POSITIONING_REACTIONS = ['engaged', 'neutral', 'pushed_back', 'ended', 'unclear'];
+// The most teachable exchanges: what the prospect said or asked, what the SDR answered, and a verdict.
+const KX_KINDS = ['prospect_question', 'objection', 'buying_signal', 'discovery', 'pitch', 'next_step', 'other'];
+const KX_VERDICTS = ['landed', 'partly', 'missed'];
 const OPENER_RESULTS = ['stayed_engaged', 'brushed_off', 'hung_up', 'blocked_by_gatekeeper', 'unclear'];
 // Objection groups, kept broad so "other" stays rare. "Not a good time" covers both "I have no time"
 // and "bad timing" (they are the same thing said two ways); "already covered" covers an existing
@@ -119,6 +123,7 @@ const ANALYSIS_TOOL = {
         type: 'object',
         properties: {
           lead: { type: 'string', enum: POSITIONING_LEADS },
+          other_kind: { type: 'string', enum: POSITIONING_OTHER_KINDS },
           mentions_monday: { type: 'boolean' },
           mentions_ai: { type: 'boolean' },
           when: { type: 'string', enum: POSITIONING_WHEN },
@@ -145,11 +150,28 @@ const ANALYSIS_TOOL = {
           required: ['category', 'stage', 'quote', 'handled'],
         },
       },
+      key_exchanges: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            kind: { type: 'string', enum: KX_KINDS },
+            prospect_quote: str,
+            prospect_quote_en: str,
+            sdr_quote: str,
+            sdr_quote_en: str,
+            verdict: { type: 'string', enum: KX_VERDICTS },
+            what_happened: str,
+            better: str,
+          },
+          required: ['verdict', 'what_happened'],
+        },
+      },
       best_moment: { type: ['object', 'null'], properties: { quote: str, quote_en: str, why: str } },
       missed_moment: { type: ['object', 'null'], properties: { quote: str, quote_en: str, better: str } },
-      try_next_time: { type: 'array', items: str },
+      try_next_time: { type: 'array', items: str, minItems: 1 },
     },
-    required: ['call_type', 'coachable', 'summary', 'opener_result', 'next_step_secured', 'meddpicc', 'craft', 'objections', 'try_next_time'],
+    required: ['call_type', 'coachable', 'summary', 'opener_result', 'next_step_secured', 'meddpicc', 'craft', 'objections', 'key_exchanges', 'try_next_time'],
   },
 };
 
@@ -162,9 +184,9 @@ Judge three things:
 2. Any objection or brush-off, where in the call it came, and how the SDR answered.
 3. For real two-way conversations only, MEDDPICC and call craft.
 
-MEDDPICC scoring, judging what was realistic for an SDR: 0 = not touched on, 1 = touched on or partly explored, 2 = explored well. Most calls score 0 on most elements. That is normal and is never a failing. Set "coachable" to true only when the call was a real two-way conversation with enough substance to judge discovery. For short, one-sided or blocked calls set it to false, score every MEDDPICC element 0 and score craft dimensions that did not come up as null.
+MEDDPICC scoring, judging what was realistic for an SDR: 0 = not touched on, 1 = touched on or partly explored, 2 = explored well. Most calls score 0 on most elements. That is normal and is never a failing. Set "coachable" to true for ANY real two-way conversation: the prospect spoke at least about four times and the two of them actually exchanged views, whatever the language, and even when it was mostly the prospect asking questions or the SDR talking too much. A call of several minutes is always coachable. Set it to false only for voicemail, phone menus, gatekeeper-only calls and quick hang-ups or brush-offs in the first few turns; for those score every MEDDPICC element 0 and craft null, but still record any exchange that happened.
 
-Call craft is scored 1 (weak) to 5 (excellent): opening, discovery, objection handling, asking for the next step, tone and call control. Use null for any dimension that did not come up.
+Call craft is scored 1 (weak) to 5 (excellent): opening, discovery, objection handling, asking for the next step, tone and call control. On a coachable call score every dimension that happened. A dimension is null only when it truly did not occur: an SDR who never asked about the prospect's situation scores discovery 1 or 2, not null; objection handling is null only when there was no objection or hard question to answer.
 
 Rules:
 - Calls may be in Hebrew or another language. Write every finding in English: the summary, the notes, the reasons, the suggestions and the explanations. Never answer in the language of the call.
@@ -172,6 +194,7 @@ Rules:
 - Base everything on the transcript. If something is unclear, say so instead of guessing.
 - "try_next_time" must be one to three concrete actions for the next call, each tied to something that actually happened on this call. Quote the SDR's own words that should change (short, exact) and give the replacement wording the SDR could say, written as natural speech and not as a script. Never give generic advice such as "ask more open questions" or "build rapport". For early hang-ups, focus on the first ten seconds.
 - "summary": two or three plain sentences a manager could read in ten seconds: who the prospect was, what the SDR did well or badly, and how it ended. Name the single most important thing to coach.
+- "key_exchanges": the heart of the coaching. For every real conversation give 3 to 6 of the most teachable exchanges, in the order they happened. Each pairs what the PROSPECT said or asked (prospect_quote) with the SDR's actual answer (sdr_quote). Always include every time the prospect asked a direct question (for example "what do you actually offer?"), raised an objection or showed interest, and the exchange where the SDR asked for the next step. Give a verdict: "landed" (the answer worked), "partly" (some of it worked) or "missed" (it did not land, for example a long, shifting or vague answer to a simple question). In what_happened, critique specifically: say what the SDR did, quote the exact words that were weak or strong, and why that landed or did not. In better, say what to say instead, written as the natural words the SDR could use (for a "landed" exchange, say why it is worth repeating). Include one or two "landed" exchanges where they exist. For short calls give one or two. Never return an empty list for a real conversation.
 - "best_moment" and "missed_moment": pick the moment that teaches the most, quote it, and say specifically why it worked or what a stronger SDR would have said instead. Use null only when nothing on the call qualifies.
 - Coach on what the SDR controls (the opening, listening, how they answered the objection, the ask for the next step), not on the prospect's behaviour. Praise only specific things, and keep the tone of a manager who wants this person to improve.
 - Be honest. Praise only what happened.
@@ -190,6 +213,7 @@ Tie-breaks: ignore any automated screener turn ("record your name and reason") a
 
 Positioning (who boost says it is): look at what the SDR says boost is during the first part of the call (roughly the first minute, before the real conversation). Record:
 - lead: the FIRST way the SDR describes what boost is. "monday" if boost is described as a monday.com business or partner (for example "we are a monday.com partner", "we implement monday.com"). "ai" if it is described as an AI business (for example "we build AI agents", "we do AI automation"). "other" if it is described another way (a consultancy, a software company, services, clients or partners named, or only what boost achieves for customers). "none" if the SDR never says who boost is.
+- other_kind: only when lead is "other". "generic_company" = a vague company description (for example "an implementation company for technology solutions", "a consulting firm", "back end systems", "process improvement"). "results_only" = only what we achieve for customers (for example "we help teams get back time spent on spreadsheets", "we work with real estate teams on leads"). "credentials_only" = only clients, partners or awards named with no plain description of what boost does (for example "we are an Anthropic partner"). Otherwise "none".
 - mentions_monday and mentions_ai: whether monday.com, and whether AI, are mentioned at all as part of what boost is or does in that first part.
 - when: where it first happened: "opening" (the first couple of turns), "early" (within about the first minute), "later", or "never".
 - quote: the SDR's own words for it, verbatim in the original language, under 30 words; an empty string if there are none.
@@ -219,9 +243,10 @@ Record your analysis by calling the record_call_analysis tool, using exactly thi
   "meddpicc": { ${MEDDPICC.map((m) => `"${m.key}": { "score": 0|1|2, "evidence": "verbatim quote in the original language, or empty string", "evidence_en": "English translation of the evidence" }`).join(', ')} },
   "craft": { ${CRAFT.map((c) => `"${c.key}": { "score": 1-5 or null, "note": "one sentence" }`).join(', ')} },
   "prospect": { "role_or_title": "as said on the call, or null", "seniority": ${list(SENIORITY)}, "company_type_or_industry": "as said or clearly implied, or null", "industry": ${list(INDUSTRIES)}, "industry_source": ${list(INDUSTRY_SOURCES)} },
-  "positioning": { "lead": ${list(POSITIONING_LEADS)}, "mentions_monday": true|false, "mentions_ai": true|false, "when": ${list(POSITIONING_WHEN)}, "quote": "verbatim, original language: how the SDR described who boost is, or empty", "quote_en": "English translation", "reaction": ${list(POSITIONING_REACTIONS)}, "note": "one sentence" },
+  "positioning": { "lead": ${list(POSITIONING_LEADS)}, "other_kind": ${list(POSITIONING_OTHER_KINDS)}, "mentions_monday": true|false, "mentions_ai": true|false, "when": ${list(POSITIONING_WHEN)}, "quote": "verbatim, original language: how the SDR described who boost is, or empty", "quote_en": "English translation", "reaction": ${list(POSITIONING_REACTIONS)}, "note": "one sentence" },
   "opener": { "style": ${list(OPENER_STYLES)}, "quote": "verbatim, original language: how the SDR opened, the first thing said after the greeting", "quote_en": "English translation", "note": "one sentence" },
   "objections": [ { "category": ${list(OBJECTION_CATEGORIES)}, "stage": ${list(STAGES)}, "quote": "verbatim prospect words, original language", "quote_en": "English translation", "response_quote": "verbatim SDR reply in the original language, or empty string", "response_quote_en": "English translation of the reply", "handled": "well" | "ok" | "poorly", "why": "one sentence" } ],
+  "key_exchanges": [ { "kind": ${list(KX_KINDS)}, "prospect_quote": "verbatim prospect words, original language", "prospect_quote_en": "English translation", "sdr_quote": "verbatim SDR answer, original language", "sdr_quote_en": "English translation", "verdict": ${list(KX_VERDICTS)}, "what_happened": "specific critique with the exact words", "better": "what to say instead" } ],
   "best_moment": { "quote": "verbatim, original language", "quote_en": "English translation", "why": "one sentence" } | null,
   "missed_moment": { "quote": "verbatim, original language", "quote_en": "English translation", "better": "what could have been said or asked instead" } | null,
   "try_next_time": ["...", "..."]
@@ -266,6 +291,14 @@ const english = (original, translated) => {
 };
 
 // Cleans the model output and removes any quote that is not really in the transcript.
+// Several turns from the prospect and a fair amount said: a conversation, not a brush-off.
+function isRealExchange(turns, callType) {
+  if (callType && callType !== 'conversation') return false;
+  const prospectTurns = (turns || []).filter((t) => t.who === 'prospect' && String(t.text || '').trim().split(/\s+/).length >= 3).length;
+  const chars = (turns || []).reduce((n, t) => n + String(t.text || '').length, 0);
+  return prospectTurns >= 4 && chars >= 500;
+}
+
 function validate(raw, turns, crm = null) {
   const tNorm = norm(turns.map((t) => t.text).join(' '));
   const posQuote = raw.positioning?.quote && quoteIsReal(tNorm, raw.positioning.quote) ? String(raw.positioning.quote) : null;
@@ -278,7 +311,9 @@ function validate(raw, turns, crm = null) {
     schema: ANALYSIS_SCHEMA,
     callType: oneOf(raw.call_type, CALL_TYPES, 'other'),
     language: String(raw.language || 'English').trim().slice(0, 30) || 'English',
-    coachable: raw.coachable === true,
+    // A real exchange is always coachable, whatever the model said, so a long conversation can never be
+    // written off as nothing to learn from.
+    coachable: raw.coachable === true || isRealExchange(turns, raw.call_type),
     summary: String(raw.summary || '').slice(0, 600),
     openerResult: oneOf(raw.opener_result, OPENER_RESULTS, 'unclear'),
     endedBy: oneOf(raw.ended_by, ['prospect', 'sdr', 'unclear'], 'unclear'),
@@ -295,6 +330,7 @@ function validate(raw, turns, crm = null) {
     },
     positioning: {
       lead: posLead,
+      otherKind: posLead === 'other' ? oneOf(raw.positioning?.other_kind, POSITIONING_OTHER_KINDS, 'generic_company') : 'none',
       // The lead always counts as mentioned; with no lead nothing was said.
       mentionsMonday: posLead !== 'none' && (posLead === 'monday' || Boolean(raw.positioning?.mentions_monday)),
       mentionsAi: posLead !== 'none' && (posLead === 'ai' || Boolean(raw.positioning?.mentions_ai)),
@@ -311,6 +347,7 @@ function validate(raw, turns, crm = null) {
       note: String(raw.opener?.note || '').slice(0, 300),
     },
     objections: [],
+    keyExchanges: [],
     bestMoment: null,
     missedMoment: null,
     tryNextTime: Array.isArray(raw.try_next_time) ? raw.try_next_time.map(String).slice(0, 3) : [],
@@ -356,6 +393,21 @@ function validate(raw, turns, crm = null) {
       };
     });
 
+  for (const e of (Array.isArray(raw.key_exchanges) ? raw.key_exchanges : []).slice(0, 6)) {
+    const pq = e?.prospect_quote && quoteIsReal(tNorm, e.prospect_quote) ? String(e.prospect_quote) : null;
+    const sq = e?.sdr_quote && quoteIsReal(tNorm, e.sdr_quote) ? String(e.sdr_quote) : null;
+    if (!pq && !sq) continue; // nothing in it can be traced to the transcript
+    out.keyExchanges.push({
+      kind: oneOf(e.kind, KX_KINDS, 'other'),
+      prospectQuote: pq,
+      prospectQuoteEn: pq ? english(pq, e.prospect_quote_en) : null,
+      sdrQuote: sq,
+      sdrQuoteEn: sq ? english(sq, e.sdr_quote_en) : null,
+      verdict: oneOf(e.verdict, KX_VERDICTS, 'partly'),
+      whatHappened: String(e.what_happened || '').slice(0, 600),
+      better: String(e.better || '').slice(0, 600),
+    });
+  }
   if (raw.best_moment?.quote && quoteIsReal(tNorm, raw.best_moment.quote)) {
     out.bestMoment = { quote: String(raw.best_moment.quote), quoteEn: english(String(raw.best_moment.quote), raw.best_moment.quote_en), why: String(raw.best_moment.why || '').slice(0, 300) };
   }
@@ -425,19 +477,41 @@ async function analyseCall({ turns, call, prospect = null }, { fetchImpl = fetch
   const crm = crmLines.length ? `\n\nCRM record for the person called (from our own database, may be incomplete):\n${crmLines.join('\n')}` : '';
   const user = `Call length: ${length}.${crm}\n\nTranscript:\n${renderForModel(turns)}\n\nRecord your analysis by calling the record_call_analysis tool.`;
 
-  // An unreadable answer is retried once; any other failure is reported straight away.
+  // An unreadable answer is retried once; any other failure is reported straight away. A real
+  // conversation that comes back with no craft scores and no key exchanges is sent back once, asking
+  // for the feedback that was left out.
   let lastError;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const json = await askClaude(user, apiKey, fetchImpl);
+  let thin = null;
+  let note = '';
+  let unreadableCount = 0;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const json = await askClaude(user + note, apiKey, fetchImpl);
     try {
-      return validate(readAnalysis(json), turns, prospect);
+      const result = validate(readAnalysis(json), turns, prospect);
+      if (isThin(result) && !note) {
+        thin = result;
+        note = '\n\nYour previous answer left out the coaching for a real conversation: no call craft scores and no key exchanges. Score every craft dimension that happened and give 3 to 6 key exchanges (what the prospect asked or said, how the SDR answered, a verdict, a specific critique and what to say instead).';
+        continue;
+      }
+      return result;
     } catch (err) {
       const unreadable = err instanceof SyntaxError || /did not return JSON/.test(err.message);
       if (!unreadable) throw err;
       lastError = err;
+      unreadableCount += 1;
+      if (thin) return thin;
+      if (unreadableCount >= 2) break; // an unreadable answer is retried once, no more
     }
   }
+  if (thin) return thin;
   throw lastError;
+}
+
+// A real conversation with no craft scores and no key exchanges has nothing to coach from.
+function isThin(a) {
+  return Boolean(a && a.callType === 'conversation' && a.coachable
+    && !Object.values(a.craft || {}).some((c) => Number.isFinite(c?.score))
+    && !(a.keyExchanges || []).length);
 }
 
 // Tiny request that proves the key works and Claude can be reached from this server.
@@ -498,7 +572,9 @@ const POSITIONING_LABELS = {
   ai_only: 'AI business',
   both_monday_first: 'Both, monday.com first',
   both_ai_first: 'Both, AI first',
-  other_only: 'Something else',
+  other_generic: 'A vague company description',
+  other_results: 'Only the results we get',
+  other_credentials: 'Only clients or partners named',
   not_said: 'Did not say who we are',
 };
 const POSITIONING_DESCRIPTIONS = {
@@ -506,7 +582,9 @@ const POSITIONING_DESCRIPTIONS = {
   ai_only: 'Said we are an AI business or build AI, with no mention of monday.com.',
   both_monday_first: 'Mentioned both, starting with monday.com.',
   both_ai_first: 'Mentioned both, starting with AI.',
-  other_only: 'Described something else: a consultancy, services, clients or partners named, or only the results we get.',
+  other_generic: 'Said something like "an implementation company for technology solutions" or "a consulting firm", without saying monday.com or AI.',
+  other_results: 'Said only what we achieve for customers, such as saving time on spreadsheets, without saying what we are.',
+  other_credentials: 'Named clients or partners (for example an Anthropic partner) without a plain description of what we do.',
   not_said: 'Did not say, or only said it later. Includes calls that ended before it could be said.',
 };
 const OPENER_LABELS = {
@@ -543,6 +621,6 @@ const CALL_TYPE_LABELS = {
 };
 
 module.exports = {
-  analyseCall, ping, validate, extractJson, MEDDPICC, CRAFT, SYSTEM, ANALYSIS_SCHEMA, INDUSTRIES,
+  analyseCall, isThin, ping, validate, extractJson, MEDDPICC, CRAFT, SYSTEM, ANALYSIS_SCHEMA, INDUSTRIES,
   OBJECTION_LABELS, OBJECTION_DESCRIPTIONS, POSITIONING_LABELS, POSITIONING_DESCRIPTIONS, OPENER_LABELS, OPENER_DESCRIPTIONS, modernCategory, modernOpener, SENIORITY_LABELS, CALL_TYPE_LABELS,
 };
