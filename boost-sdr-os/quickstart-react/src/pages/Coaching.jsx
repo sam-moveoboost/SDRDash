@@ -36,7 +36,7 @@ export default function Coaching({ user }) {
   const [problem, setProblem] = useState(null);
   const [overview, setOverview] = useState(null);
   const [calls, setCalls] = useState([]);
-  const [meta, setMeta] = useState({ waitingCount: 0, refreshCount: 0, coverage: [], rules: null, totals: null });
+  const [meta, setMeta] = useState({ waitingCount: 0, refreshCount: 0, unreadableCount: 0, coverage: [], rules: null, totals: null });
   const [trends, setTrends] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [analysing, setAnalysing] = useState({ busy: false, message: null });
@@ -77,7 +77,7 @@ export default function Coaching({ user }) {
         ]);
         if (!alive) return;
         setCalls(cl.calls);
-        setMeta({ waitingCount: cl.waitingCount, refreshCount: cl.refreshCount ?? 0, coverage: cl.coverage, rules: cl.rules, totals: cl.transcriptTotals ?? null });
+        setMeta({ waitingCount: cl.waitingCount, refreshCount: cl.refreshCount ?? 0, unreadableCount: cl.unreadableCount ?? 0, coverage: cl.coverage, rules: cl.rules, totals: cl.transcriptTotals ?? null });
         setTrends(tr);
       } catch (e) {
         if (alive) setProblem(explain(e));
@@ -122,7 +122,7 @@ export default function Coaching({ user }) {
     try {
       const cl = await coachingApi.calls(userIdParam, days);
       setCalls(cl.calls);
-      setMeta({ waitingCount: cl.waitingCount, refreshCount: cl.refreshCount ?? 0, coverage: cl.coverage, rules: cl.rules, totals: cl.transcriptTotals ?? null });
+      setMeta({ waitingCount: cl.waitingCount, refreshCount: cl.refreshCount ?? 0, unreadableCount: cl.unreadableCount ?? 0, coverage: cl.coverage, rules: cl.rules, totals: cl.transcriptTotals ?? null });
     } catch { /* the page keeps showing what it has */ }
   }, [userIdParam, days]);
 
@@ -291,6 +291,13 @@ export default function Coaching({ user }) {
             <StatCard label="Average conversation" value={stats.avgConversationMin == null ? 'n/a' : `${num(stats.avgConversationMin)} min`} meta={`${stats.talkMinutes} minutes talking`} />
             <StatCard label="Calls analysed" value={overview.analysedCount} meta={`connected calls since ${fmtDay(overview.coachingFrom)}`} />
           </div>
+
+          {meta.unreadableCount > 0 && (
+            <div className="mb-6 rounded-xl bg-amber-soft text-amber-ink text-[13px] px-4 py-3 flex items-center justify-between gap-4 flex-wrap">
+              <span>{meta.unreadableCount} analysed call{meta.unreadableCount === 1 ? '' : 's'} could not be read from storage just now (it was slow). Nothing is lost and they are not counted as waiting. Press Refresh in a minute.</span>
+              <button type="button" onClick={() => setTick((t) => t + 1)} className="bg-transparent border-0 underline cursor-pointer text-amber-ink">Refresh</button>
+            </div>
+          )}
 
           {/* Managers run the analysis. SDRs see the results for their own calls. */}
           {isAdmin && (

@@ -53,9 +53,11 @@ const RAW = { 7: SHORT, 1: convo('Luke Birchley'), 2: convo('Emad Mahamid'), 3: 
 function makeDeps({ persist = true, claudeFails = false, claudePingFails = false } = {}) {
   const calls = fixtures();
   const saved = new Map();
+  const unreadable = new Set();
   const log = { analysed: [], marked: [], windows: [] };
   return {
     log,
+    unreadable,
     calls,
     deps: {
       mondayApi: {
@@ -75,6 +77,7 @@ function makeDeps({ persist = true, claudeFails = false, claudePingFails = false
       },
       store: {
         getAnalysis: async (id) => saved.get(id) ?? null,
+        getAnalysisChecked: async (id) => ({ analysis: saved.get(id) ?? null, unreadable: !saved.has(id) && unreadable.has(id) }),
         saveAnalysis: async (id, a) => { if (persist) saved.set(id, a); return persist; },
         mapLimit: async (items, _l, fn) => Promise.all(items.map(fn)),
         selfTest: async () => [{ name: 'Saving analyses: fake', ok: persist, ms: 1, ...(persist ? {} : { error: 'the read gave back nothing' }) }],
@@ -857,4 +860,40 @@ test('call craft is averaged over every call with a person on the line, not only
   assert.equal(s.analysedCalls, 1);
   assert.equal(s.craft.opening.avg, 3);
   assert.equal(s.meddpicc.identify_pain.avg, 2); // MEDDPICC still only counts the full conversation
+});
+
+// ---- a slow storage must never make finished calls look un-analysed ----
+test('a saved analysis is found even when the write test fails, and in a store that is not the one used for saving', async () => {
+  const old = fakeBackend('secure');
+  const analysis = { callType: 'conversation', summary: 'saved earlier' };
+  await old.set('coach_v1_9', analysis);
+  // The write test fails here (nothing can be read back from the first store), so nothing is chosen.
+  realStore._setBackends([fakeBackend('slow', { readBack: false }), old]);
+  const got = await realStore.getAnalysisChecked('9');
+  assert.deepEqual(got.analysis, analysis);
+  assert.equal(got.unreadable, false);
+});
+
+test('a store that cannot be read is reported as unreadable, not as never analysed', async () => {
+  const dead = { name: 'dead', set: async () => true, get: async () => { throw new Error('timed out'); } };
+  realStore._setBackends([dead]);
+  const got = await realStore.getAnalysisChecked('10');
+  assert.equal(got.analysis, null);
+  assert.equal(got.unreadable, true);
+  const clean = fakeBackend('clean');
+  realStore._setBackends([clean]);
+  assert.deepEqual(await realStore.getAnalysisChecked('11'), { analysis: null, unreadable: false });
+});
+
+test('calls whose saved analysis could not be read are not offered for re-analysis', async () => {
+  await withServer(async ({ json, calls, deps, unreadable }) => {
+    calls.find((c) => c.id === '3').coachingStatus = 'Analysed';
+    unreadable.add('3');
+    const list = await json('/calls', LUKE);
+    assert.equal(list.unreadableCount, 1);
+    assert.equal(list.calls.some((c) => c.id === '3'), false); // neither waiting nor finished
+    assert.equal(list.waitingCount, 1); // only call 1, never analysed
+    const res = await json('/analyse', LUKE, { method: 'POST', body: JSON.stringify({ ids: ['3'] }) });
+    assert.equal(res.results[0].error, 'storage_unreadable');
+  });
 });

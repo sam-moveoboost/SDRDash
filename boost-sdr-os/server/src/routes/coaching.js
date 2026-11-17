@@ -103,7 +103,7 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
   }
 
   // Saved analyses for calls already marked Analysed.
-  const loadAnalyses = (calls) => store.mapLimit(calls, 8, async (c) => ({ call: c, analysis: await store.getAnalysis(c.id) }));
+  const loadAnalyses = (calls) => store.mapLimit(calls, 8, async (c) => ({ call: c, ...(await store.getAnalysisChecked(c.id)) }));
 
   router.get('/me', (req, res) => res.json({ userId: req.viewer.userId, isAdmin: req.viewer.isAdmin }));
 
@@ -173,7 +173,8 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
     // five opening types), is offered for redoing so the whole set follows the current rules.
     const refreshOf = (analysis) => (!analysis ? 'missing' : !(analysis.schema >= ANALYSIS_SCHEMA) ? 'outdated' : null);
     const byNewest = (x, y) => String(y.createdAt).localeCompare(String(x.createdAt));
-    const refreshing = done.filter((p) => refreshOf(p.analysis));
+    const unreadable = done.filter((p) => !p.analysis && p.unreadable);
+    const refreshing = done.filter((p) => !(!p.analysis && p.unreadable) && refreshOf(p.analysis));
 
     // Every call that still needs analysing is always sent, so "Analyse all" really covers them all.
     // Finished calls fill the rest of the list, newest first, up to a cap.
@@ -208,6 +209,9 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
       waitingCount: waitingRows.length,
       refreshCount: refreshing.length,
       // Every call in the period that could be analysed: already analysed plus still waiting.
+      // Calls marked Analysed whose saved result could not be read just now (storage slow). They are
+      // not offered for re-analysis, so nothing is paid for twice; Refresh reads them again.
+      unreadableCount: unreadable.length,
       transcriptTotals: { valid: analysedCalls.length + waiting.length, analysed: analysedCalls.length, waiting: waiting.length },
       coverage,
       rules: { from: new Date(cfg.COACHING_FROM_MS).toISOString().slice(0, 10), minChars: cfg.MIN_TRANSCRIPT_CHARS },
@@ -274,7 +278,12 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
           continue;
         }
         if (isAnalysed(call)) {
-          const existing = await step('read saved analysis', () => store.getAnalysis(id));
+          const checked = await step('read saved analysis', () => store.getAnalysisChecked(id));
+          if (!checked.analysis && checked.unreadable) {
+            results.push({ id, error: 'storage_unreadable', message: 'The saved analysis could not be read just now because storage was slow. It was not redone, so nothing was paid for twice. Try again in a minute.' });
+            continue;
+          }
+          const existing = checked.analysis;
           if (existing && existing.schema >= ANALYSIS_SCHEMA) {
             results.push({ id, analysis: existing, saved: true, marked: true });
             continue;
