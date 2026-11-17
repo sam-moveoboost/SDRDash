@@ -122,7 +122,7 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
   }
 
   // Saved analyses for calls already marked Analysed.
-  const loadAnalyses = (calls) => store.mapLimit(calls, 16, async (c) => ({ call: c, ...(await store.getAnalysisChecked(c.id)) }));
+  const loadAnalyses = (calls) => store.mapLimit(calls, 6, async (c) => ({ call: c, ...(await store.getAnalysisChecked(c.id)) }));
 
   router.get('/me', (req, res) => res.json({ userId: req.viewer.userId, isAdmin: req.viewer.isAdmin }));
 

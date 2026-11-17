@@ -1194,3 +1194,42 @@ test('a store that answers "key not found" by throwing means not analysed, not u
   assert.equal(got.unreadable, true);
   assert.match(got.errors[0], /broken: socket hang up/);
 });
+
+// ---- storage limits: paced reads that finish in the background ----
+const DEFAULT_TUNING = { maxConcurrent: 3, acquireTimeoutMs: 8000, backoffStartMs: 2000, backoffMaxMs: 30000, maxBackgroundTries: 25 };
+
+test('storage reads are limited to a few at a time', async () => {
+  let live = 0;
+  let peak = 0;
+  const backend = { name: 'paced', set: async () => true, get: async () => { live += 1; peak = Math.max(peak, live); await new Promise((r) => setTimeout(r, 15)); live -= 1; return { callType: 'conversation' }; } };
+  realStore._setBackends([backend]);
+  realStore._setTuning({ acquireTimeoutMs: 5000 });
+  try {
+    const out = await Promise.all(Array.from({ length: 12 }, (_, i) => realStore.getAnalysisChecked(`c${i}`)));
+    assert.ok(out.every((o) => o.analysis));
+    assert.ok(peak <= 3, `at most 3 reads at once, saw ${peak}`);
+  } finally {
+    realStore._setTuning(DEFAULT_TUNING);
+  }
+});
+
+test('when storage says request limit exceeded, the read finishes in the background and is then kept in memory', async () => {
+  let reads = 0;
+  const limited = { name: 'secure storage', set: async () => true, get: async () => { reads += 1; if (reads <= 3) throw new Error('request limit exceeded'); return { callType: 'conversation', summary: 'found later' }; } };
+  realStore._setBackends([limited]);
+  realStore._setTuning({ acquireTimeoutMs: 100, backoffStartMs: 10, backoffMaxMs: 40 });
+  try {
+    const first = await realStore.getAnalysisChecked('900');
+    assert.equal(first.analysis, null);
+    assert.equal(first.unreadable, true); // not "never analysed": the page waits and asks again
+    assert.match(first.errors.join(' '), /request limit exceeded/);
+    await realStore._idle(); // the paced background read finishes
+    const later = await realStore.getAnalysisChecked('900');
+    assert.equal(later.analysis.summary, 'found later');
+    const readsAfter = reads;
+    await realStore.getAnalysisChecked('900');
+    assert.equal(reads, readsAfter); // kept in memory: no more storage requests
+  } finally {
+    realStore._setTuning(DEFAULT_TUNING);
+  }
+});

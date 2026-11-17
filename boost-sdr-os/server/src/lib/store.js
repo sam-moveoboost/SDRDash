@@ -14,7 +14,7 @@ const RETRY_AFTER_MS = 60000;
 
 const withTimeout = (promise, ms, what) => Promise.race([
   promise,
-  new Promise((_, reject) => setTimeout(() => reject(new Error(`${what} timed out after ${ms / 1000}s`)), ms)),
+  new Promise((_, reject) => { setTimeout(() => reject(new Error(`${what} timed out after ${ms / 1000}s`)), ms).unref?.(); }),
 ]);
 
 // Some stores hand JSON back as text.
@@ -79,11 +79,20 @@ const memory = new Map();
 
 // For tests: swap in fake stores and forget any earlier choice.
 function _setBackends(list) {
+  epoch += 1;
   backends = list;
   chosen = null;
   lastTried = 0;
   memory.clear();
+  queue.clear();
+  tries.clear();
+  reading.clear();
+  gate.active = 0;
+  gate.cooldownUntil = 0;
+  gate.backoff = tuning.backoffStartMs;
 }
+function _setTuning(t) { Object.assign(tuning, t); gate.backoff = tuning.backoffStartMs; }
+const _idle = async () => { while (hydrating || queue.size) await sleep(10); };
 
 // Writes a record about the size of a real analysis and reads it back.
 async function roundTrip(backend) {
@@ -112,14 +121,74 @@ async function verifiedBackend() {
   return null;
 }
 
-// Reads never depend on the write test: an analysis already saved must be found even when the
-// storage was slow once and the write test failed. Every storage is asked (the one used for
-// saving first), each with one retry. "Not found" and "could not read just now" are different
-// answers, so a slow minute never makes finished calls look as if they were never analysed.
+// Reading saved analyses is rate limited by monday ("request limit exceeded"), so reads are paced:
+// a few at a time, with a pause that grows each time storage pushes back. What cannot be read in
+// time is finished in the background; everything read stays in memory, so each analysis is read
+// from storage at most once per server start. "Not found" and "could not read just now" are
+// different answers, so a busy minute never makes finished calls look as if they were never analysed.
+const tuning = { maxConcurrent: 3, acquireTimeoutMs: 8000, backoffStartMs: 2000, backoffMaxMs: 30000, maxBackgroundTries: 25 };
+const gate = { active: 0, cooldownUntil: 0, backoff: tuning.backoffStartMs };
+const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
+// The background loop's pauses never keep the process alive by themselves.
+const sleepQuiet = (ms) => new Promise((resolve) => { setTimeout(resolve, ms).unref?.(); });
+let epoch = 0; // bumped when the stores are swapped (tests), so older background work stops
+const BUSY_NOTE = 'storage is busy (request limit), loading in the background';
+
+// Waits for a free slot and for any pause to end. False when that takes longer than allowed.
+async function acquire(timeoutMs, myEpoch = epoch) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    if (myEpoch !== epoch) return false;
+    const pause = Math.max(0, gate.cooldownUntil - Date.now());
+    if (pause === 0 && gate.active < tuning.maxConcurrent) {
+      gate.active += 1;
+      return true;
+    }
+    if (Date.now() + Math.max(pause, 20) > deadline) return false;
+    await sleep(Math.min(Math.max(pause, 20), 250)); // short naps, so a stopped store is noticed quickly
+  }
+}
+const release = () => { gate.active = Math.max(0, gate.active - 1); };
+const pushedBack = () => { gate.cooldownUntil = Date.now() + gate.backoff; gate.backoff = Math.min(gate.backoff * 2, tuning.backoffMaxMs); };
+const allClear = () => { gate.backoff = tuning.backoffStartMs; };
+
 const reading = new Map(); // key -> in-flight read, so the three page requests share each read
+const queue = new Set(); // ids being loaded in the background
+const tries = new Map();
+let hydrating = false;
+
+async function hydrate() {
+  if (hydrating) return;
+  hydrating = true;
+  const myEpoch = epoch;
+  try {
+    while (queue.size && myEpoch === epoch) {
+      const id = queue.values().next().value;
+      queue.delete(id);
+      if (memory.has(keyFor(id))) continue;
+      const result = await readAnalysis(id, { patient: true });
+      if (result.unreadable) {
+        const n = (tries.get(id) || 0) + 1;
+        tries.set(id, n);
+        if (n < tuning.maxBackgroundTries) queue.add(id);
+        await sleepQuiet(Math.max(500, gate.cooldownUntil - Date.now()));
+      }
+    }
+  } finally {
+    hydrating = false;
+    if (queue.size && myEpoch !== epoch) hydrate(); // stores were swapped while this loop slept: carry on with the new ones
+  }
+}
+function enqueue(itemId) {
+  queue.add(String(itemId));
+  hydrate();
+}
+
 function getAnalysisChecked(itemId) {
   const key = keyFor(itemId);
-  if (memory.has(key)) return Promise.resolve({ analysis: memory.get(key), unreadable: false });
+  if (memory.has(key)) return Promise.resolve({ analysis: memory.get(key), unreadable: false, errors: [] });
+  // Already being loaded in the background: say so, rather than adding more reads.
+  if (queue.has(String(itemId))) return Promise.resolve({ analysis: null, unreadable: true, errors: [BUSY_NOTE] });
   if (!reading.has(key)) reading.set(key, readAnalysis(itemId).finally(() => reading.delete(key)));
   return reading.get(key);
 }
@@ -127,32 +196,39 @@ function getAnalysisChecked(itemId) {
 // Some stores answer "no such key" by throwing. That is an answer ("not there"), not a failure to read.
 const NOT_FOUND = /not.?found|404|no such|does not exist|doesn.?t exist|no value/i;
 
-async function readAnalysis(itemId) {
+async function readAnalysis(itemId, { patient = false } = {}) {
   const key = keyFor(itemId);
+  const myEpoch = epoch;
   const order = chosen ? [chosen, ...backends.filter((b) => b !== chosen)] : backends;
   let failed = false;
   const errors = [];
   for (const backend of order) {
-    let answered = false;
-    for (let attempt = 0; attempt < 2 && !answered; attempt += 1) {
-      try {
-        const value = await withTimeout(backend.get(key), TIMEOUT_MS, 'reading an analysis');
-        answered = true;
-        if (value && typeof value === 'object' && value.callType) {
-          memory.set(key, value);
-          return { analysis: value, unreadable: false };
-        }
-      } catch (err) {
-        if (NOT_FOUND.test(err.message)) {
-          answered = true; // the store said it has nothing under that key
-        } else {
-          console.error(`[store] reading ${itemId} from ${backend.name} failed: ${err.message}`);
-          if (attempt === 1 || !errors.some((e) => e.startsWith(backend.name))) errors.push(`${backend.name}: ${err.message}`);
-        }
-      }
+    if (!(await acquire(patient ? 120000 : tuning.acquireTimeoutMs, myEpoch))) {
+      failed = true;
+      if (!errors.includes(BUSY_NOTE)) errors.push(BUSY_NOTE);
+      continue;
     }
-    if (!answered) failed = true;
+    try {
+      const value = await withTimeout(backend.get(key), TIMEOUT_MS, 'reading an analysis');
+      allClear();
+      if (value && typeof value === 'object' && value.callType) {
+        if (myEpoch === epoch) memory.set(key, value);
+        return { analysis: value, unreadable: false, errors: [] };
+      }
+    } catch (err) {
+      if (NOT_FOUND.test(err.message)) {
+        allClear(); // the store said it has nothing under that key
+      } else {
+        console.error(`[store] reading ${itemId} from ${backend.name} failed: ${err.message}`);
+        pushedBack();
+        failed = true;
+        errors.push(`${backend.name}: ${err.message}`);
+      }
+    } finally {
+      release();
+    }
   }
+  if (failed && !patient && myEpoch === epoch) enqueue(itemId); // finish it in the background, paced
   return { analysis: null, unreadable: failed, errors: failed ? errors : [] };
 }
 
@@ -208,4 +284,4 @@ async function mapLimit(items, limit, fn) {
   return results;
 }
 
-module.exports = { getAnalysis, getAnalysisChecked, saveAnalysis, mapLimit, selfTest, _setBackends, _makeBackends: makeBackends };
+module.exports = { getAnalysis, getAnalysisChecked, saveAnalysis, mapLimit, selfTest, _setBackends, _setTuning, _idle, _makeBackends: makeBackends };
