@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { readCoachingCache, writeCoachingCache } from '../utils/coachingCache';
 import { coachingApi } from '../api/coaching';
 import { demoOverview, demoCalls, demoTrends } from '../utils/coachingDemoData';
 import StatCard from '../components/shared/StatCard';
@@ -33,7 +34,10 @@ export default function Coaching({ user }) {
   const [tick, setTick] = useState(0);
 
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false); // showing remembered data while the newest loads
+  const freshRef = useRef(false); // the Refresh button asks the server to re-read the board
   const [problem, setProblem] = useState(null);
+  const [notice, setNotice] = useState(null); // a failed update while earlier data is still on screen
   const [overview, setOverview] = useState(null);
   const [calls, setCalls] = useState([]);
   const [meta, setMeta] = useState({ waitingCount: 0, refreshCount: 0, unreadableCount: 0, coverage: [], rules: null, totals: null });
@@ -48,6 +52,7 @@ export default function Coaching({ user }) {
   const stopRef = useRef(false);
   const [check, setCheck] = useState(null); // { busy, checks, error }
 
+  const viewerKey = String(user?.id ?? user?.name ?? 'me'); // a plain string, so it is safe in the effect's list
   const isAdmin = !!overview?.scope?.isAdmin;
   const userIdParam = sdrId === 'all' ? undefined : sdrId;
 
@@ -55,6 +60,7 @@ export default function Coaching({ user }) {
     let alive = true;
     setLoading(true);
     setProblem(null);
+    setNotice(null);
 
     if (demo) {
       const picked = sdrId === 'all' ? demoCalls.calls : demoCalls.calls.filter((c) => c.sdrId === sdrId);
@@ -66,27 +72,48 @@ export default function Coaching({ user }) {
       return undefined;
     }
 
+    const fresh = freshRef.current;
+    freshRef.current = false;
+    // Show what this tab last loaded straight away, then update it behind.
+    const remembered = fresh ? null : readCoachingCache(viewerKey, sdrId, days);
+    if (remembered?.overview) {
+      setOverview(remembered.overview);
+      setCalls(remembered.calls ?? []);
+      setMeta(remembered.meta);
+      setTrends(remembered.trends ?? null);
+      setLoading(false);
+      setRefreshing(true);
+    } else {
+      setRefreshing(false);
+    }
+
     (async () => {
       try {
-        const ov = await coachingApi.overview(userIdParam, days);
-        if (!alive) return;
-        setOverview(ov);
-        const [cl, tr] = await Promise.all([
-          coachingApi.calls(userIdParam, days),
-          coachingApi.trends(userIdParam, days),
+        const [ov, cl, tr] = await Promise.all([
+          coachingApi.overview(userIdParam, days, fresh),
+          coachingApi.calls(userIdParam, days, fresh),
+          coachingApi.trends(userIdParam, days, fresh),
         ]);
         if (!alive) return;
+        const nextMeta = { waitingCount: cl.waitingCount, refreshCount: cl.refreshCount ?? 0, unreadableCount: cl.unreadableCount ?? 0, coverage: cl.coverage, rules: cl.rules, totals: cl.transcriptTotals ?? null };
+        setOverview(ov);
         setCalls(cl.calls);
-        setMeta({ waitingCount: cl.waitingCount, refreshCount: cl.refreshCount ?? 0, unreadableCount: cl.unreadableCount ?? 0, coverage: cl.coverage, rules: cl.rules, totals: cl.transcriptTotals ?? null });
+        setMeta(nextMeta);
         setTrends(tr);
+        setProblem(null);
+        setNotice(null);
+        writeCoachingCache(viewerKey, sdrId, days, { overview: ov, calls: cl.calls, meta: nextMeta, trends: tr });
       } catch (e) {
-        if (alive) setProblem(explain(e));
+        // With remembered data on screen, a failed update is a soft notice, not a blank page.
+        if (!alive) return;
+        if (remembered?.overview) setNotice(`${explain(e).text} Showing what was loaded earlier.`);
+        else setProblem(explain(e));
       } finally {
-        if (alive) setLoading(false);
+        if (alive) { setLoading(false); setRefreshing(false); }
       }
     })();
     return () => { alive = false; };
-  }, [demo, days, sdrId, tick, userIdParam]);
+  }, [demo, days, sdrId, tick, userIdParam, viewerKey]);
 
   // Re-read the summaries (focus areas, trends) after new analyses land.
   const refreshSummaries = useCallback(async () => {
@@ -219,10 +246,10 @@ export default function Coaching({ user }) {
     <div className="px-8 py-8 max-w-[1400px] mx-auto">
       <div className="flex items-end justify-between gap-4 flex-wrap mb-6">
         <div>
-          <h1 className="font-display text-[32px] font-semibold text-ink leading-none">Coaching</h1>
+          <h1 className="font-display text-[32px] font-semibold text-ink leading-none">Coaching{refreshing && <span className="ml-3 align-middle text-[12.5px] font-normal text-muted">Updating...</span>}</h1>
           <p className="text-muted text-[13.5px] mt-2">
             {isAdmin
-              ? 'Calls, MEDDPICC and what is working across the team. Only managers see this view.'
+              ? 'Calls, MEDDPICC and what is working across the team. Everyone sees the team summary; each person sees the detail of their own calls only.'
               : `Your calls and your coaching${user?.name ? `, ${user.name.split(' ')[0]}` : ''}. Only you and your managers can see it.`}
           </p>
         </div>
@@ -236,7 +263,7 @@ export default function Coaching({ user }) {
           <select value={days} onChange={(e) => setDays(Number(e.target.value))} className="bg-card border border-line rounded-full px-3.5 py-1.5 text-sm font-medium text-ink cursor-pointer">
             {DAY_OPTIONS.map((d) => <option key={d} value={d}>Last {d} days</option>)}
           </select>
-          <button type="button" onClick={() => setTick((t) => t + 1)} className="bg-card border border-line rounded-full px-3.5 py-1.5 text-sm font-medium text-ink cursor-pointer hover:bg-sunken">Refresh</button>
+          <button type="button" onClick={() => { freshRef.current = true; setTick((t) => t + 1); }} className="bg-card border border-line rounded-full px-3.5 py-1.5 text-sm font-medium text-ink cursor-pointer hover:bg-sunken">Refresh</button>
           {isAdmin && !demo && (
             <button type="button" onClick={runCheck} disabled={check?.busy} className="bg-card border border-line rounded-full px-3.5 py-1.5 text-sm font-medium text-ink cursor-pointer hover:bg-sunken disabled:opacity-50">
               {check?.busy ? 'Checking...' : 'Check connections'}
@@ -277,6 +304,13 @@ export default function Coaching({ user }) {
       )}
       {loading && !problem && <Empty>Loading calls...</Empty>}
 
+      {notice && (
+        <div className="mb-6 rounded-xl bg-amber-soft text-amber-ink text-[13px] px-4 py-3 flex items-center justify-between gap-4 flex-wrap">
+          <span>{notice}</span>
+          <button type="button" onClick={() => { freshRef.current = true; setTick((t) => t + 1); }} className="bg-transparent border-0 underline cursor-pointer text-amber-ink">Try again</button>
+        </div>
+      )}
+
       {stats && !problem && (
         <>
           <div className="grid gap-4 grid-cols-2 lg:grid-cols-6 mb-10">
@@ -295,7 +329,7 @@ export default function Coaching({ user }) {
           {meta.unreadableCount > 0 && (
             <div className="mb-6 rounded-xl bg-amber-soft text-amber-ink text-[13px] px-4 py-3 flex items-center justify-between gap-4 flex-wrap">
               <span>{meta.unreadableCount} analysed call{meta.unreadableCount === 1 ? '' : 's'} could not be read from storage just now (it was slow). Nothing is lost and they are not counted as waiting. Press Refresh in a minute.</span>
-              <button type="button" onClick={() => setTick((t) => t + 1)} className="bg-transparent border-0 underline cursor-pointer text-amber-ink">Refresh</button>
+              <button type="button" onClick={() => { freshRef.current = true; setTick((t) => t + 1); }} className="bg-transparent border-0 underline cursor-pointer text-amber-ink">Refresh</button>
             </div>
           )}
 
