@@ -21,7 +21,8 @@ const { statsFor, bySdr } = require('../lib/metrics');
 const { summarise } = require('../lib/focus');
 const { buildTrends, forEveryone } = require('../lib/trends');
 const { reviewPriority } = require('../lib/priority');
-const { ANALYSIS_SCHEMA, positioningUnrecorded } = require('../lib/analysis');
+const { ANALYSIS_SCHEMA, positioningUnrecorded, modernOpener } = require('../lib/analysis');
+const { measured } = require('../lib/outcome');
 
 const CALLS_TTL_MS = 2 * 60 * 1000; // newer than this: served as is
 const CALLS_STALE_MS = 6 * 60 * 60 * 1000; // older: served at once while a top-up loads behind it
@@ -190,7 +191,11 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
     });
     // An analysis that is missing, or was made under older rules (before English findings, before the
     // five opening types), is offered for redoing so the whole set follows the current rules.
-    const refreshOf = (analysis) => (!analysis ? 'missing' : (!(analysis.schema >= ANALYSIS_SCHEMA) || positioningUnrecorded(analysis)) ? 'outdated' : null);
+    const refreshOf = (analysis) => {
+      if (!analysis) return 'missing';
+      if (!(analysis.schema >= ANALYSIS_SCHEMA) || positioningUnrecorded(analysis)) return 'outdated';
+      return measured(analysis) ? null : 'numbers'; // current, only missing the stay-on numbers: updated without Claude
+    };
     const byNewest = (x, y) => String(y.createdAt).localeCompare(String(x.createdAt));
     const unreadable = done.filter((p) => !p.analysis && p.unreadable);
     const refreshing = done.filter((p) => !(!p.analysis && p.unreadable) && refreshOf(p.analysis));
@@ -250,12 +255,28 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
       if (!scope) return;
       sdrId = scope.sdrId;
     }
-    const analysedCalls = inScope(await loadCalls(days, { fresh: req.query.fresh === '1' }), sdrId).filter(isCandidate).filter(isAnalysed);
-    const pairs = (await loadAnalyses(analysedCalls)).filter((p) => p.analysis);
+    const loaded = await loadCalls(days, { fresh: req.query.fresh === '1' });
+    const analysedCalls = inScope(loaded, sdrId).filter(isCandidate).filter(isAnalysed);
+    let pairs = (await loadAnalyses(analysedCalls)).filter((p) => p.analysis);
+
+    // Warm or cold: warm is a call where the SDR referred to an earlier contact, or where this number
+    // had an earlier answered call in the period. Everything else is cold. Wordings are only fairly
+    // compared within the same kind of call, because warm calls behave very differently.
+    const byPhone = new Map();
+    for (const c of loaded) {
+      if (c.externalPhone && c.externalPhone.length >= 7) byPhone.set(c.externalPhone, [...(byPhone.get(c.externalPhone) || []), c]);
+    }
+    const hadEarlierConversation = (c) => (byPhone.get(c.externalPhone) || []).some((o) => o.id !== c.id && o.answered && !o.noConnectionTag && Date.parse(o.createdAt) < Date.parse(c.createdAt));
+    const isWarm = (p) => modernOpener(p.analysis.opener?.style) === 'warm_followup' || hadEarlierConversation(p.call);
+    const warmCount = pairs.filter(isWarm).length;
+    const temperature = { selected: ['warm', 'cold'].includes(req.query.temp) ? req.query.temp : 'all', all: pairs.length, warm: warmCount, cold: pairs.length - warmCount };
+    if (temperature.selected === 'warm') pairs = pairs.filter(isWarm);
+    if (temperature.selected === 'cold') pairs = pairs.filter((p) => !isWarm(p));
     const trends = buildTrends(pairs);
     res.json({
       scope: req.viewer.isAdmin ? { sdrId, days } : { days, everyone: true },
       analysedCount: analysedCalls.length,
+      temperature,
       trends: req.viewer.isAdmin ? trends : forEveryone(trends),
     });
   }));
@@ -275,6 +296,11 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
   // Analyses calls (the app sends one at a time) and saves the result privately in the
   // app's own storage. The board only gets the "Analysed" status, set after the save
   // is confirmed, so a call is never marked done unless its analysis is kept.
+  // What is kept from the transcript with each analysis. The last two decide "stayed on".
+  const statsToKeep = ({ sdrShare, sdrQuestions, longestSdrTurnWords, chars, prospectWordsAfterOpening, turnsAfterOpening }) => ({
+    sdrShare, sdrQuestions, longestSdrTurnWords, chars, prospectWordsAfterOpening, turnsAfterOpening,
+  });
+
   // Analyses one call and says what happened. Used by the request that waits for the answer and by
   // the background jobs below.
   async function analyseOne(id, viewer, { patient = false } = {}) {
@@ -307,7 +333,15 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
         }
         const existing = checked.analysis;
         if (existing && existing.schema >= ANALYSIS_SCHEMA && !positioningUnrecorded(existing)) {
-          return { id, analysis: existing, saved: true, marked: true };
+          if (measured(existing)) return { id, analysis: existing, saved: true, marked: true };
+          // Only the stay-on numbers are missing: work them out from the transcript. No Claude, no cost.
+          const rawText = await step('read transcript', async () => (await loadTranscripts([call]))[id]);
+          const parsedText = parseTranscript(rawText, call.agentName);
+          if (parsedText) {
+            const updated = { ...existing, stats: { ...(existing.stats || {}), ...statsToKeep(parsedText.stats) } };
+            const savedNumbers = await step('save the numbers', () => store.saveAnalysis(id, updated));
+            return { id, analysis: savedNumbers ? updated : existing, saved: savedNumbers, marked: true, numbersOnly: true };
+          }
         }
         // Marked done, but the saved analysis is missing or was made under older rules: redo it.
       }
@@ -320,8 +354,7 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
       // The CRM record (industry, company, title) gives the analysis context the call may never state.
       const prospect = typeof mondayApi.fetchProspect === 'function' ? await step('look up the prospect', () => mondayApi.fetchProspect(call)) : null;
       const result = await step('analyse with Claude', () => analysis.analyseCall({ turns: parsed.turns, call, prospect }));
-      const { sdrShare, sdrQuestions, longestSdrTurnWords, chars } = parsed.stats;
-      result.stats = { sdrShare, sdrQuestions, longestSdrTurnWords, chars };
+      result.stats = statsToKeep(parsed.stats);
 
       // The board is only marked once the analysis is confirmed saved permanently.
       const saved = await step('save analysis', () => store.saveAnalysis(id, result));

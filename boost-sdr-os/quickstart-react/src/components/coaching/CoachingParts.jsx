@@ -441,7 +441,8 @@ export function TrendsPanel({ data }) {
           rows={t.openers}
           keyOf={(o) => o.style}
           bestKey={t.bestOpener}
-          empty="No calls analysed yet."
+          latest={t.latestRules}
+          empty="No calls analysed under the latest rules yet. They appear as calls are redone."
         />
 
         <WhatWorksCard
@@ -451,6 +452,7 @@ export function TrendsPanel({ data }) {
           rows={t.positioning}
           keyOf={(o) => o.key}
           bestKey={t.bestPositioning}
+          latest={t.latestRules}
           empty="No calls analysed with this yet. It appears once calls are analysed again with the latest rules."
         />
 
@@ -577,7 +579,7 @@ export function TrendsPanel({ data }) {
 
 // One list of groups (opening types, or ways of saying who we are) with what happened after each.
 // Stayed on, hung up and other always add up to 100% of the group's calls.
-function WhatWorksCard({ title, note, intro, rows, keyOf, bestKey, empty }) {
+function WhatWorksCard({ title, note, intro, rows, keyOf, bestKey, empty, latest }) {
   return (
     <Card title={title} note={note}>
       {!rows?.length ? <Empty>{empty}</Empty> : (
@@ -596,15 +598,17 @@ function WhatWorksCard({ title, note, intro, rows, keyOf, bestKey, empty }) {
                 </div>
                 {o.description && <div className="text-[11.5px] text-muted mb-1.5">{o.description}</div>}
                 <div className="flex items-center gap-2 text-[11.5px] text-muted mb-1"><span className="w-[110px]">Stayed on</span><div className="flex-1"><Bar value={o.stayedRate} tone="good" /></div><span className="w-9 text-right">{pct(o.stayedRate)}</span></div>
-                <div className="flex items-center gap-2 text-[11.5px] text-muted mb-1"><span className="w-[110px]">Hung up</span><div className="flex-1"><Bar value={o.hungUpRate} tone="bad" /></div><span className="w-9 text-right">{pct(o.hungUpRate)}</span></div>
-                <div className="flex items-center gap-2 text-[11.5px] text-muted"><span className="w-[110px]" title="Gatekeeper, a line that dropped, or unclear">Neither</span><div className="flex-1"><Bar value={o.neitherRate} tone="navy" /></div><span className="w-9 text-right">{pct(o.neitherRate)}</span></div>
-                <div className="text-[11.5px] text-muted mt-1">Average {num(o.avgDurationMin)} min on the call</div>
+                <div className="flex items-center gap-2 text-[11.5px] text-muted"><span className="w-[110px]">Hung up early</span><div className="flex-1"><Bar value={o.hungUpRate} tone="bad" /></div><span className="w-9 text-right">{pct(o.hungUpRate)}</span></div>
+                <div className="text-[11.5px] text-muted mt-1">Average {num(o.avgDurationMin)} min on the call{o.blocked > 0 ? `. ${o.blocked} of the hung-up calls were blocked by a gatekeeper` : ''}</div>
                 {o.stayExamples?.[0] && <div className="text-[12px] text-body italic mt-1.5">Kept them on: "{o.stayExamples[0].quote}"</div>}
                 {o.hangUpExamples?.[0] && <div className="text-[12px] text-body italic mt-1">Lost them: "{o.hangUpExamples[0].quote}"</div>}
               </li>
             ))}
           </ul>
-          <div className="text-[11.5px] text-muted mt-3 pt-3 border-t border-line">Stayed on, hung up and neither add up to 100%. "Neither" is a gatekeeper, a line that dropped, or a call that was unclear.</div>
+          <div className="text-[11.5px] text-muted mt-3 pt-3 border-t border-line">
+            Stayed on means the prospect said at least 40 words after our opening and the call carried on for at least 6 more turns. Anything shorter, including a call blocked by a gatekeeper, is hung up early. The two always add up to 100%.
+            {latest && latest.total > 0 && <span className="block mt-1">Based on {latest.used} of {latest.total} calls analysed under the latest rules. The rest join as they are redone.</span>}
+          </div>
         </>
       )}
     </Card>
