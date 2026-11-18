@@ -288,7 +288,7 @@ export default function Coaching({ user }) {
           <h1 className="font-display text-[32px] font-semibold text-ink leading-none">Coaching{refreshing && <span className="ml-3 align-middle text-[12.5px] font-normal text-muted">Updating...</span>}</h1>
           <p className="text-muted text-[13.5px] mt-2">
             {isAdmin
-              ? 'Calls, MEDDPICC and what is working across the team. Everyone sees the team summary; each person sees the detail of their own calls only.'
+              ? 'Calls, call craft and what is working across the team. Everyone sees the team summary; each person sees the detail of their own calls only.'
               : `Your calls and your coaching${user?.name ? `, ${user.name.split(' ')[0]}` : ''}. Only you and your managers can see it.`}
           </p>
         </div>
@@ -483,7 +483,7 @@ export default function Coaching({ user }) {
             <TrendsPanel data={trends} />
           </Section>
 
-          <Section title={isAdmin ? `Coaching focus for ${who}` : 'Where to focus'} sub="Built from the calls that have been analysed against MEDDPICC and call craft.">
+          <Section title={isAdmin ? `Coaching focus for ${who}` : 'Where to focus'} sub="Built from the calls that have been scored on call craft: the opening, discovery, objection handling, asking for the next step, and tone and control.">
             <FocusPanel coaching={overview.coaching} who={who} canAnalyse={isAdmin} />
           </Section>
 
