@@ -17,7 +17,7 @@ export const CALL_TYPE_LABELS = {
 const OPENER_RESULT_LABELS = {
   stayed_engaged: 'Prospect stayed', brushed_off: 'Brushed off', hung_up: 'Prospect hung up', blocked_by_gatekeeper: 'Blocked by gatekeeper', unclear: 'Unclear',
 };
-const OPENER_STYLE_LABELS = { warm_followup: 'Warm follow-up', cold_permission_ask: 'Cold permission ask', credentials_first: 'Credentials first', named_person_ask: 'Asking for a person', pain_question_hook: 'Pain-point question', other: 'Other' };
+const OPENER_STYLE_LABELS = { warm_followup: 'Warm reference', apology: 'Apology', cold_permission_ask: 'Permission ask', credentials_first: 'Who we are first', named_person_ask: 'Other', pain_question_hook: 'Problem or result hook', other: 'Other' };
 const OBJECTION_GROUP_LABELS = { not_interested: 'Not interested', not_a_good_time: 'Not a good time', no_time: 'Not a good time', bad_timing: 'Not a good time', send_email: 'Send me an email', already_covered: 'Already covered', already_have_solution: 'Already covered', using_competitor: 'Already covered', no_budget: 'No budget', too_small_or_no_need: 'Too small or no need', wrong_person: 'Wrong person', data_source_challenge: 'Asks how they got the number', other: 'Other' };
 const openerTone = (r) => (r === 'stayed_engaged' ? 'good' : r === 'hung_up' || r === 'brushed_off' ? 'bad' : 'muted');
 
@@ -437,7 +437,7 @@ export function TrendsPanel({ data }) {
         <WhatWorksCard
           title="How we open"
           note={t.openers?.length ? `${t.openers.reduce((n, o) => n + o.calls, 0)} calls` : 'the first line'}
-          intro="The first thing the SDR says, in five types, and how often people stay on the line afterwards."
+          intro="What the SDR says first, after checking who is on the line, in five types, and how often people stay on the line afterwards."
           rows={t.openers}
           keyOf={(o) => o.style}
           bestKey={t.bestOpener}

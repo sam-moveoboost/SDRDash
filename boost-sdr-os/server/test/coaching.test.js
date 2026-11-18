@@ -79,7 +79,7 @@ function makeDeps({ persist = true, claudeFails = false, claudePingFails = false
           log.analysed.push(call.id);
           log.prospects = log.prospects || {};
           log.prospects[call.id] = prospect;
-          return { callType: 'conversation', language: 'English', schema: 4, positioning: { recorded: true, lead: 'none', when: 'never' }, coachable: true, openerResult: 'stayed_engaged', nextStepSecured: true, meddpicc: {}, craft: {}, objections: [] };
+          return { callType: 'conversation', language: 'English', schema: 5, positioning: { recorded: true, lead: 'none', when: 'never' }, coachable: true, openerResult: 'stayed_engaged', nextStepSecured: true, meddpicc: {}, craft: {}, objections: [] };
         },
       },
       store: {
@@ -242,7 +242,7 @@ test('everyone can see the team trends, but nothing that points at an individual
     for (const id of ['1', '2']) {
       calls.find((c) => c.id === id).coachingStatus = 'Analysed';
       await deps.store.saveAnalysis(id, {
-        callType: 'conversation', language: 'English', schema: 4, positioning: { recorded: true, lead: 'none', when: 'never' }, coachable: true, openerResult: 'stayed_engaged', nextStepSecured: true, craft: {},
+        callType: 'conversation', language: 'English', schema: 5, positioning: { recorded: true, lead: 'none', when: 'never' }, coachable: true, openerResult: 'stayed_engaged', nextStepSecured: true, craft: {},
         prospect: { seniority: 'manager', role: 'Head of Sales', industry: 'software' },
         opener: { style: 'permission_based', quote: 'Got a minute?', quoteEn: 'Got a minute?' },
         objections: [{ category: 'no_time', stage: 'opener', quote: 'No time', quoteEn: 'No time', responseQuote: 'Ten minutes next week?', responseQuoteEn: 'Ten minutes next week?', handled: id === '1' ? 'well' : 'poorly', why: 'x' }],
@@ -672,7 +672,7 @@ test('an analysis saved before the English change is offered for redoing, and re
 test('a current analysis (with a language) is left alone and never redone', async () => {
   await withServer(async ({ json, log, calls, deps }) => {
     calls.find((c) => c.id === '3').coachingStatus = 'Analysed';
-    await deps.store.saveAnalysis('3', { callType: 'early_hangup', language: 'English', schema: 4, positioning: { recorded: true, lead: 'none', when: 'never' }, coachable: false });
+    await deps.store.saveAnalysis('3', { callType: 'early_hangup', language: 'English', schema: 5, positioning: { recorded: true, lead: 'none', when: 'never' }, coachable: false });
 
     const list = await json('/calls', LUKE);
     assert.equal(list.calls.find((c) => c.id === '3').status, 'analysed');
@@ -718,7 +718,7 @@ test('calls still waiting are always listed, even when many finished calls come 
     for (let i = 0; i < 210; i++) {
       const id = `done${i}`;
       calls.push(mkCall({ id, createdAt: '2026-11-10T10:00:00Z', startedAt: '2026-11-10 10:00', coachingStatus: 'Analysed', tags: ['Gatekeeper'] }));
-      await deps.store.saveAnalysis(id, { callType: 'conversation', language: 'English', schema: 4, positioning: { recorded: true, lead: 'none', when: 'never' }, coachable: true, meddpicc: {}, craft: {}, objections: [] });
+      await deps.store.saveAnalysis(id, { callType: 'conversation', language: 'English', schema: 5, positioning: { recorded: true, lead: 'none', when: 'never' }, coachable: true, meddpicc: {}, craft: {}, objections: [] });
     }
     const list = await json('/calls', LUKE);
     const waitingRows = list.calls.filter((c) => c.status === 'waiting');
@@ -811,7 +811,7 @@ test('scores always stay between 1 and 10', () => {
 test('finished calls come back with a priority, in the list the page shows', async () => {
   await withServer(async ({ json, calls, deps }) => {
     calls.find((c) => c.id === '3').coachingStatus = 'Analysed';
-    await deps.store.saveAnalysis('3', { callType: 'early_hangup', language: 'English', schema: 4, positioning: { recorded: true, lead: 'none', when: 'never' }, coachable: false, objections: [], craft: {} });
+    await deps.store.saveAnalysis('3', { callType: 'early_hangup', language: 'English', schema: 5, positioning: { recorded: true, lead: 'none', when: 'never' }, coachable: false, objections: [], craft: {} });
     const row = (await json('/calls', LUKE)).calls.find((c) => c.id === '3');
     assert.equal(row.status, 'analysed');
     assert.equal(row.priority.level, 'low');
@@ -1320,4 +1320,14 @@ test('a missing positioning is not recorded, and is not counted as "did not say"
   assert.equal(positioningUnrecorded({ callType: 'conversation', schema: 4, positioning: { lead: 'none', when: 'never', quote: null, reaction: 'unclear', note: '' } }), true);
   const t = buildTrends([{ call: { id: '1', sdrName: 'L', tags: [], durationMin: 1 }, analysis: { ...omitted, coachable: false, prospect: {}, opener: { style: 'other' } } }]);
   assert.equal(t.positioningCalls, 0);
+});
+
+test('"apology" is an opener type, and the old "checking who it is" type now counts as other', () => {
+  const { SYSTEM, OPENER_LABELS } = require('../src/lib/analysis');
+  const turns = [{ who: 'sdr', text: 'Sorry for calling you out of the blue.' }, { who: 'prospect', text: 'Who is this?' }];
+  const base = { call_type: 'conversation', coachable: false, opener_result: 'stayed_engaged', next_step_secured: false, meddpicc: {}, craft: {}, objections: [] };
+  assert.equal(validate({ ...base, opener: { style: 'apology', quote: 'Sorry for calling you out of the blue.' } }, turns).opener.style, 'apology');
+  assert.equal(validate({ ...base, opener: { style: 'named_person_ask' } }, turns).opener.style, 'other');
+  assert.equal(OPENER_LABELS.apology, 'Apology');
+  assert.match(SYSTEM, /Ignore that step/); // checking who is on the line is ignored; what comes next decides
 });
