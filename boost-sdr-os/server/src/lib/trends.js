@@ -4,7 +4,7 @@
 // Short calls are included: openers and early hang-ups are exactly what managers
 // want to see. Only voicemail and phone menus are left out.
 
-const { POSITIONING_LABELS, POSITIONING_DESCRIPTIONS, OBJECTION_LABELS, OBJECTION_DESCRIPTIONS, OPENER_LABELS, OPENER_DESCRIPTIONS, SENIORITY_LABELS, modernCategory, modernOpener } = require('./analysis');
+const { POSITIONING_LABELS, POSITIONING_DESCRIPTIONS, OBJECTION_LABELS, OBJECTION_DESCRIPTIONS, OPENER_LABELS, OPENER_DESCRIPTIONS, SENIORITY_LABELS, modernCategory, modernOpener, positioningUnrecorded } = require('./analysis');
 
 const NON_HUMAN = new Set(['voicemail', 'automated_menu']);
 
@@ -63,16 +63,23 @@ function industryOf(a) {
 // "did not say". Analyses made before this was recorded have no positioning and are left out.
 function positioningGroup(a) {
   const pos = a.positioning;
-  if (!pos) return null;
-  if (pos.lead === 'none' || pos.when === 'later' || pos.when === 'never') return 'not_said';
-  if (pos.mentionsMonday && pos.mentionsAi) return pos.lead === 'ai' ? 'both_ai_first' : 'both_monday_first';
-  if (pos.mentionsMonday) return 'monday_only';
-  if (pos.mentionsAi) return 'ai_only';
-  if (pos.otherKind === 'results_only') return 'other_results';
-  if (pos.otherKind === 'credentials_only') return 'other_credentials';
-  return 'other_generic';
+  if (!pos || positioningUnrecorded(a)) return null; // not recorded: leave it out rather than count it as "did not say"
+  if (pos.lead === 'none' || pos.when === 'later' || pos.when === 'never') return 'none';
+  if (pos.mentionsMonday && pos.mentionsAi) return 'both';
+  if (pos.mentionsMonday) return 'monday';
+  if (pos.mentionsAi) return 'ai';
+  if (pos.otherKind === 'results_only' || pos.otherKind === 'credentials_only') return 'other';
+  return 'consultancy';
 }
-const POSITIONING_ORDER = ['monday_only', 'ai_only', 'both_monday_first', 'both_ai_first', 'other_generic', 'other_results', 'other_credentials', 'not_said'];
+const POSITIONING_ORDER = ['monday', 'ai', 'both', 'consultancy', 'other', 'none'];
+// Every call ends one of three ways, so the three shares always add up to 100%: the prospect stayed
+// on, hung up or brushed us off, or neither (gatekeeper, a line that dropped, unclear).
+const outcomeStats = (group) => {
+  const n = group.length;
+  const st = group.filter((p) => stayed(p.analysis)).length;
+  const hu = group.filter((p) => hungUp(p.analysis)).length;
+  return { stayed: st, stayedRate: rate(st, n), hungUp: hu, hungUpRate: rate(hu, n), neither: n - st - hu, neitherRate: rate(n - st - hu, n) };
+};
 const MIN_FOR_VERDICT = 5; // fewer calls than this is too few to say one wording beats another
 
 function buildTrends(pairs) {
@@ -149,17 +156,19 @@ function buildTrends(pairs) {
       label: OPENER_LABELS[style] || style,
       description: OPENER_DESCRIPTIONS[style] || null,
       calls: group.length,
-      stayed: group.filter((p) => stayed(p.analysis)).length,
-      stayedRate: rate(group.filter((p) => stayed(p.analysis)).length, group.length),
-      hungUp: group.filter((p) => hungUp(p.analysis)).length,
-      hungUpRate: rate(group.filter((p) => hungUp(p.analysis)).length, group.length),
+      ...outcomeStats(group),
       booked: group.filter((p) => isBooked(p.call)).length,
       bookedRate: rate(group.filter((p) => isBooked(p.call)).length, group.length),
       nextStepRate: rate(group.filter((p) => p.analysis.nextStepSecured).length, group.length),
+      avgDurationMin: avg(group.map((p) => p.call.durationMin)),
+      smallSample: group.length < MIN_FOR_VERDICT,
       stayExamples: group.filter((p) => stayed(p.analysis)).sort((a, b) => successScore(b) - successScore(a)).map(quoteOf).filter(Boolean).slice(0, 2),
       hangUpExamples: group.filter((p) => hungUp(p.analysis)).map(quoteOf).filter(Boolean).slice(0, 2),
     };
   }).sort((a, b) => b.calls - a.calls);
+
+  // The opening that keeps most people on the call, among those with enough calls to say so.
+  const bestOpener = openers.filter((o) => o.calls >= MIN_FOR_VERDICT && o.style !== 'other').sort((a, b) => b.stayedRate - a.stayedRate || b.booked - a.booked)[0]?.style || null;
 
   // ---- what we say we are, and what keeps people on the call ----
   const withPositioning = human.filter((p) => positioningGroup(p.analysis));
@@ -172,10 +181,7 @@ function buildTrends(pairs) {
       label: POSITIONING_LABELS[key],
       description: POSITIONING_DESCRIPTIONS[key],
       calls: group.length,
-      stayed: group.filter((p) => stayed(p.analysis)).length,
-      stayedRate: rate(group.filter((p) => stayed(p.analysis)).length, group.length),
-      hungUp: group.filter((p) => hungUp(p.analysis)).length,
-      hungUpRate: rate(group.filter((p) => hungUp(p.analysis)).length, group.length),
+      ...outcomeStats(group),
       engagedRate: rate(engaged, group.length),
       booked: group.filter((p) => isBooked(p.call)).length,
       bookedRate: rate(group.filter((p) => isBooked(p.call)).length, group.length),
@@ -188,7 +194,7 @@ function buildTrends(pairs) {
   }).filter((g) => g.calls > 0);
   // The one that keeps most people on the call, among groups with enough calls to say so.
   const bestPositioning = positioning
-    .filter((g) => g.calls >= MIN_FOR_VERDICT && g.key !== 'not_said')
+    .filter((g) => g.calls >= MIN_FOR_VERDICT && g.key !== 'none')
     .sort((a, b) => b.stayedRate - a.stayedRate || b.booked - a.booked)[0]?.key || null;
 
   // ---- hang-ups ----

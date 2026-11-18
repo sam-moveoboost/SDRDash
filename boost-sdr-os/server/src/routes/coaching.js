@@ -21,7 +21,7 @@ const { statsFor, bySdr } = require('../lib/metrics');
 const { summarise } = require('../lib/focus');
 const { buildTrends, forEveryone } = require('../lib/trends');
 const { reviewPriority } = require('../lib/priority');
-const { ANALYSIS_SCHEMA } = require('../lib/analysis');
+const { ANALYSIS_SCHEMA, positioningUnrecorded } = require('../lib/analysis');
 
 const CALLS_TTL_MS = 2 * 60 * 1000; // newer than this: served as is
 const CALLS_STALE_MS = 6 * 60 * 60 * 1000; // older: served at once while a top-up loads behind it
@@ -190,7 +190,7 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
     });
     // An analysis that is missing, or was made under older rules (before English findings, before the
     // five opening types), is offered for redoing so the whole set follows the current rules.
-    const refreshOf = (analysis) => (!analysis ? 'missing' : !(analysis.schema >= ANALYSIS_SCHEMA) ? 'outdated' : null);
+    const refreshOf = (analysis) => (!analysis ? 'missing' : (!(analysis.schema >= ANALYSIS_SCHEMA) || positioningUnrecorded(analysis)) ? 'outdated' : null);
     const byNewest = (x, y) => String(y.createdAt).localeCompare(String(x.createdAt));
     const unreadable = done.filter((p) => !p.analysis && p.unreadable);
     const refreshing = done.filter((p) => !(!p.analysis && p.unreadable) && refreshOf(p.analysis));
@@ -306,7 +306,7 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
           return { id, error: 'storage_unreadable', message: 'The saved analysis could not be read just now because storage was slow. It was not redone, so nothing was paid for twice. Try again in a minute.' };
         }
         const existing = checked.analysis;
-        if (existing && existing.schema >= ANALYSIS_SCHEMA) {
+        if (existing && existing.schema >= ANALYSIS_SCHEMA && !positioningUnrecorded(existing)) {
           return { id, analysis: existing, saved: true, marked: true };
         }
         // Marked done, but the saved analysis is missing or was made under older rules: redo it.

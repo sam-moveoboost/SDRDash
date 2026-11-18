@@ -434,33 +434,25 @@ export function TrendsPanel({ data }) {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card title="What we say we are" note={t.positioningCalls ? `${t.positioningCalls} calls` : 'what keeps people on the call'}>
-          {!t.positioning?.length ? <Empty>No calls analysed with this yet. It appears once calls are analysed again with the latest rules.</Empty> : (
-            <>
-              <div className="text-[12px] text-muted mb-3">How we describe who we are in the first part of the call, and how often people stay on the line afterwards.</div>
-              <ul className="space-y-4">
-                {t.positioning.map((o) => (
-                  <li key={o.key}>
-                    <div className="flex justify-between items-center gap-2 text-[13px] mb-0.5">
-                      <span className="font-medium text-ink flex items-center gap-2 flex-wrap">
-                        {o.label}
-                        {t.bestPositioning === o.key && <Chip tone="good">Keeps most people on</Chip>}
-                        {o.smallSample && <Chip>Too few calls to judge</Chip>}
-                      </span>
-                      <span className="text-muted whitespace-nowrap">{o.calls} call{o.calls === 1 ? '' : 's'}, {o.booked} booked</span>
-                    </div>
-                    {o.description && <div className="text-[11.5px] text-muted mb-1.5">{o.description}</div>}
-                    <div className="flex items-center gap-2 text-[11.5px] text-muted mb-1"><span className="w-[72px]">Stayed on</span><div className="flex-1"><Bar value={o.stayedRate} tone="good" /></div><span className="w-9 text-right">{pct(o.stayedRate)}</span></div>
-                    <div className="flex items-center gap-2 text-[11.5px] text-muted"><span className="w-[72px]">Hung up</span><div className="flex-1"><Bar value={o.hungUpRate} tone="bad" /></div><span className="w-9 text-right">{pct(o.hungUpRate)}</span></div>
-                    <div className="text-[11.5px] text-muted mt-1">Average {num(o.avgDurationMin)} min on the call{o.engagedRate != null ? `, ${pct(o.engagedRate)} showed interest straight away` : ''}</div>
-                    {o.stayExamples[0] && <div className="text-[12px] text-body italic mt-1.5">Kept them on: "{o.stayExamples[0].quote}"</div>}
-                    {o.hangUpExamples[0] && <div className="text-[12px] text-body italic mt-1">Lost them: "{o.hangUpExamples[0].quote}"</div>}
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-        </Card>
+        <WhatWorksCard
+          title="How we open"
+          note={t.openers?.length ? `${t.openers.reduce((n, o) => n + o.calls, 0)} calls` : 'the first line'}
+          intro="The first thing the SDR says, in five types, and how often people stay on the line afterwards."
+          rows={t.openers}
+          keyOf={(o) => o.style}
+          bestKey={t.bestOpener}
+          empty="No calls analysed yet."
+        />
+
+        <WhatWorksCard
+          title="What we say we are"
+          note={t.positioningCalls ? `${t.positioningCalls} calls` : 'in the first 20 seconds'}
+          intro="How we describe who we are in the first 20 seconds, and how often people stay on the line afterwards."
+          rows={t.positioning}
+          keyOf={(o) => o.key}
+          bestKey={t.bestPositioning}
+          empty="No calls analysed with this yet. It appears once calls are analysed again with the latest rules."
+        />
 
         <Card title="Early hang-ups" note={`${t.hangups.count} calls, ${pct(t.hangups.share)} of analysed`}>
           {t.hangups.count === 0 ? <Empty>No early hang-ups in the analysed calls.</Empty> : (
@@ -580,6 +572,42 @@ export function TrendsPanel({ data }) {
         </Card>
       )}
     </div>
+  );
+}
+
+// One list of groups (opening types, or ways of saying who we are) with what happened after each.
+// Stayed on, hung up and other always add up to 100% of the group's calls.
+function WhatWorksCard({ title, note, intro, rows, keyOf, bestKey, empty }) {
+  return (
+    <Card title={title} note={note}>
+      {!rows?.length ? <Empty>{empty}</Empty> : (
+        <>
+          <div className="text-[12px] text-muted mb-3">{intro}</div>
+          <ul className="space-y-4">
+            {rows.map((o) => (
+              <li key={keyOf(o)}>
+                <div className="flex justify-between items-center gap-2 text-[13px] mb-0.5">
+                  <span className="font-medium text-ink flex items-center gap-2 flex-wrap">
+                    {o.label}
+                    {bestKey === keyOf(o) && <Chip tone="good">Keeps most people on</Chip>}
+                    {o.smallSample && <Chip>Too few calls to judge</Chip>}
+                  </span>
+                  <span className="text-muted whitespace-nowrap">{o.calls} call{o.calls === 1 ? '' : 's'}, {o.booked} booked</span>
+                </div>
+                {o.description && <div className="text-[11.5px] text-muted mb-1.5">{o.description}</div>}
+                <div className="flex items-center gap-2 text-[11.5px] text-muted mb-1"><span className="w-[110px]">Stayed on</span><div className="flex-1"><Bar value={o.stayedRate} tone="good" /></div><span className="w-9 text-right">{pct(o.stayedRate)}</span></div>
+                <div className="flex items-center gap-2 text-[11.5px] text-muted mb-1"><span className="w-[110px]">Hung up</span><div className="flex-1"><Bar value={o.hungUpRate} tone="bad" /></div><span className="w-9 text-right">{pct(o.hungUpRate)}</span></div>
+                <div className="flex items-center gap-2 text-[11.5px] text-muted"><span className="w-[110px]" title="Gatekeeper, a line that dropped, or unclear">Neither</span><div className="flex-1"><Bar value={o.neitherRate} tone="navy" /></div><span className="w-9 text-right">{pct(o.neitherRate)}</span></div>
+                <div className="text-[11.5px] text-muted mt-1">Average {num(o.avgDurationMin)} min on the call</div>
+                {o.stayExamples?.[0] && <div className="text-[12px] text-body italic mt-1.5">Kept them on: "{o.stayExamples[0].quote}"</div>}
+                {o.hangUpExamples?.[0] && <div className="text-[12px] text-body italic mt-1">Lost them: "{o.hangUpExamples[0].quote}"</div>}
+              </li>
+            ))}
+          </ul>
+          <div className="text-[11.5px] text-muted mt-3 pt-3 border-t border-line">Stayed on, hung up and neither add up to 100%. "Neither" is a gatekeeper, a line that dropped, or a call that was unclear.</div>
+        </>
+      )}
+    </Card>
   );
 }
 
