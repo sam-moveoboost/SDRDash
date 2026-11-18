@@ -104,21 +104,27 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
   // be re-analysed (it was analysed under older rules), or analysed. The app sets the first two when
   // it finds a call needs the work, and "Analysed" only once the result is saved and read back.
   const boardAsked = new Map(); // call id -> the label we last asked the board to show
+  const recentlyAnalysed = new Set(); // calls analysed since the server started, never flipped back by a late write
   let syncingBoard = false;
   async function syncBoardStatus(items) {
     const todo = items.filter(({ call, label }) => call.coachingStatus !== label && boardAsked.get(call.id) !== label);
-    if (!todo.length || syncingBoard || typeof mondayApi.setStatus !== 'function') return;
+    const result = { changed: 0, failed: 0 };
+    if (!todo.length || syncingBoard || typeof mondayApi.setStatus !== 'function') return { ...result, skipped: todo.length > 0 };
     syncingBoard = true;
     try {
       let next = 0;
       const worker = async () => {
         while (next < todo.length) {
           const { call, label } = todo[next++];
+          // A call finished while this was running keeps its Analysed status.
+          if (label !== cfg.STATUS_ANALYSED && call.coachingStatus === cfg.STATUS_ANALYSED && recentlyAnalysed.has(call.id)) continue;
           try {
             await mondayApi.setStatus(call.id, label);
             call.coachingStatus = label; // keep the cached list in step
             boardAsked.set(call.id, label);
+            result.changed += 1;
           } catch (err) {
+            result.failed += 1;
             console.error(`[board] could not set ${call.id} to "${label}": ${err.message}`);
           }
         }
@@ -127,6 +133,7 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
     } finally {
       syncingBoard = false;
     }
+    return result;
   }
   const parseDays = (q) => Math.min(cfg.MAX_DAYS, Math.max(7, parseInt(q, 10) || 30));
   const usable = (parsed) => !!parsed && parsed.stats.chars >= cfg.MIN_TRANSCRIPT_CHARS;
@@ -403,6 +410,7 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
           await step('mark as analysed on the board', () => mondayApi.markAnalysed(id));
           marked = true;
           call.coachingStatus = cfg.STATUS_ANALYSED; // keep the cached list in step
+          recentlyAnalysed.add(id);
         } catch (err) {
           console.error(`[analyse] ${id} could not mark the board: ${err.message}`);
         }
@@ -522,6 +530,52 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
       console.log(`[warm] ${all.length} calls and their analyses are ready`);
     } catch (err) {
       console.error(`[warm] could not preload: ${err.message}`);
+    }
+  };
+
+  // ---- the board follows the rules, with nobody needing to open the page ----
+  // Each set of analysis rules has a version. The first time the server starts on a newer version, every
+  // call in the period that shows "Analysed" is set to "Waiting to be re-analysed" on the board, straight
+  // away and without reading any saved analysis. A marker saved afterwards records that this has been
+  // done, so a plain restart changes nothing. If any call could not be updated the marker is not saved and
+  // the next start finishes the job.
+  const RULES_MARKER_ID = 'meta_rules_version';
+  router.boot = async () => {
+    try {
+      const marker = await store.getAnalysisChecked(RULES_MARKER_ID);
+      if (!marker.analysis && marker.unreadable) {
+        console.error('[rules] could not read the rules marker (storage busy), so nothing was changed');
+        return { skipped: true };
+      }
+      const applied = marker.analysis?.rulesVersion ?? 0;
+      if (applied >= ANALYSIS_SCHEMA) return { upToDate: true };
+      const all = await loadCalls(cfg.MAX_DAYS);
+      const targets = all.filter(isCandidate).filter(isAnalysed).map((call) => ({ call, label: cfg.STATUS_REANALYSE }));
+      const result = await syncBoardStatus(targets);
+      if (result.failed === 0 && !result.skipped) {
+        await store.saveAnalysis(RULES_MARKER_ID, { callType: 'meta', rulesVersion: ANALYSIS_SCHEMA, appliedAt: new Date(now()).toISOString() });
+      }
+      console.log(`[rules] version ${ANALYSIS_SCHEMA}: ${result.changed} calls set to waiting to be re-analysed, ${result.failed} failed`);
+      return result;
+    } catch (err) {
+      console.error(`[rules] could not apply the rules version: ${err.message}`);
+      return { error: err.message };
+    }
+  };
+
+  // New calls get "Waiting to be analysed" as soon as their transcript is usable, whether or not anyone is
+  // looking at the page. Run every few minutes.
+  router.tick = async () => {
+    try {
+      const all = await loadCalls(30);
+      const blank = all.filter(isCandidate).filter((c) => !c.coachingStatus);
+      if (!blank.length) return { changed: 0 };
+      const transcripts = await loadTranscripts(blank);
+      const usableOnes = blank.filter((c) => usable(parseTranscript(transcripts[c.id], c.agentName)));
+      return await syncBoardStatus(usableOnes.map((call) => ({ call, label: cfg.STATUS_WAITING })));
+    } catch (err) {
+      console.error(`[board] could not check for new calls: ${err.message}`);
+      return { error: err.message };
     }
   };
 
