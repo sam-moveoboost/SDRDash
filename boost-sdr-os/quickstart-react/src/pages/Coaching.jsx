@@ -201,6 +201,8 @@ export default function Coaching({ user }) {
     let lastMessage = null;
     let pollErrors = 0;
     let gaveUp = false;
+    let summaryAt = 0; // how many were done when the trends and focus panel were last refreshed
+    let summaryTime = Date.now();
 
     const progress = () => {
       const finished = done + unsaved + failed + lost;
@@ -245,6 +247,13 @@ export default function Coaching({ user }) {
         }
       }
       setAnalysing({ busy: true, message: progress() });
+      // Keep the trends and focus panel up to date while the run goes on: every 10 finished calls,
+      // or every couple of minutes if some have finished since.
+      if (done - summaryAt >= 10 || (done > summaryAt && Date.now() - summaryTime >= 120000)) {
+        summaryAt = done;
+        summaryTime = Date.now();
+        refreshSummaries();
+      }
     }
 
     if (stopRef.current && pending.size) {
