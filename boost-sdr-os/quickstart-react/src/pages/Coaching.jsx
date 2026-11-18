@@ -30,6 +30,7 @@ export default function Coaching({ user }) {
   const [demo, setDemo] = useState(false);
   const [days, setDays] = useState(30);
   const [sdrId, setSdrId] = useState('all');
+  const [temp, setTemp] = useState('all'); // all | warm | cold: which kind of call the trends cover
   const [tick, setTick] = useState(0);
 
   const [loading, setLoading] = useState(true);
@@ -75,7 +76,7 @@ export default function Coaching({ user }) {
     const fresh = freshRef.current;
     freshRef.current = false;
     // Show what this tab last loaded straight away, then update it behind.
-    const remembered = fresh ? null : readCoachingCache(viewerKey, sdrId, days);
+    const remembered = fresh ? null : readCoachingCache(viewerKey, `${sdrId}|${temp}`, days);
     if (remembered?.overview) {
       setOverview(remembered.overview);
       setCalls(remembered.calls ?? []);
@@ -92,7 +93,7 @@ export default function Coaching({ user }) {
         const [ov, cl, tr] = await Promise.all([
           coachingApi.overview(userIdParam, days, fresh),
           coachingApi.calls(userIdParam, days, fresh),
-          coachingApi.trends(userIdParam, days, fresh),
+          coachingApi.trends(userIdParam, days, fresh, temp),
         ]);
         if (!alive) return;
         const nextMeta = { waitingCount: cl.waitingCount, refreshCount: cl.refreshCount ?? 0, unreadableCount: cl.unreadableCount ?? 0, unreadableReasons: cl.unreadableReasons ?? [], coverage: cl.coverage, rules: cl.rules, totals: cl.transcriptTotals ?? null };
@@ -103,7 +104,7 @@ export default function Coaching({ user }) {
         setProblem(null);
         setNotice(null);
         setRestart(null);
-        writeCoachingCache(viewerKey, sdrId, days, { overview: ov, calls: cl.calls, meta: nextMeta, trends: tr });
+        writeCoachingCache(viewerKey, `${sdrId}|${temp}`, days, { overview: ov, calls: cl.calls, meta: nextMeta, trends: tr });
       } catch (e) {
         // With remembered data on screen, a failed update is a soft notice, not a blank page.
         if (!alive) return;
@@ -116,7 +117,7 @@ export default function Coaching({ user }) {
       }
     })();
     return () => { alive = false; };
-  }, [demo, days, sdrId, tick, userIdParam, viewerKey]);
+  }, [demo, days, sdrId, temp, tick, userIdParam, viewerKey]);
 
   // While the server is being updated, look again every 20 seconds (for about five minutes).
   useEffect(() => {
@@ -140,12 +141,13 @@ export default function Coaching({ user }) {
     try {
       const ov = await coachingApi.overview(userIdParam, days);
       setOverview(ov);
-      setTrends(await coachingApi.trends(userIdParam, days));
+      setTrends(await coachingApi.trends(userIdParam, days, false, temp));
     } catch { /* the page already shows the earlier numbers */ }
-  }, [userIdParam, days]);
+  }, [userIdParam, days, temp]);
 
   const waiting = useMemo(() => calls.filter((c) => c.status === 'waiting'), [calls]);
-  const redoCount = waiting.filter((c) => c.refresh).length;
+  const numbersCount = waiting.filter((c) => c.refresh === 'numbers').length; // only need their stay-on numbers: free
+  const redoCount = waiting.filter((c) => c.refresh && c.refresh !== 'numbers').length;
 
   // Calls to review: only analysed ones, ordered by how much they are worth a manager's time.
   // Calls analysed under older rules stay here with their score (flagged to redo); only calls with no analysis at all wait.
@@ -384,7 +386,7 @@ export default function Coaching({ user }) {
                     ) : (
                       <>
                         <span className="font-medium text-ink">{waiting.length}</span> call{waiting.length === 1 ? '' : 's'} waiting to be analysed
-                        {redoCount > 0 && ` (${redoCount} ${redoCount === 1 ? 'is an older analysis' : 'are older analyses'} to redo with the new rules)`}.
+                        {(redoCount > 0 || numbersCount > 0) && ` (${[redoCount > 0 && `${redoCount} to redo with the new rules`, numbersCount > 0 && `${numbersCount} only need their numbers updated, which costs nothing`].filter(Boolean).join(', ')})`}.
                       </>
                     )}
                     {analysing.message && <div className="text-[12.5px] text-muted mt-1">{analysing.message}</div>}
@@ -439,6 +441,7 @@ export default function Coaching({ user }) {
                             {isAdmin && <span className="w-[150px] text-body">{c.sdrName}</span>}
                             <span className="w-[60px] text-muted">{c.durationMin == null ? '' : `${Math.round(c.durationMin)} min`}</span>
                             {c.refresh === 'outdated' && <Chip tone="warn">Redo with new rules</Chip>}
+                            {c.refresh === 'numbers' && <Chip tone="info">Update numbers (no cost)</Chip>}
                             {c.refresh === 'missing' && <Chip tone="warn">Details missing, redo</Chip>}
                             {c.tags.includes('MeetingBooked') && <Chip tone="good">Meeting booked</Chip>}
                           </li>
@@ -462,6 +465,20 @@ export default function Coaching({ user }) {
             sub={isAdmin
               ? `What is happening on the phones for ${who}: objections, who books and what the outreach sounds like.`
               : 'What is working across the whole team: the top objections, the best ways they were handled, how calls open and who books. Everyone sees this. Individual calls and transcripts stay private.'}
+            right={trends?.temperature && (
+              <div className="flex items-center gap-2 flex-wrap justify-end" title="Warm: the SDR referred to an earlier contact, or we had already spoken to this number. Cold: everything else. Compare wordings within the same kind of call.">
+                {[['all', 'All'], ['warm', 'Warm'], ['cold', 'Cold']].map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setTemp(id)}
+                    className={`rounded-full text-[12.5px] font-medium px-3 py-1.5 cursor-pointer border ${temp === id ? 'bg-navy text-white border-navy' : 'bg-card text-ink border-line hover:bg-sunken'}`}
+                  >
+                    {label} {trends.temperature[id]}
+                  </button>
+                ))}
+              </div>
+            )}
           >
             <TrendsPanel data={trends} />
           </Section>
@@ -549,6 +566,7 @@ export default function Coaching({ user }) {
                           {c.tags.includes('MeetingBooked') && <Chip tone="good">Meeting booked</Chip>}
                           {a?.nextStepSecured && <Chip tone="info">Next step secured</Chip>}
                           {c.refresh === 'outdated' && <Chip tone="warn">Redo with new rules</Chip>}
+                          {c.refresh === 'numbers' && <Chip tone="info">Update numbers (no cost)</Chip>}
                         </span>
                         <span className="text-muted text-[12px]">{open ? 'Hide' : 'Open'}</span>
                       </button>

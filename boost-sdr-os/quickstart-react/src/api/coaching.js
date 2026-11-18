@@ -58,7 +58,7 @@ export const coachingApi = {
   // `fresh` makes the server re-read the board now instead of using the list it already holds.
   overview: (userId, days, fresh) => request(`/overview${qs({ userId, days, fresh: fresh ? 1 : undefined })}`),
   calls: (userId, days, fresh) => request(`/calls${qs({ userId, days, fresh: fresh ? 1 : undefined })}`),
-  trends: (userId, days, fresh) => request(`/trends${qs({ userId, days, fresh: fresh ? 1 : undefined })}`),
+  trends: (userId, days, fresh, temp) => request(`/trends${qs({ userId, days, fresh: fresh ? 1 : undefined, temp: temp && temp !== 'all' ? temp : undefined })}`),
   transcript: (id) => request(`/calls/${encodeURIComponent(id)}/transcript`),
   selftest: () => request('/selftest'),
   analyse: (ids) => request('/analyse', { method: 'POST', body: { ids } }),

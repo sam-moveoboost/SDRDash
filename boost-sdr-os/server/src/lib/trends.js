@@ -6,6 +6,9 @@
 
 const { POSITIONING_LABELS, POSITIONING_DESCRIPTIONS, OBJECTION_LABELS, OBJECTION_DESCRIPTIONS, OPENER_LABELS, OPENER_DESCRIPTIONS, SENIORITY_LABELS, modernCategory, modernOpener, positioningUnrecorded } = require('./analysis');
 
+const { stayedOn, isBlocked, measured } = require('./outcome');
+const { ANALYSIS_SCHEMA } = require('./analysis');
+
 const NON_HUMAN = new Set(['voicemail', 'automated_menu']);
 
 const avg = (xs) => {
@@ -76,10 +79,18 @@ const POSITIONING_ORDER = ['monday', 'ai', 'both', 'consultancy', 'other', 'none
 // on, hung up or brushed us off, or neither (gatekeeper, a line that dropped, unclear).
 const outcomeStats = (group) => {
   const n = group.length;
-  const st = group.filter((p) => stayed(p.analysis)).length;
-  const hu = group.filter((p) => hungUp(p.analysis)).length;
-  return { stayed: st, stayedRate: rate(st, n), hungUp: hu, hungUpRate: rate(hu, n), neither: n - st - hu, neitherRate: rate(n - st - hu, n) };
+  const st = group.filter((p) => stayedOn(p.analysis)).length;
+  return {
+    stayed: st,
+    stayedRate: rate(st, n),
+    hungUp: n - st,
+    hungUpRate: rate(n - st, n),
+    blocked: group.filter((p) => isBlocked(p.analysis)).length, // of the hung-up calls, gatekeepers that blocked it
+  };
 };
+// The two cards that compare wordings only use calls analysed under the latest rules, with the
+// stay-on numbers measured. Older ones join as they are redone, so a stale analysis cannot skew them.
+const onLatestRules = (p) => p.analysis.schema >= ANALYSIS_SCHEMA && measured(p.analysis);
 const MIN_FOR_VERDICT = 5; // fewer calls than this is too few to say one wording beats another
 
 function buildTrends(pairs) {
@@ -147,9 +158,10 @@ function buildTrends(pairs) {
     .sort((a, b) => b.count - a.count);
 
   // ---- how calls open, and who stays ----
-  const styles = [...new Set(human.map((p) => p.analysis.opener?.style).filter(Boolean))];
+  const cardPairs = human.filter(onLatestRules);
+  const styles = [...new Set(cardPairs.map((p) => p.analysis.opener?.style).filter(Boolean))];
   const openers = styles.map((style) => {
-    const group = human.filter((p) => p.analysis.opener?.style === style);
+    const group = cardPairs.filter((p) => p.analysis.opener?.style === style);
     const quoteOf = (p) => (p.analysis.opener?.quote ? { quote: p.analysis.opener.quoteEn || p.analysis.opener.quote, sdrName: p.call.sdrName } : null);
     return {
       style,
@@ -162,8 +174,8 @@ function buildTrends(pairs) {
       nextStepRate: rate(group.filter((p) => p.analysis.nextStepSecured).length, group.length),
       avgDurationMin: avg(group.map((p) => p.call.durationMin)),
       smallSample: group.length < MIN_FOR_VERDICT,
-      stayExamples: group.filter((p) => stayed(p.analysis)).sort((a, b) => successScore(b) - successScore(a)).map(quoteOf).filter(Boolean).slice(0, 2),
-      hangUpExamples: group.filter((p) => hungUp(p.analysis)).map(quoteOf).filter(Boolean).slice(0, 2),
+      stayExamples: group.filter((p) => stayedOn(p.analysis)).sort((a, b) => successScore(b) - successScore(a)).map(quoteOf).filter(Boolean).slice(0, 2),
+      hangUpExamples: group.filter((p) => !stayedOn(p.analysis)).map(quoteOf).filter(Boolean).slice(0, 2),
     };
   }).sort((a, b) => b.calls - a.calls);
 
@@ -171,7 +183,7 @@ function buildTrends(pairs) {
   const bestOpener = openers.filter((o) => o.calls >= MIN_FOR_VERDICT && o.style !== 'other').sort((a, b) => b.stayedRate - a.stayedRate || b.booked - a.booked)[0]?.style || null;
 
   // ---- what we say we are, and what keeps people on the call ----
-  const withPositioning = human.filter((p) => positioningGroup(p.analysis));
+  const withPositioning = cardPairs.filter((p) => positioningGroup(p.analysis));
   const posQuoteOf = (p) => (p.analysis.positioning?.quote ? { quote: p.analysis.positioning.quoteEn || p.analysis.positioning.quote, sdrName: p.call.sdrName } : null);
   const positioning = POSITIONING_ORDER.map((key) => {
     const group = withPositioning.filter((p) => positioningGroup(p.analysis) === key);
@@ -188,8 +200,8 @@ function buildTrends(pairs) {
       nextStepRate: rate(group.filter((p) => p.analysis.nextStepSecured).length, group.length),
       avgDurationMin: avg(group.map((p) => p.call.durationMin)),
       smallSample: group.length < MIN_FOR_VERDICT,
-      stayExamples: group.filter((p) => stayed(p.analysis)).sort((a, b) => successScore(b) - successScore(a)).map(posQuoteOf).filter(Boolean).slice(0, 2),
-      hangUpExamples: group.filter((p) => hungUp(p.analysis)).map(posQuoteOf).filter(Boolean).slice(0, 2),
+      stayExamples: group.filter((p) => stayedOn(p.analysis)).sort((a, b) => successScore(b) - successScore(a)).map(posQuoteOf).filter(Boolean).slice(0, 2),
+      hangUpExamples: group.filter((p) => !stayedOn(p.analysis)).map(posQuoteOf).filter(Boolean).slice(0, 2),
     };
   }).filter((g) => g.calls > 0);
   // The one that keeps most people on the call, among groups with enough calls to say so.
@@ -285,6 +297,7 @@ function buildTrends(pairs) {
     earlyObjections,
     openers,
     positioning,
+    latestRules: { used: cardPairs.length, total: human.length },
     positioningCalls: withPositioning.length,
     bestPositioning,
     openerFit: { inType: human.filter((p) => p.analysis.opener?.style && p.analysis.opener.style !== 'other').length, total: human.filter((p) => p.analysis.opener?.style).length },
