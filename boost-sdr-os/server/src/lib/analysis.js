@@ -165,9 +165,9 @@ Judge three things:
 2. Any objection or brush-off, where in the call it came, and how the SDR answered.
 3. For real two-way conversations, call craft.
 
-Set "coachable" to true for ANY real two-way conversation: the prospect spoke at least about four times and the two of them actually exchanged views, whatever the language, and even when it was mostly the prospect asking questions or the SDR talking too much. A call of several minutes is always coachable. Set it to false only for voicemail, phone menus, gatekeeper-only calls and quick hang-ups or brush-offs in the first few turns; for those score craft null, but still record any exchange that happened.
+Set "coachable" to true for ANY real two-way conversation: the prospect spoke at least about four times and the two of them actually exchanged views, whatever the language, and even when it was mostly the prospect asking questions or the SDR talking too much. A call of several minutes is always coachable. Set it to false only for voicemail, phone menus, gatekeeper-only calls and quick hang-ups or brush-offs in the first few turns; for those still score the opening (and any objection handling), leave the other craft dimensions null, and record any exchange that happened.
 
-Call craft is scored 1 (weak) to 5 (excellent): opening, discovery, objection handling, asking for the next step, tone and call control. On a coachable call score every dimension that happened. A dimension is null only when it truly did not occur: an SDR who never asked about the prospect's situation scores discovery 1 or 2, not null; objection handling is null only when there was no objection or hard question to answer.
+Call craft is scored 1 (weak) to 5 (excellent): opening, discovery, objection handling, asking for the next step, tone and call control. Score the opening on EVERY call where a person answered, however short: a call that was brushed off after an apology still has an opening to score, judged from how the SDR opened (the first lines). Score objection handling whenever the prospect raised an objection or brushed the SDR off, and tone and call control whenever there was any exchange. Score discovery and asking for the next step when they could have happened; on a call that ended within the first few turns use null for those two. On a longer conversation score all five: an SDR who never asked about the prospect's situation scores discovery 1 or 2, not null.
 
 Rules:
 - Calls may be in Hebrew or another language. Write every finding in English: the summary, the notes, the reasons, the suggestions and the explanations. Never answer in the language of the call.
@@ -485,16 +485,16 @@ async function analyseCall({ turns, call, prospect = null }, { fetchImpl = fetch
   throw lastError;
 }
 
-// A real conversation with no craft scores has not been coached, whatever else came back.
+// A call with a person on the line and no craft scores at all has not been coached, however short it was.
 function isThin(a) {
-  return Boolean(a && a.callType === 'conversation' && a.coachable
+  return Boolean(a && ['conversation', 'early_hangup'].includes(a.callType)
     && !Object.values(a.craft || {}).some((c) => Number.isFinite(c?.score)));
 }
 
 // Parts an answer must have but left out, so it can be asked for again.
 function missingParts(a) {
   const parts = [];
-  if (isThin(a)) parts.push('the call craft scores for a real conversation: score every dimension that happened from 1 to 5 (opening, discovery, objection handling, asking for the next step, tone and call control), with a note each, and give 3 to 6 key exchanges (what the prospect asked or said, how the SDR answered, a verdict, a specific critique and what to say instead)');
+  if (isThin(a)) parts.push('the call craft scores: score the opening on every call where a person answered, and every other dimension that happened, from 1 to 5 (opening, discovery, objection handling, asking for the next step, tone and call control), with a note each, and give 3 to 6 key exchanges (what the prospect asked or said, how the SDR answered, a verdict, a specific critique and what to say instead)');
   if (a && !['voicemail', 'automated_menu'].includes(a.callType) && !a.positioning) parts.push('"positioning": how the SDR described who boost is in the first 20 to 30 seconds, or lead "none" if they did not');
   return parts;
 }

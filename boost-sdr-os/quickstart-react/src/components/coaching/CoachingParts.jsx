@@ -303,7 +303,7 @@ export function CallDetail({ call, demo }) {
 
       {a.keyExchanges?.length > 0 && <KeyExchanges items={a.keyExchanges} />}
 
-      {a.coachable ? (
+      {(a.coachable || CRAFT_ORDER.some(([k]) => a.craft?.[k]?.score != null)) ? (
         <div>
           <div className="font-heading font-bold text-[12.5px] mb-2">Call craft</div>
           <ul className="grid gap-x-8 gap-y-2 lg:grid-cols-2">

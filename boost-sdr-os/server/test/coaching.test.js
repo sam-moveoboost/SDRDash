@@ -1428,3 +1428,22 @@ test('Role check is an opener type, and Problem or result hook stays', () => {
   assert.equal(OPENER_LABELS.pain_question_hook, 'Problem or result hook');
   assert.equal(/MEDDPICC/.test(SYSTEM), false); // not part of the analysis any more
 });
+
+test('a short brushed-off call still gets its opening scored, and is sent back if it comes back with no craft at all', async () => {
+  const { analyseCall, isThin } = require('../src/lib/analysis');
+  const shortTurns = [{ who: 'sdr', text: 'Sorry, mate. I know it is a little out of the blue.' }, { who: 'prospect', text: 'Not really, no thanks.' }];
+  assert.equal(isThin({ callType: 'early_hangup', craft: {} }), true);
+  assert.equal(isThin({ callType: 'early_hangup', craft: { opening: { score: 2 } } }), false);
+  assert.equal(isThin({ callType: 'voicemail', craft: {} }), false);
+  await withKey(async () => {
+    const bodies = [];
+    const base = { call_type: 'early_hangup', coachable: false, opener_result: 'brushed_off', next_step_secured: false, objections: [], key_exchanges: [], positioning: { lead: 'none', when: 'never' } };
+    const fetchImpl = async (_u, init) => {
+      bodies.push(JSON.parse(init.body));
+      return bodies.length === 1 ? toolReply({ ...base, craft: {} }) : toolReply({ ...base, craft: { opening: { score: 2, note: 'Apologised and was vague.' } } });
+    };
+    const out = await analyseCall({ turns: shortTurns, call: { durationMin: 1 } }, { fetchImpl });
+    assert.equal(bodies.length, 2);
+    assert.equal(out.craft.opening.score, 2);
+  });
+});
