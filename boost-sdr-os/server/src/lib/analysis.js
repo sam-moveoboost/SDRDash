@@ -44,16 +44,16 @@ const OBJECTION_CATEGORIES = [
 ];
 // Names used by analyses saved under earlier rules, mapped onto the groups above.
 const LEGACY_OBJECTION = { no_time: 'not_a_good_time', bad_timing: 'not_a_good_time', already_have_solution: 'already_covered', using_competitor: 'already_covered' };
-const LEGACY_OPENER = { permission_based: 'cold_permission_ask', direct_pitch: 'credentials_first', referral_or_context: 'warm_followup', pattern_interrupt: 'pain_question_hook' };
+const LEGACY_OPENER = { named_person_ask: 'other', permission_based: 'cold_permission_ask', direct_pitch: 'credentials_first', referral_or_context: 'warm_followup', pattern_interrupt: 'pain_question_hook' };
 const modernCategory = (c) => LEGACY_OBJECTION[c] || c;
 const modernOpener = (c) => LEGACY_OPENER[c] || c;
 // Five opening types, grouped from a read of the real transcripts since 1 Nov (65 valid ones):
 // about half referred to an earlier connection, a fifth were a cold request for a moment, and the
 // rest were credentials first, asking for a named person, or opening with a pain-point question.
-const OPENER_STYLES = ['warm_followup', 'cold_permission_ask', 'credentials_first', 'named_person_ask', 'pain_question_hook', 'other'];
+const OPENER_STYLES = ['warm_followup', 'apology', 'cold_permission_ask', 'credentials_first', 'pain_question_hook', 'other'];
 
 // Bump when the shape or the rules of an analysis change, so earlier analyses are offered for redoing.
-const ANALYSIS_SCHEMA = 4;
+const ANALYSIS_SCHEMA = 5;
 const SENIORITY = ['c_level', 'vp_director', 'manager', 'individual', 'unknown'];
 // One fixed list so "Who books, by industry" groups cleanly instead of every call having its own wording.
 const INDUSTRIES = [
@@ -202,14 +202,13 @@ Rules:
 - "prospect" and "opener": only use what is said on the call. Use null or "unknown" when it is not stated; never guess a job title.
 - "industry": always choose the closest item from the fixed list, so industries can be compared across calls. If the message includes a CRM record, use its industry (mapped onto the list) and set industry_source to "crm". Otherwise use what is said on the call ("call"), or, when the company name makes the industry clear, that ("company_name"). If it cannot be told, use "Other" with industry_source "unknown". The CRM record is context from our own database and can be incomplete; the call itself wins if they clearly disagree.
 
-Opener style: judge only from how the SDR opened (their first lines after the greeting), not from how the call went. Choose exactly one:
-- warm_followup: the first lines refer to an earlier meeting, event, conversation, a named person who referred them, or a previous call attempt (for example "we met at the event", "we spoke before", "Gershon suggested I call you", "it's Emad again").
-- cold_permission_ask: the SDR gives their name and company and asks for a moment or half a minute before saying anything about what they offer, with no earlier connection (for example "I'm calling out of the blue, do you have 30 seconds?").
-- credentials_first: the SDR explains what the company does and names clients or partners to build credibility (for example "we work with monday.com and Anthropic and clients like ...") before or while asking for a minute.
-- named_person_ask: the SDR opens by asking for a named person, or checking they have the right company or number, and holds back the pitch (for example "is that Galaxy Realty?", "can I speak to Alex Stewart?").
-- pain_question_hook: the SDR states a common problem in the prospect's industry and asks how they handle it, as the hook (for example "how do you handle leads that sit untouched in the CRM?").
+Opener style: almost every call starts by checking who is on the line ("is that Alex?", "am I speaking to the right person?"). Ignore that step, and any automated screener ("record your name and reason"). Judge by the FIRST THING the SDR says after it: what they do next, not how the call went. Choose exactly one, using this order when more than one fits:
+- warm_followup: the first thing refers to an earlier meeting, event, call or conversation, a named person who referred them, or a previous attempt (for example "we met at the event", "we spoke yesterday", "Gershon suggested I call you", "it's Emad again").
+- apology: the first thing is an apology or an admission that this is an interruption (for example "I'm sorry for calling you out of the blue", "sorry that this is a cold call", "I know you're busy, I'm sorry to take your time", "apologies for the interruption"), even when a request for a moment follows.
+- cold_permission_ask: gives a name and company and asks for a moment or any request to continue, without apologising and without saying what we do yet (for example "do you have 30 seconds?", "how are you, have you got a minute?").
+- credentials_first: goes straight into what the company does or who it works with, naming clients or partners (for example "we work with monday.com and Anthropic and clients like ..."), before or while asking for a minute.
+- pain_question_hook: opens with a problem or a result and a question as the hook (for example "how do you handle leads that sit untouched in the CRM?", "hours wasted on spreadsheets, is that familiar?").
 - other: use ONLY when there was no real opening to judge (the call joined mid-sentence, or the SDR said nothing usable). If the opening is unusual, still pick the closest of the five. Aim for "other" on fewer than one call in five.
-Tie-breaks: ignore any automated screener turn ("record your name and reason") and judge the real opening after it. Label by the first thing the SDR says to the person; if they confirm the person and then pitch in the same turn, label by the pitch. An introduction (name and company) followed by "how are you" or any request to continue, with no earlier connection, is cold_permission_ask. Going straight into what boost does or who it works with is credentials_first. Any reference to a past meeting, call, event or person is warm_followup, even if a question follows.
 
 Positioning (who boost says it is): look at what the SDR says boost is in the first 20 to 30 seconds of the call (the first few turns, before the real conversation). Always fill this in, even when the call was short: if the SDR never says what boost is in that time, say so with lead "none". Record:
 - lead: the FIRST way the SDR describes what boost is. "monday" if boost is described as a monday.com business or partner (for example "we are a monday.com partner", "we implement monday.com"). "ai" if it is described as an AI business (for example "we build AI agents", "we do AI automation"). "other" if it is described another way (a consultancy, a software company, services, clients or partners named, or only what boost achieves for customers). "none" if the SDR never says who boost is.
@@ -607,19 +606,19 @@ const POSITIONING_DESCRIPTIONS = {
 };
 const OPENER_LABELS = {
   warm_followup: 'Warm reference',
+  apology: 'Apology',
   cold_permission_ask: 'Permission ask',
   credentials_first: 'Who we are first',
-  named_person_ask: 'Checking who it is',
   pain_question_hook: 'Problem or result hook',
   other: 'Other',
 };
 const OPENER_DESCRIPTIONS = {
   warm_followup: 'Refers to an earlier call, meeting, event, a referrer or a previous attempt ("we spoke yesterday").',
-  cold_permission_ask: 'Gives a name and company, then asks for a moment before saying what we do ("30 seconds?").',
+  apology: 'Starts by apologising for the interruption ("sorry for calling out of the blue", "I know you are busy").',
+  cold_permission_ask: 'Gives a name and company and asks for a moment, without apologising or saying what we do yet ("30 seconds?").',
   credentials_first: 'Goes straight into what we do or names clients or partners, then asks for a minute.',
-  named_person_ask: 'Opens by checking it is the right person or company ("is that Alex?") and holds back the pitch.',
   pain_question_hook: 'Opens with a problem or a result and a question ("how do you handle leads that go untouched?").',
-  other: 'Does not clearly fit one of the five.',
+  other: 'Does not clearly fit one of the five. The check on who is on the line is ignored; this is about what comes next.',
 };
 const SENIORITY_LABELS = {
   c_level: 'C-level',
