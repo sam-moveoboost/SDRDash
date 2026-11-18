@@ -98,6 +98,36 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
   // because a fresh call may not be tagged yet and its transcript will show what it was.
   const isCandidate = (c) => c.answered && !c.noConnectionTag && Date.parse(c.createdAt) >= cfg.COACHING_FROM_MS;
   const isAnalysed = (c) => c.coachingStatus === cfg.STATUS_ANALYSED;
+
+  // ---- keeping the board's status column true ----
+  // Every call that can be analysed shows where it is on the board: waiting to be analysed, waiting to
+  // be re-analysed (it was analysed under older rules), or analysed. The app sets the first two when
+  // it finds a call needs the work, and "Analysed" only once the result is saved and read back.
+  const boardAsked = new Map(); // call id -> the label we last asked the board to show
+  let syncingBoard = false;
+  async function syncBoardStatus(items) {
+    const todo = items.filter(({ call, label }) => call.coachingStatus !== label && boardAsked.get(call.id) !== label);
+    if (!todo.length || syncingBoard || typeof mondayApi.setStatus !== 'function') return;
+    syncingBoard = true;
+    try {
+      let next = 0;
+      const worker = async () => {
+        while (next < todo.length) {
+          const { call, label } = todo[next++];
+          try {
+            await mondayApi.setStatus(call.id, label);
+            call.coachingStatus = label; // keep the cached list in step
+            boardAsked.set(call.id, label);
+          } catch (err) {
+            console.error(`[board] could not set ${call.id} to "${label}": ${err.message}`);
+          }
+        }
+      };
+      await Promise.all(Array.from({ length: 3 }, worker));
+    } finally {
+      syncingBoard = false;
+    }
+  }
   const parseDays = (q) => Math.min(cfg.MAX_DAYS, Math.max(7, parseInt(q, 10) || 30));
   const usable = (parsed) => !!parsed && parsed.stats.chars >= cfg.MIN_TRANSCRIPT_CHARS;
 
@@ -200,11 +230,20 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
     const unreadable = done.filter((p) => !p.analysis && p.unreadable);
     const refreshing = done.filter((p) => !(!p.analysis && p.unreadable) && refreshOf(p.analysis));
 
+    // Tell the board. Analysed under older rules (or saved with nothing to read): waiting to be
+    // re-analysed or analysed. A usable call with no status yet: waiting to be analysed. This runs
+    // behind the response, a few at a time.
+    syncBoardStatus([
+      ...done.filter((p) => p.analysis && refreshOf(p.analysis) === 'outdated').map((p) => ({ call: p.call, label: cfg.STATUS_REANALYSE })),
+      ...done.filter((p) => !p.analysis && !p.unreadable).map((p) => ({ call: p.call, label: cfg.STATUS_WAITING })),
+      ...waiting.filter((p) => !p.call.coachingStatus).map((p) => ({ call: p.call, label: cfg.STATUS_WAITING })),
+    ]).catch((err) => console.error(`[board] status sync failed: ${err.message}`));
+
     // Every call that still needs analysing is always sent, so "Analyse all" really covers them all.
     // Finished calls fill the rest of the list, newest first, up to a cap.
     const waitingRows = [
       ...refreshing.map((p) => row(p.call, { status: 'waiting', refresh: refreshOf(p.analysis), transcript: { available: true }, analysis: p.analysis, detailsMissing: !p.analysis, priority: p.analysis ? reviewPriority(p.analysis, p.call) : null })),
-      ...waiting.map((p) => row(p.call, { status: 'waiting', refresh: null, transcript: { available: true, chars: p.parsed.stats.chars }, analysis: null })),
+      ...waiting.map((p) => row(p.call, { status: 'waiting', refresh: p.call.coachingStatus === cfg.STATUS_REANALYSE ? 'outdated' : null, transcript: { available: true, chars: p.parsed.stats.chars }, analysis: null })),
     ];
     const finishedRows = done
       .filter((p) => !refreshOf(p.analysis))
@@ -231,7 +270,7 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
     res.json({
       calls: rows,
       waitingCount: waitingRows.length,
-      refreshCount: refreshing.length,
+      refreshCount: refreshing.length + waiting.filter((p) => p.call.coachingStatus === cfg.STATUS_REANALYSE).length,
       // Every call in the period that could be analysed: already analysed plus still waiting.
       // Calls marked Analysed whose saved result could not be read just now (storage slow). They are
       // not offered for re-analysis, so nothing is paid for twice; Refresh reads them again.

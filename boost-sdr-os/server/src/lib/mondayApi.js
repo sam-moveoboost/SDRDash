@@ -165,12 +165,20 @@ async function fetchTranscripts(itemIds) {
   return out;
 }
 
-// Marks a call as analysed on the board. The analysis itself is not written here.
-async function markAnalysed(itemId) {
-  await gql(
-    `mutation($b: ID!, $i: ID!, $c: String!, $v: String!) { change_simple_column_value(board_id: $b, item_id: $i, column_id: $c, value: $v) { id } }`,
-    { b: CALLS_BOARD, i: String(itemId), c: COLS.coachingStatus, v: STATUS_ANALYSED },
-  );
+// Sets the call's status on the board ("Analysed", "Waiting to be analysed", "Waiting to be re-analysed").
+// A label that does not exist yet is created. The analysis itself is not written here.
+async function setStatus(itemId, label) {
+  const vars = { b: CALLS_BOARD, i: String(itemId), c: COLS.coachingStatus, v: label };
+  try {
+    await gql(`mutation($b: ID!, $i: ID!, $c: String!, $v: String!) { change_simple_column_value(board_id: $b, item_id: $i, column_id: $c, value: $v, create_labels_if_missing: true) { id } }`, vars);
+  } catch (err) {
+    // Without permission to create labels, or on an API that does not know the option, try plainly.
+    if (!/create_labels_if_missing|Unknown argument|label/i.test(err.message)) throw err;
+    await gql(`mutation($b: ID!, $i: ID!, $c: String!, $v: String!) { change_simple_column_value(board_id: $b, item_id: $i, column_id: $c, value: $v) { id } }`, vars);
+  }
 }
 
-module.exports = { fetchCalls, fetchCall, fetchTranscripts, fetchProspect, parseCall, parseProspect, markAnalysed, ping };
+// Marks a call as analysed on the board.
+const markAnalysed = (itemId) => setStatus(itemId, STATUS_ANALYSED);
+
+module.exports = { fetchCalls, fetchCall, fetchTranscripts, fetchProspect, parseCall, parseProspect, markAnalysed, setStatus, ping };

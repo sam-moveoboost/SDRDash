@@ -41,7 +41,11 @@ module.exports = {
   // these, so a call only counts as a real connection if it carries none of them.
   NOT_CONNECTED_TAGS: ['1.NoAnswer', '3.Busy', 'LeftVoicemail', 'BadData'],
 
+  // The "Coaching analysis" column on the calls board shows where each call is: blank (no usable
+  // transcript yet), waiting to be analysed, waiting to be re-analysed (analysed under older rules), or analysed.
   STATUS_ANALYSED: 'Analysed',
+  STATUS_WAITING: 'Waiting to be analysed',
+  STATUS_REANALYSE: 'Waiting to be re-analysed',
   COACHING_FROM_MS: Date.parse('2026-11-01T00:00:00Z'), // nothing before this is analysed
   MIN_TRANSCRIPT_CHARS: 250, // shorter transcripts are ignored; short hang-ups still count above this
 
