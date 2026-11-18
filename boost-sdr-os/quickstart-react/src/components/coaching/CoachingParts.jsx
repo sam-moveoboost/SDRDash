@@ -1,10 +1,6 @@
 import React, { useState } from 'react';
 import { coachingApi } from '../../api/coaching';
 
-export const MEDDPICC_ORDER = [
-  ['metrics', 'Metrics'], ['economic_buyer', 'Economic buyer'], ['decision_criteria', 'Decision criteria'], ['decision_process', 'Decision process'],
-  ['paper_process', 'Paper process'], ['identify_pain', 'Identify pain'], ['champion', 'Champion'], ['competition', 'Competition'],
-];
 export const CRAFT_ORDER = [
   ['opening', 'Opening'], ['discovery', 'Discovery'], ['objection_handling', 'Objection handling'],
   ['next_step_ask', 'Asking for the next step'], ['tone_and_control', 'Tone and call control'],
@@ -17,7 +13,7 @@ export const CALL_TYPE_LABELS = {
 const OPENER_RESULT_LABELS = {
   stayed_engaged: 'Prospect stayed', brushed_off: 'Brushed off', hung_up: 'Prospect hung up', blocked_by_gatekeeper: 'Blocked by gatekeeper', unclear: 'Unclear',
 };
-const OPENER_STYLE_LABELS = { warm_followup: 'Warm reference', apology: 'Apology', cold_permission_ask: 'Permission ask', credentials_first: 'Who we are first', named_person_ask: 'Other', pain_question_hook: 'Problem or result hook', other: 'Other' };
+const OPENER_STYLE_LABELS = { warm_followup: 'Warm reference', apology: 'Apology', role_check: 'Role check', cold_permission_ask: 'Permission ask', credentials_first: 'Who we are first', named_person_ask: 'Other', pain_question_hook: 'Problem or result hook', other: 'Other' };
 const OBJECTION_GROUP_LABELS = { not_interested: 'Not interested', not_a_good_time: 'Not a good time', no_time: 'Not a good time', bad_timing: 'Not a good time', send_email: 'Send me an email', already_covered: 'Already covered', already_have_solution: 'Already covered', using_competitor: 'Already covered', no_budget: 'No budget', too_small_or_no_need: 'Too small or no need', wrong_person: 'Wrong person', data_source_challenge: 'Asks how they got the number', other: 'Other' };
 const openerTone = (r) => (r === 'stayed_engaged' ? 'good' : r === 'hung_up' || r === 'brushed_off' ? 'bad' : 'muted');
 
@@ -169,8 +165,8 @@ export function FocusPanel({ coaching, who, canAnalyse = true }) {
   }
   const tone = (v) => (v >= 0.66 ? 'good' : v >= 0.4 ? 'warn' : 'bad');
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
-      <Card title="Where to focus" note={`${coaching.totalAnalysed ?? coaching.analysedCalls} analysed, ${coaching.analysedCalls} full conversations`}>
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Card title="Where to focus" note={`${coaching.totalAnalysed ?? coaching.analysedCalls} analysed, ${coaching.craftCalls ?? 0} scored on call craft`}>
         {coaching.enoughForFocus ? (
           <ul className="space-y-3">
             {coaching.focus.map((f) => (
@@ -181,28 +177,13 @@ export function FocusPanel({ coaching, who, canAnalyse = true }) {
             ))}
           </ul>
         ) : (
-          <Empty>Early days for {who}. Only {coaching.analysedCalls} of the {coaching.totalAnalysed ?? coaching.analysedCalls} analysed calls were full two-way conversations; focus areas appear once {coaching.minCallsForFocus} are scored. Short calls and hang-ups are not marked against anyone.</Empty>
+          <Empty>Early days for {who}. Only {coaching.craftCalls ?? 0} of the {coaching.totalAnalysed ?? coaching.analysedCalls} analysed calls have been scored on call craft; focus areas appear once {coaching.minCallsForFocus} are scored. Short calls and hang-ups are not marked against anyone.</Empty>
         )}
         {coaching.enoughForFocus && coaching.strengths.length > 0 && (
           <div className="mt-4 pt-3 border-t border-line text-[12.5px] text-body">
             <span className="text-muted">Working well: </span>{coaching.strengths.map((s) => s.label).join(' and ')}
           </div>
         )}
-      </Card>
-      <Card title="MEDDPICC coverage" note={`share of ${coaching.analysedCalls} full conversations`}>
-        {coaching.analysedCalls === 0 && <div className="text-[12.5px] text-muted mb-3">MEDDPICC is only scored on full two-way conversations, and none of the analysed calls so far were long enough to count.</div>}
-        <ul className="space-y-2.5">
-          {MEDDPICC_ORDER.map(([k, label]) => {
-            const m = coaching.meddpicc?.[k];
-            return (
-              <li key={k}>
-                <div className="flex justify-between text-[12.5px] mb-1"><span className="text-body">{label}</span><span className="text-muted">{pct(m?.touchedShare)}</span></div>
-                <Bar value={m?.touchedShare} />
-              </li>
-            );
-          })}
-        </ul>
-        <div className="text-[11.5px] text-muted mt-3">Cold calls rarely reach paper process or decision criteria, so low numbers there are normal.</div>
       </Card>
       <Card title="Call craft" note={`average out of 5, ${coaching.craftCalls ?? coaching.analysedCalls} calls scored`}>
         <ul className="space-y-2.5">
@@ -322,44 +303,24 @@ export function CallDetail({ call, demo }) {
 
       {a.keyExchanges?.length > 0 && <KeyExchanges items={a.keyExchanges} />}
 
-      {a.coachable ? (
-      <div className="grid gap-5 lg:grid-cols-2">
-          <div>
-            <div className="font-heading font-bold text-[12.5px] mb-2">MEDDPICC</div>
-            <div className="grid grid-cols-2 gap-2">
-              {MEDDPICC_ORDER.map(([k, label]) => {
-                const m = a.meddpicc?.[k];
-                const sc = m?.score ?? 0;
-                return (
-                  <div key={k} className="rounded-xl border border-line p-2.5" title={m?.evidenceEn || m?.evidence || ''}>
-                    <div className="flex items-center justify-between text-[12px]">
-                      <span className="text-body">{label}</span>
-                      <span className="flex gap-0.5">{[0, 1].map((i) => <span key={i} className={`w-2 h-2 rounded-full ${sc > i ? 'bg-emerald' : 'bg-sunken'}`} />)}</span>
-                    </div>
-                    {(m?.evidenceEn || m?.evidence) && <div className="text-[11px] text-muted mt-1 italic line-clamp-2">"{m.evidenceEn || m.evidence}"</div>}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          <div>
-            <div className="font-heading font-bold text-[12.5px] mb-2">Call craft</div>
-            <ul className="space-y-2">
-              {CRAFT_ORDER.map(([k, label]) => {
-                const c = a.craft?.[k];
-                return (
-                  <li key={k}>
-                    <div className="flex justify-between text-[12.5px]"><span className="text-body">{label}</span><span className="text-muted">{c?.score == null ? 'did not come up' : `${c.score}/5`}</span></div>
-                    {c?.score != null && <Bar value={(c.score - 1) / 4} tone={c.score >= 4 ? 'good' : c.score >= 3 ? 'warn' : 'bad'} />}
-                    {c?.note && <div className="text-[11.5px] text-muted mt-0.5">{c.note}</div>}
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
+      {(a.coachable || CRAFT_ORDER.some(([k]) => a.craft?.[k]?.score != null)) ? (
+        <div>
+          <div className="font-heading font-bold text-[12.5px] mb-2">Call craft</div>
+          <ul className="grid gap-x-8 gap-y-2 lg:grid-cols-2">
+            {CRAFT_ORDER.map(([k, label]) => {
+              const c = a.craft?.[k];
+              return (
+                <li key={k}>
+                  <div className="flex justify-between text-[12.5px]"><span className="text-body">{label}</span><span className="text-muted">{c?.score == null ? 'not scored' : `${c.score}/5`}</span></div>
+                  {c?.score != null && <Bar value={(c.score - 1) / 4} tone={c.score >= 4 ? 'good' : c.score >= 3 ? 'warn' : 'bad'} />}
+                  {c?.note && <div className="text-[11.5px] text-muted mt-0.5">{c.note}</div>}
+                </li>
+              );
+            })}
+          </ul>
         </div>
       ) : (
-        <div className="text-[12.5px] text-muted">This call was too short or one-sided to score on MEDDPICC, so it does not count against anyone. It still feeds the opener and objection trends.</div>
+        <div className="text-[12.5px] text-muted">This call was too short or one-sided to score on call craft, so it does not count against anyone. It still feeds the opener and objection trends.</div>
       )}
 
       {a.objections?.length > 0 && (
@@ -607,7 +568,7 @@ function WhatWorksCard({ title, note, intro, rows, keyOf, bestKey, empty, latest
           </ul>
           <div className="text-[11.5px] text-muted mt-3 pt-3 border-t border-line">
             Stayed on means the prospect said at least 40 words after our opening and the call carried on for at least 6 more turns. Anything shorter, including a call blocked by a gatekeeper, is hung up early. The two always add up to 100%.
-            {latest && latest.total > 0 && <span className="block mt-1">Based on {latest.used} of {latest.total} calls analysed under the latest rules. The rest join as they are redone.</span>}
+            {latest && latest.total > latest.used && <span className="block mt-1">Showing {latest.used} of {latest.total} calls. Press Analyse all to include the rest.</span>}
           </div>
         </>
       )}
