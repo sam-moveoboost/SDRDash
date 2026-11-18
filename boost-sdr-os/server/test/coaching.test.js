@@ -70,6 +70,7 @@ function makeDeps({ persist = true, claudeFails = false, claudePingFails = false
         fetchProspect: async () => ({ source: 'phone', industry: 'Real Estate', company: 'Acme Homes', title: 'Sales Director', seniority: 'director', employees: '24' }),
         fetchTranscripts: async (ids) => Object.fromEntries(ids.filter((id) => RAW[id]).map((id) => [id, RAW[id]])),
         markAnalysed: async (id) => { log.marked.push(id); calls.find((c) => c.id === id).coachingStatus = 'Analysed'; },
+        setStatus: async (id, label) => { log.statuses = log.statuses || []; log.statuses.push([id, label]); calls.find((c) => c.id === id).coachingStatus = label; },
       },
       analysis: {
         ping: async () => { if (claudePingFails) throw new Error('Claude did not answer within 15 seconds'); },
@@ -1465,4 +1466,59 @@ test('an analysis that came back with no opener is never counted as "Other", and
   const t = buildTrends([{ call: { id: '1', sdrName: 'L', tags: [], durationMin: 1 }, analysis: { ...without, schema: 6, stats: { prospectWordsAfterOpening: 80, turnsAfterOpening: 10 }, positioning: { recorded: true, lead: 'ai', mentionsAi: true, when: 'opening', quote: 'x', quoteEn: 'x', reaction: 'neutral' }, prospect: {}, coachable: true, callType: 'conversation', objections: [] } }]);
   assert.equal(t.openers.length, 0);
   assert.equal(t.positioningCalls, 1);
+});
+
+// ---- the board's status column tells the truth ----
+const settle = () => new Promise((r) => setTimeout(r, 40)); // the board is updated just behind the response
+
+test('calls waiting for their first analysis are shown as "Waiting to be analysed" on the board', async () => {
+  await withServer(async ({ json, log, calls }) => {
+    await json('/calls', LUKE);
+    await settle();
+    assert.ok((log.statuses || []).some(([id, label]) => id === '1' && label === 'Waiting to be analysed'));
+    assert.equal(calls.find((c) => c.id === '1').coachingStatus, 'Waiting to be analysed');
+    // It is not asked again on the next look.
+    const before = log.statuses.length;
+    await json('/calls', LUKE);
+    await settle();
+    assert.equal(log.statuses.length, before);
+  });
+});
+
+test('a call analysed under older rules goes to "Waiting to be re-analysed", is analysed again, and ends up "Analysed"', async () => {
+  await withServer(async ({ json, log, calls, deps }) => {
+    calls.find((c) => c.id === '1').coachingStatus = 'Analysed';
+    await deps.store.saveAnalysis('1', { callType: 'conversation', language: 'English', schema: 2, coachable: true, openerResult: 'stayed_engaged', nextStepSecured: false, craft: {}, prospect: {}, objections: [] });
+
+    const first = await json('/calls', LUKE); // the response already treats it as waiting
+    assert.equal(first.calls.find((c) => c.id === '1').status, 'waiting');
+    await settle();
+    assert.equal(calls.find((c) => c.id === '1').coachingStatus, 'Waiting to be re-analysed'); // and the board says so
+
+    // From now on it is waiting without needing its old analysis read again, and it counts as a redo.
+    const second = await json('/calls', LUKE);
+    const row = second.calls.find((c) => c.id === '1');
+    assert.equal(row.status, 'waiting');
+    assert.equal(row.refresh, 'outdated');
+    assert.ok(second.refreshCount >= 1);
+
+    // Analysing it saves the result, then the board says Analysed.
+    const res = await json('/analyse', LUKE, { method: 'POST', body: JSON.stringify({ ids: ['1'] }) });
+    assert.equal(res.results[0].saved, true);
+    assert.equal(calls.find((c) => c.id === '1').coachingStatus, 'Analysed');
+    assert.deepEqual(log.analysed, ['1']);
+    const third = await json('/calls', LUKE);
+    assert.equal(third.calls.find((c) => c.id === '1').status, 'analysed');
+  });
+});
+
+test('a call whose saved analysis could not be read is not flipped to waiting', async () => {
+  await withServer(async ({ json, log, calls, unreadable }) => {
+    calls.find((c) => c.id === '1').coachingStatus = 'Analysed';
+    unreadable.add('1');
+    await json('/calls', LUKE);
+    await settle();
+    assert.equal((log.statuses || []).some(([id]) => id === '1'), false);
+    assert.equal(calls.find((c) => c.id === '1').coachingStatus, 'Analysed');
+  });
 });
