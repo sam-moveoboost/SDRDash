@@ -21,7 +21,7 @@ const { statsFor, bySdr } = require('../lib/metrics');
 const { summarise } = require('../lib/focus');
 const { buildTrends, forEveryone } = require('../lib/trends');
 const { reviewPriority } = require('../lib/priority');
-const { ANALYSIS_SCHEMA, positioningUnrecorded, modernOpener } = require('../lib/analysis');
+const { ANALYSIS_SCHEMA, positioningUnrecorded, openerUnrecorded, modernOpener } = require('../lib/analysis');
 const { measured } = require('../lib/outcome');
 
 const CALLS_TTL_MS = 2 * 60 * 1000; // newer than this: served as is
@@ -193,7 +193,7 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
     // five opening types), is offered for redoing so the whole set follows the current rules.
     const refreshOf = (analysis) => {
       if (!analysis) return 'missing';
-      if (!(analysis.schema >= ANALYSIS_SCHEMA) || positioningUnrecorded(analysis)) return 'outdated';
+      if (!(analysis.schema >= ANALYSIS_SCHEMA) || positioningUnrecorded(analysis) || openerUnrecorded(analysis)) return 'outdated';
       return measured(analysis) ? null : 'numbers'; // current, only missing the stay-on numbers: updated without Claude
     };
     const byNewest = (x, y) => String(y.createdAt).localeCompare(String(x.createdAt));
@@ -332,7 +332,7 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
           return { id, error: 'storage_unreadable', message: 'The saved analysis could not be read just now because storage was slow. It was not redone, so nothing was paid for twice. Try again in a minute.' };
         }
         const existing = checked.analysis;
-        if (existing && existing.schema >= ANALYSIS_SCHEMA && !positioningUnrecorded(existing)) {
+        if (existing && existing.schema >= ANALYSIS_SCHEMA && !positioningUnrecorded(existing) && !openerUnrecorded(existing)) {
           if (measured(existing)) return { id, analysis: existing, saved: true, marked: true };
           // Only the stay-on numbers are missing: work them out from the transcript. No Claude, no cost.
           const rawText = await step('read transcript', async () => (await loadTranscripts([call]))[id]);

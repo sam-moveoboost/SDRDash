@@ -567,7 +567,7 @@ function WhatWorksCard({ title, note, intro, rows, keyOf, bestKey, empty, latest
             ))}
           </ul>
           <div className="text-[11.5px] text-muted mt-3 pt-3 border-t border-line">
-            Stayed on means the prospect said at least 40 words after our opening and the call carried on for at least 6 more turns. Anything shorter, including a call blocked by a gatekeeper, is hung up early. The two always add up to 100%.
+            Stayed on means the prospect said at least 40 words after our opening and the call carried on for at least 6 more turns. Anything shorter, including a call blocked by a gatekeeper, is hung up early.
             {latest && latest.total > latest.used && <span className="block mt-1">Showing {latest.used} of {latest.total} calls. Press Analyse all to include the rest.</span>}
           </div>
         </>

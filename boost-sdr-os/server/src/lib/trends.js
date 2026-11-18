@@ -4,7 +4,7 @@
 // Short calls are included: openers and early hang-ups are exactly what managers
 // want to see. Only voicemail and phone menus are left out.
 
-const { POSITIONING_LABELS, POSITIONING_DESCRIPTIONS, OBJECTION_LABELS, OBJECTION_DESCRIPTIONS, OPENER_LABELS, OPENER_DESCRIPTIONS, SENIORITY_LABELS, modernCategory, modernOpener, positioningUnrecorded } = require('./analysis');
+const { POSITIONING_LABELS, POSITIONING_DESCRIPTIONS, OBJECTION_LABELS, OBJECTION_DESCRIPTIONS, OPENER_LABELS, OPENER_DESCRIPTIONS, SENIORITY_LABELS, modernCategory, modernOpener, positioningUnrecorded, openerUnrecorded } = require('./analysis');
 
 const { stayedOn, isBlocked, measured } = require('./outcome');
 const { ANALYSIS_SCHEMA } = require('./analysis');
@@ -159,9 +159,11 @@ function buildTrends(pairs) {
 
   // ---- how calls open, and who stays ----
   const cardPairs = human.filter(onLatestRules);
-  const styles = [...new Set(cardPairs.map((p) => p.analysis.opener?.style).filter(Boolean))];
+  // An opener the model never gave is left out of the openers card, not counted as "Other".
+  const openerPairs = cardPairs.filter((p) => !openerUnrecorded(p.analysis));
+  const styles = [...new Set(openerPairs.map((p) => p.analysis.opener?.style).filter(Boolean))];
   const openers = styles.map((style) => {
-    const group = cardPairs.filter((p) => p.analysis.opener?.style === style);
+    const group = openerPairs.filter((p) => p.analysis.opener?.style === style);
     const quoteOf = (p) => (p.analysis.opener?.quote ? { quote: p.analysis.opener.quoteEn || p.analysis.opener.quote, sdrName: p.call.sdrName } : null);
     return {
       style,

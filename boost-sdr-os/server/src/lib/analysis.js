@@ -152,7 +152,7 @@ const ANALYSIS_TOOL = {
       missed_moment: { type: ['object', 'null'], properties: { quote: str, quote_en: str, better: str } },
       try_next_time: { type: 'array', items: str, minItems: 1 },
     },
-    required: ['call_type', 'coachable', 'summary', 'opener_result', 'next_step_secured', 'craft', 'objections', 'key_exchanges', 'positioning', 'try_next_time'],
+    required: ['call_type', 'coachable', 'summary', 'opener_result', 'next_step_secured', 'craft', 'prospect', 'opener', 'objections', 'key_exchanges', 'positioning', 'try_next_time'],
   },
 };
 
@@ -322,11 +322,13 @@ function validate(raw, turns, crm = null) {
       reaction: oneOf(raw.positioning?.reaction, POSITIONING_REACTIONS, 'unclear'),
       note: String(raw.positioning?.note || '').slice(0, 300),
     },
-    opener: {
-      style: oneOf(modernOpener(raw.opener?.style), OPENER_STYLES, 'other'),
+    // No opener in the answer means it was not recorded, which is different from an opener that fits no type.
+    opener: !(raw.opener && typeof raw.opener === 'object') ? null : {
+      recorded: true,
+      style: oneOf(modernOpener(raw.opener.style), OPENER_STYLES, 'other'),
       quote: openerQuote,
-      quoteEn: openerQuote ? english(openerQuote, raw.opener?.quote_en) : null,
-      note: String(raw.opener?.note || '').slice(0, 300),
+      quoteEn: openerQuote ? english(openerQuote, raw.opener.quote_en) : null,
+      note: String(raw.opener.note || '').slice(0, 300),
     },
     objections: [],
     keyExchanges: [],
@@ -496,7 +498,17 @@ function missingParts(a) {
   const parts = [];
   if (isThin(a)) parts.push('the call craft scores: score the opening on every call where a person answered, and every other dimension that happened, from 1 to 5 (opening, discovery, objection handling, asking for the next step, tone and call control), with a note each, and give 3 to 6 key exchanges (what the prospect asked or said, how the SDR answered, a verdict, a specific critique and what to say instead)');
   if (a && !['voicemail', 'automated_menu'].includes(a.callType) && !a.positioning) parts.push('"positioning": how the SDR described who boost is in the first 20 to 30 seconds, or lead "none" if they did not');
+  if (a && !['voicemail', 'automated_menu'].includes(a.callType) && !a.opener) parts.push('"opener": the type of opening (what the SDR said first after checking who was on the line) with the SDR\'s own words');
   return parts;
+}
+
+// Analyses saved with no real opener (a default "other" with no words and no note) were never judged.
+function openerUnrecorded(a) {
+  if (!a || ['voicemail', 'automated_menu'].includes(a.callType)) return false;
+  const o = a.opener;
+  if (o === null || o === undefined) return a.schema >= 6;
+  if (o.recorded) return false;
+  return o.style === 'other' && !o.quote && !o.note;
 }
 
 // Analyses saved before positioning was required may hold a default "did not say" the model never
@@ -614,6 +626,6 @@ const CALL_TYPE_LABELS = {
 };
 
 module.exports = {
-  analyseCall, isThin, missingParts, positioningUnrecorded, ping, validate, extractJson, CRAFT, SYSTEM, ANALYSIS_SCHEMA, INDUSTRIES,
+  analyseCall, isThin, missingParts, positioningUnrecorded, openerUnrecorded, ping, validate, extractJson, CRAFT, SYSTEM, ANALYSIS_SCHEMA, INDUSTRIES,
   OBJECTION_LABELS, OBJECTION_DESCRIPTIONS, POSITIONING_LABELS, POSITIONING_DESCRIPTIONS, OPENER_LABELS, OPENER_DESCRIPTIONS, modernCategory, modernOpener, SENIORITY_LABELS, CALL_TYPE_LABELS,
 };
