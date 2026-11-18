@@ -46,5 +46,9 @@ process.on('uncaughtException', (err) => console.error('[uncaughtException]', er
 const port = process.env.PORT || 8080;
 app.listen(port, () => {
   console.log(`sdr-os-server listening on ${port}`);
-  coaching.warm(); // preload the last 30 days in the background
+  // Apply any new analysis rules to the board first (so the page and the preload only read what is
+  // still current), then preload, then keep new calls labelled every few minutes.
+  coaching.boot().then(() => coaching.warm());
+  setInterval(() => coaching.tick(), 10 * 60 * 1000);
+  setTimeout(() => coaching.tick(), 60 * 1000);
 });

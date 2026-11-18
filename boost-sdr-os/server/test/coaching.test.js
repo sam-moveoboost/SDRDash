@@ -1522,3 +1522,62 @@ test('a call whose saved analysis could not be read is not flipped to waiting', 
     assert.equal(calls.find((c) => c.id === '1').coachingStatus, 'Analysed');
   });
 });
+
+// ---- a new set of rules resets the board as soon as the server starts ----
+async function withBootServer(opts, fn) {
+  if (typeof opts === 'function') { fn = opts; opts = {}; }
+  const ctx = makeDeps(opts);
+  const router = createRouter(ctx.deps, { now: () => Date.parse('2026-11-04T12:00:00Z') });
+  await fn({ router, ...ctx });
+}
+
+test('on the first start under new rules every analysed call is set to waiting to be re-analysed, with no page visit', async () => {
+  await withBootServer(async ({ router, log, calls, deps }) => {
+    for (const id of ['1', '2', '3']) calls.find((c) => c.id === id).coachingStatus = 'Analysed';
+    const result = await router.boot();
+    assert.equal(result.failed, 0);
+    for (const id of ['1', '2', '3']) assert.equal(calls.find((c) => c.id === id).coachingStatus, 'Waiting to be re-analysed');
+    assert.equal(log.analysed.length, 0); // nothing was analysed or even read to do this
+    // The marker says the new rules have been applied, so a plain restart changes nothing.
+    const marker = await deps.store.getAnalysisChecked('meta_rules_version');
+    assert.equal(marker.analysis.rulesVersion, require('../src/lib/analysis').ANALYSIS_SCHEMA);
+    calls.find((c) => c.id === '1').coachingStatus = 'Analysed'; // analysed again since
+    const again = await router.boot();
+    assert.equal(again.upToDate, true);
+    assert.equal(calls.find((c) => c.id === '1').coachingStatus, 'Analysed');
+  });
+});
+
+test('if some calls could not be updated, the rules marker is not saved so the next start finishes the job', async () => {
+  await withBootServer(async ({ router, calls, deps }) => {
+    for (const id of ['1', '2']) calls.find((c) => c.id === id).coachingStatus = 'Analysed';
+    const original = deps.mondayApi.setStatus;
+    deps.mondayApi.setStatus = async (id, label) => { if (id === '2') throw new Error('monday said no'); return original(id, label); };
+    const first = await router.boot();
+    assert.equal(first.failed, 1);
+    assert.equal((await deps.store.getAnalysisChecked('meta_rules_version')).analysis, null);
+    deps.mondayApi.setStatus = original;
+    const second = await router.boot();
+    assert.equal(second.failed, 0);
+    assert.equal(calls.find((c) => c.id === '2').coachingStatus, 'Waiting to be re-analysed');
+  });
+});
+
+test('if the rules marker cannot be read because storage is busy, nothing is changed', async () => {
+  await withBootServer(async ({ router, calls, unreadable }) => {
+    calls.find((c) => c.id === '1').coachingStatus = 'Analysed';
+    unreadable.add('meta_rules_version');
+    const result = await router.boot();
+    assert.equal(result.skipped, true);
+    assert.equal(calls.find((c) => c.id === '1').coachingStatus, 'Analysed');
+  });
+});
+
+test('new calls with a usable transcript are set to waiting to be analysed every few minutes, whether or not anyone opens the page', async () => {
+  await withBootServer(async ({ router, calls }) => {
+    const result = await router.tick();
+    assert.ok(result.changed >= 1);
+    assert.equal(calls.find((c) => c.id === '1').coachingStatus, 'Waiting to be analysed');
+    assert.equal(calls.find((c) => c.id === '6').coachingStatus || null, null); // transcript too short: left blank
+  });
+});
