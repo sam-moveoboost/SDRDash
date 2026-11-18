@@ -171,7 +171,7 @@ const ANALYSIS_TOOL = {
       missed_moment: { type: ['object', 'null'], properties: { quote: str, quote_en: str, better: str } },
       try_next_time: { type: 'array', items: str, minItems: 1 },
     },
-    required: ['call_type', 'coachable', 'summary', 'opener_result', 'next_step_secured', 'meddpicc', 'craft', 'objections', 'key_exchanges', 'try_next_time'],
+    required: ['call_type', 'coachable', 'summary', 'opener_result', 'next_step_secured', 'meddpicc', 'craft', 'objections', 'key_exchanges', 'positioning', 'try_next_time'],
   },
 };
 
@@ -211,11 +211,11 @@ Opener style: judge only from how the SDR opened (their first lines after the gr
 - other: use ONLY when there was no real opening to judge (the call joined mid-sentence, or the SDR said nothing usable). If the opening is unusual, still pick the closest of the five. Aim for "other" on fewer than one call in five.
 Tie-breaks: ignore any automated screener turn ("record your name and reason") and judge the real opening after it. Label by the first thing the SDR says to the person; if they confirm the person and then pitch in the same turn, label by the pitch. An introduction (name and company) followed by "how are you" or any request to continue, with no earlier connection, is cold_permission_ask. Going straight into what boost does or who it works with is credentials_first. Any reference to a past meeting, call, event or person is warm_followup, even if a question follows.
 
-Positioning (who boost says it is): look at what the SDR says boost is during the first part of the call (roughly the first minute, before the real conversation). Record:
+Positioning (who boost says it is): look at what the SDR says boost is in the first 20 to 30 seconds of the call (the first few turns, before the real conversation). Always fill this in, even when the call was short: if the SDR never says what boost is in that time, say so with lead "none". Record:
 - lead: the FIRST way the SDR describes what boost is. "monday" if boost is described as a monday.com business or partner (for example "we are a monday.com partner", "we implement monday.com"). "ai" if it is described as an AI business (for example "we build AI agents", "we do AI automation"). "other" if it is described another way (a consultancy, a software company, services, clients or partners named, or only what boost achieves for customers). "none" if the SDR never says who boost is.
 - other_kind: only when lead is "other". "generic_company" = a vague company description (for example "an implementation company for technology solutions", "a consulting firm", "back end systems", "process improvement"). "results_only" = only what we achieve for customers (for example "we help teams get back time spent on spreadsheets", "we work with real estate teams on leads"). "credentials_only" = only clients, partners or awards named with no plain description of what boost does (for example "we are an Anthropic partner"). Otherwise "none".
 - mentions_monday and mentions_ai: whether monday.com, and whether AI, are mentioned at all as part of what boost is or does in that first part.
-- when: where it first happened: "opening" (the first couple of turns), "early" (within about the first minute), "later", or "never".
+- when: where it first happened: "opening" (the first couple of turns), "early" (within about the first 30 seconds), "later" (after that), or "never".
 - quote: the SDR's own words for it, verbatim in the original language, under 30 words; an empty string if there are none.
 - reaction: how the prospect responded straight after: "engaged" (asked a question, stayed, showed interest), "neutral", "pushed_back" (for example "what is this about", "not interested"), "ended" (hung up) or "unclear".
 Judge only from what is actually said; do not infer it.
@@ -301,6 +301,7 @@ function isRealExchange(turns, callType) {
 
 function validate(raw, turns, crm = null) {
   const tNorm = norm(turns.map((t) => t.text).join(' '));
+  const posRaw = raw.positioning && typeof raw.positioning === 'object' ? raw.positioning : null;
   const posQuote = raw.positioning?.quote && quoteIsReal(tNorm, raw.positioning.quote) ? String(raw.positioning.quote) : null;
   const posWhen = oneOf(raw.positioning?.when, POSITIONING_WHEN, 'never');
   let posLead = oneOf(raw.positioning?.lead, POSITIONING_LEADS, 'none');
@@ -328,7 +329,9 @@ function validate(raw, turns, crm = null) {
       industrySource: 'unknown',
       company: null,
     },
-    positioning: {
+    // No positioning in the answer means it was not recorded, which is different from the SDR not saying it.
+    positioning: !posRaw ? null : {
+      recorded: true,
       lead: posLead,
       otherKind: posLead === 'other' ? oneOf(raw.positioning?.other_kind, POSITIONING_OTHER_KINDS, 'generic_company') : 'none',
       // The lead always counts as mentioned; with no lead nothing was said.
@@ -488,9 +491,10 @@ async function analyseCall({ turns, call, prospect = null }, { fetchImpl = fetch
     const json = await askClaude(user + note, apiKey, fetchImpl);
     try {
       const result = validate(readAnalysis(json), turns, prospect);
-      if (isThin(result) && !note) {
+      const missing = missingParts(result);
+      if (missing.length && !note) {
         thin = result;
-        note = '\n\nYour previous answer left out the coaching for a real conversation: no call craft scores and no key exchanges. Score every craft dimension that happened and give 3 to 6 key exchanges (what the prospect asked or said, how the SDR answered, a verdict, a specific critique and what to say instead).';
+        note = `\n\nYour previous answer left out: ${missing.join('; and ')}. Please fill these in.`;
         continue;
       }
       return result;
@@ -512,6 +516,24 @@ function isThin(a) {
   return Boolean(a && a.callType === 'conversation' && a.coachable
     && !Object.values(a.craft || {}).some((c) => Number.isFinite(c?.score))
     && !(a.keyExchanges || []).length);
+}
+
+// Parts an answer must have but left out, so it can be asked for again.
+function missingParts(a) {
+  const parts = [];
+  if (isThin(a)) parts.push('the coaching for a real conversation: score every call craft dimension that happened and give 3 to 6 key exchanges (what the prospect asked or said, how the SDR answered, a verdict, a specific critique and what to say instead)');
+  if (a && !['voicemail', 'automated_menu'].includes(a.callType) && !a.positioning) parts.push('"positioning": how the SDR described who boost is in the first 20 to 30 seconds, or lead "none" if they did not');
+  return parts;
+}
+
+// Analyses saved before positioning was required may hold a default "did not say" the model never
+// actually judged (no words, no reaction, no note). Those are not evidence; they are offered for redoing.
+function positioningUnrecorded(a) {
+  if (!a || ['voicemail', 'automated_menu'].includes(a.callType)) return false;
+  const p = a.positioning;
+  if (p === null || p === undefined) return a.schema >= 4;
+  if (p.recorded) return false;
+  return p.lead === 'none' && p.when === 'never' && !p.quote && p.reaction === 'unclear' && !p.note;
 }
 
 // Tiny request that proves the key works and Claude can be reached from this server.
@@ -568,40 +590,36 @@ const OBJECTION_DESCRIPTIONS = {
 };
 // The ways of saying who boost is, grouped for the trends (see trends.js).
 const POSITIONING_LABELS = {
-  monday_only: 'monday.com business',
-  ai_only: 'AI business',
-  both_monday_first: 'Both, monday.com first',
-  both_ai_first: 'Both, AI first',
-  other_generic: 'A vague company description',
-  other_results: 'Only the results we get',
-  other_credentials: 'Only clients or partners named',
-  not_said: 'Did not say who we are',
+  monday: 'monday.com business',
+  ai: 'AI business',
+  both: 'monday.com and AI',
+  consultancy: 'Consultancy or technology company',
+  other: 'Something else',
+  none: 'Did not say in the first 20 seconds',
 };
 const POSITIONING_DESCRIPTIONS = {
-  monday_only: 'Said we are a monday.com partner or implement monday.com, with no mention of AI.',
-  ai_only: 'Said we are an AI business or build AI, with no mention of monday.com.',
-  both_monday_first: 'Mentioned both, starting with monday.com.',
-  both_ai_first: 'Mentioned both, starting with AI.',
-  other_generic: 'Said something like "an implementation company for technology solutions" or "a consulting firm", without saying monday.com or AI.',
-  other_results: 'Said only what we achieve for customers, such as saving time on spreadsheets, without saying what we are.',
-  other_credentials: 'Named clients or partners (for example an Anthropic partner) without a plain description of what we do.',
-  not_said: 'Did not say, or only said it later. Includes calls that ended before it could be said.',
+  monday: 'Said we are a monday.com partner or implement monday.com, with no mention of AI.',
+  ai: 'Said we are an AI business or build AI, with no mention of monday.com.',
+  both: 'Mentioned both monday.com and AI.',
+  consultancy: 'Said something like "an implementation company for technology solutions" or "a consulting firm", without saying monday.com or AI.',
+  other: 'Described only the results we get, or only clients and partners we work with.',
+  none: 'Did not say what we are in that time, or the call ended before it could be said.',
 };
 const OPENER_LABELS = {
-  warm_followup: 'Warm follow-up',
-  cold_permission_ask: 'Cold permission ask',
-  credentials_first: 'Credentials first',
-  named_person_ask: 'Asking for a person',
-  pain_question_hook: 'Pain-point question',
+  warm_followup: 'Warm reference',
+  cold_permission_ask: 'Permission ask',
+  credentials_first: 'Who we are first',
+  named_person_ask: 'Checking who it is',
+  pain_question_hook: 'Problem or result hook',
   other: 'Other',
 };
 const OPENER_DESCRIPTIONS = {
-  warm_followup: 'Refers to an earlier meeting, event, conversation, a named referrer or a previous attempt.',
-  cold_permission_ask: 'Gives a name and company, then asks for a moment before saying what they offer.',
-  credentials_first: 'Says what the company does and names clients or partners, then asks for a minute.',
-  named_person_ask: 'Opens by asking for a named person, or checking the company or number, and holds back the pitch.',
-  pain_question_hook: 'States a common problem in the prospect\'s industry and asks how they handle it.',
-  other: 'Does not clearly fit one of the five types.',
+  warm_followup: 'Refers to an earlier call, meeting, event, a referrer or a previous attempt ("we spoke yesterday").',
+  cold_permission_ask: 'Gives a name and company, then asks for a moment before saying what we do ("30 seconds?").',
+  credentials_first: 'Goes straight into what we do or names clients or partners, then asks for a minute.',
+  named_person_ask: 'Opens by checking it is the right person or company ("is that Alex?") and holds back the pitch.',
+  pain_question_hook: 'Opens with a problem or a result and a question ("how do you handle leads that go untouched?").',
+  other: 'Does not clearly fit one of the five.',
 };
 const SENIORITY_LABELS = {
   c_level: 'C-level',
@@ -621,6 +639,6 @@ const CALL_TYPE_LABELS = {
 };
 
 module.exports = {
-  analyseCall, isThin, ping, validate, extractJson, MEDDPICC, CRAFT, SYSTEM, ANALYSIS_SCHEMA, INDUSTRIES,
+  analyseCall, isThin, missingParts, positioningUnrecorded, ping, validate, extractJson, MEDDPICC, CRAFT, SYSTEM, ANALYSIS_SCHEMA, INDUSTRIES,
   OBJECTION_LABELS, OBJECTION_DESCRIPTIONS, POSITIONING_LABELS, POSITIONING_DESCRIPTIONS, OPENER_LABELS, OPENER_DESCRIPTIONS, modernCategory, modernOpener, SENIORITY_LABELS, CALL_TYPE_LABELS,
 };
