@@ -482,7 +482,6 @@ export default function Coaching({ user }) {
           >
             <TrendsPanel data={trends} />
           </Section>
-          )}
 
           <Section title={isAdmin ? `Coaching focus for ${who}` : 'Where to focus'} sub="Built from the calls that have been analysed against MEDDPICC and call craft.">
             <FocusPanel coaching={overview.coaching} who={who} canAnalyse={isAdmin} />
