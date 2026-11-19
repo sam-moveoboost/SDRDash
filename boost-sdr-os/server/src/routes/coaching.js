@@ -33,7 +33,7 @@ const RECHECK_OLD_MS = 6 * 60 * 60 * 1000;
 const MAX_PENDING_LOOKUPS = 400;
 const MAX_ROWS = 200;
 
-function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() } = {}) {
+function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now(), bootRetryMs = 15000 } = {}) {
   const { mondayApi, analysis, store } = { ...defaults, ...deps };
   const router = express.Router();
   router.use(auth);
@@ -562,20 +562,21 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
     }
   };
 
-  // ---- the board follows what is actually saved, with nobody needing to open the page ----
-  // When the server starts, each call that has a status on the board is checked against its saved
-  // analysis. Saved under the current rules: Analysed. Saved under older rules: Waiting to be
-  // re-analysed. Nothing saved: Waiting to be re-analysed (it said Analysed, but there is nothing to
-  // show). A saved analysis that cannot be read just now is left alone. Nothing is ever sent to Claude
-  // here, and a restart cannot undo finished work, because the board is set from what is stored.
-  router.boot = async () => {
-    try {
-      const all = await loadCalls(cfg.MAX_DAYS);
-      const labelled = all.filter(isCandidate).filter((c) => c.coachingStatus);
-      const pairs = await loadAnalyses(labelled);
+  // ---- the board follows what is actually saved ----
+  // Reads can be refused for a while after a restart (storage allows only a few at a time), so this keeps
+  // coming back to the calls it could not read until every one has been checked, instead of skipping them.
+  const sleepQuiet = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
+  async function reconcile({ retries = 0 } = {}) {
+    const all = await loadCalls(cfg.MAX_DAYS);
+    let pending = all.filter(isCandidate).filter((c) => c.coachingStatus);
+    const total = { changed: 0, failed: 0, checked: 0, unread: 0 };
+    for (let round = 0; pending.length; round += 1) {
+      const pairs = await loadAnalyses(pending);
       const targets = [];
+      const again = [];
       for (const p of pairs) {
-        if (!p.analysis && p.unreadable) continue;
+        if (!p.analysis && p.unreadable) { again.push(p.call); continue; }
+        total.checked += 1;
         let label;
         if (p.analysis) label = refreshOf(p.analysis) === 'outdated' ? cfg.STATUS_REANALYSE : cfg.STATUS_ANALYSED;
         else if (isAnalysed(p.call)) label = cfg.STATUS_REANALYSE;
@@ -583,7 +584,25 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
         targets.push({ call: p.call, label });
       }
       const result = await syncBoardStatus(targets);
-      console.log(`[rules] board checked against saved analyses: ${result.changed} changed, ${result.failed} failed`);
+      total.changed += result.changed;
+      total.failed += result.failed;
+      if (result.skipped) again.push(...targets.map((t) => t.call)); // another update was running: come back to these
+      pending = again;
+      if (!pending.length || round >= retries) break;
+      await sleepQuiet(bootRetryMs);
+    }
+    total.unread = pending.length;
+    return total;
+  }
+
+  // The board follows what is actually saved, with nobody needing to open the page. Each call that has a
+  // status is checked against its saved analysis. Saved under the current rules: Analysed. Saved under older
+  // rules or incomplete: Waiting to be re-analysed. Nothing saved: Waiting to be re-analysed. Nothing is ever
+  // sent to Claude here, and a restart cannot undo finished work.
+  router.boot = async () => {
+    try {
+      const result = await reconcile({ retries: 60 });
+      console.log(`[rules] board checked against saved analyses: ${result.checked} checked, ${result.changed} changed, ${result.failed} failed, ${result.unread} could not be read`);
       return result;
     } catch (err) {
       console.error(`[rules] could not check the board against saved analyses: ${err.message}`);
@@ -595,6 +614,7 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
   // looking at the page. Run every few minutes.
   router.tick = async () => {
     try {
+      await reconcile().catch((err) => console.error(`[board] reconcile failed: ${err.message}`));
       const all = await loadCalls(30);
       const blank = all.filter(isCandidate).filter((c) => !c.coachingStatus);
       if (!blank.length) return { changed: 0 };
