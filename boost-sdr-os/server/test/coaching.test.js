@@ -1541,7 +1541,7 @@ test('a call whose saved analysis could not be read is not flipped to waiting', 
 async function withBootServer(opts, fn) {
   if (typeof opts === 'function') { fn = opts; opts = {}; }
   const ctx = makeDeps(opts);
-  const router = createRouter(ctx.deps, { now: () => Date.parse('2026-11-04T12:00:00Z') });
+  const router = createRouter(ctx.deps, { now: () => Date.parse('2026-11-04T12:00:00Z'), bootRetryMs: 1 });
   await fn({ router, ...ctx });
 }
 
@@ -1567,6 +1567,20 @@ test('a restart cannot undo finished work: calls set to waiting but with a curre
     assert.equal(calls.find((c) => c.id === '1').coachingStatus, 'Analysed');
     await router.boot(); // starting again changes nothing further
     assert.equal(calls.find((c) => c.id === '1').coachingStatus, 'Analysed');
+  });
+});
+
+test('on start, calls whose saved analysis cannot be read at first are tried again until they can be, not skipped', async () => {
+  await withBootServer(async ({ router, calls, deps, unreadable }) => {
+    for (const id of ['1', '2']) calls.find((c) => c.id === id).coachingStatus = 'Analysed';
+    await deps.store.saveAnalysis('1', { ...CURRENT_ANALYSIS });
+    await deps.store.saveAnalysis('2', { ...CURRENT_ANALYSIS, opener: null }); // saved without an opener
+    unreadable.add('1'); unreadable.add('2');
+    setTimeout(() => { unreadable.delete('1'); unreadable.delete('2'); }, 30);
+    const result = await router.boot();
+    assert.equal(result.unread, 0);
+    assert.equal(calls.find((c) => c.id === '1').coachingStatus, 'Analysed');
+    assert.equal(calls.find((c) => c.id === '2').coachingStatus, 'Waiting to be re-analysed'); // no opener recorded
   });
 });
 
