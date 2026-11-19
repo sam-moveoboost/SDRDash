@@ -98,6 +98,13 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
   // because a fresh call may not be tagged yet and its transcript will show what it was.
   const isCandidate = (c) => c.answered && !c.noConnectionTag && Date.parse(c.createdAt) >= cfg.COACHING_FROM_MS;
   const isAnalysed = (c) => c.coachingStatus === cfg.STATUS_ANALYSED;
+  // An analysis that is missing, or was made under older rules (before English findings, before the
+  // opening types), is offered for redoing so the whole set follows the current rules.
+  const refreshOf = (analysis) => {
+    if (!analysis) return 'missing';
+    if (!(analysis.schema >= ANALYSIS_SCHEMA) || positioningUnrecorded(analysis) || openerUnrecorded(analysis)) return 'outdated';
+    return measured(analysis) ? null : 'numbers'; // current, only missing the stay-on numbers: updated without Claude
+  };
 
   // ---- keeping the board's status column true ----
   // Every call that can be analysed shows where it is on the board: waiting to be analysed, waiting to
@@ -226,13 +233,6 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
       recordingUrl: c.recordingUrl,
       ...extra,
     });
-    // An analysis that is missing, or was made under older rules (before English findings, before the
-    // five opening types), is offered for redoing so the whole set follows the current rules.
-    const refreshOf = (analysis) => {
-      if (!analysis) return 'missing';
-      if (!(analysis.schema >= ANALYSIS_SCHEMA) || positioningUnrecorded(analysis) || openerUnrecorded(analysis)) return 'outdated';
-      return measured(analysis) ? null : 'numbers'; // current, only missing the stay-on numbers: updated without Claude
-    };
     const byNewest = (x, y) => String(y.createdAt).localeCompare(String(x.createdAt));
     const unreadable = done.filter((p) => !p.analysis && p.unreadable);
     const refreshing = done.filter((p) => !(!p.analysis && p.unreadable) && refreshOf(p.analysis));
@@ -533,32 +533,31 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
     }
   };
 
-  // ---- the board follows the rules, with nobody needing to open the page ----
-  // Each set of analysis rules has a version. The first time the server starts on a newer version, every
-  // call in the period that shows "Analysed" is set to "Waiting to be re-analysed" on the board, straight
-  // away and without reading any saved analysis. A marker saved afterwards records that this has been
-  // done, so a plain restart changes nothing. If any call could not be updated the marker is not saved and
-  // the next start finishes the job.
-  const RULES_MARKER_ID = 'meta_rules_version';
+  // ---- the board follows what is actually saved, with nobody needing to open the page ----
+  // When the server starts, each call that has a status on the board is checked against its saved
+  // analysis. Saved under the current rules: Analysed. Saved under older rules: Waiting to be
+  // re-analysed. Nothing saved: Waiting to be re-analysed (it said Analysed, but there is nothing to
+  // show). A saved analysis that cannot be read just now is left alone. Nothing is ever sent to Claude
+  // here, and a restart cannot undo finished work, because the board is set from what is stored.
   router.boot = async () => {
     try {
-      const marker = await store.getAnalysisChecked(RULES_MARKER_ID);
-      if (!marker.analysis && marker.unreadable) {
-        console.error('[rules] could not read the rules marker (storage busy), so nothing was changed');
-        return { skipped: true };
-      }
-      const applied = marker.analysis?.rulesVersion ?? 0;
-      if (applied >= ANALYSIS_SCHEMA) return { upToDate: true };
       const all = await loadCalls(cfg.MAX_DAYS);
-      const targets = all.filter(isCandidate).filter(isAnalysed).map((call) => ({ call, label: cfg.STATUS_REANALYSE }));
-      const result = await syncBoardStatus(targets);
-      if (result.failed === 0 && !result.skipped) {
-        await store.saveAnalysis(RULES_MARKER_ID, { callType: 'meta', rulesVersion: ANALYSIS_SCHEMA, appliedAt: new Date(now()).toISOString() });
+      const labelled = all.filter(isCandidate).filter((c) => c.coachingStatus);
+      const pairs = await loadAnalyses(labelled);
+      const targets = [];
+      for (const p of pairs) {
+        if (!p.analysis && p.unreadable) continue;
+        let label;
+        if (p.analysis) label = refreshOf(p.analysis) === 'outdated' ? cfg.STATUS_REANALYSE : cfg.STATUS_ANALYSED;
+        else if (isAnalysed(p.call)) label = cfg.STATUS_REANALYSE;
+        else continue;
+        targets.push({ call: p.call, label });
       }
-      console.log(`[rules] version ${ANALYSIS_SCHEMA}: ${result.changed} calls set to waiting to be re-analysed, ${result.failed} failed`);
+      const result = await syncBoardStatus(targets);
+      console.log(`[rules] board checked against saved analyses: ${result.changed} changed, ${result.failed} failed`);
       return result;
     } catch (err) {
-      console.error(`[rules] could not apply the rules version: ${err.message}`);
+      console.error(`[rules] could not check the board against saved analyses: ${err.message}`);
       return { error: err.message };
     }
   };
