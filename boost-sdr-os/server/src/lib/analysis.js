@@ -509,7 +509,7 @@ function missingParts(a) {
 function openerUnrecorded(a) {
   if (!a || a.askedTwice || ['voicemail', 'automated_menu'].includes(a.callType)) return false;
   const o = a.opener;
-  if (o === null || o === undefined) return false; // asked for twice and left out: shown as not recorded, never offered again
+  if (o === null || o === undefined) return true; // never recorded (unless Claude was asked twice and left it out)
   if (o.recorded) return false;
   return o.style === 'other' && !o.quote && !o.note;
 }
@@ -519,7 +519,7 @@ function openerUnrecorded(a) {
 function positioningUnrecorded(a) {
   if (!a || a.askedTwice || ['voicemail', 'automated_menu'].includes(a.callType)) return false;
   const p = a.positioning;
-  if (p === null || p === undefined) return false; // asked for twice and left out: shown as not recorded, never offered again
+  if (p === null || p === undefined) return true; // never recorded (unless Claude was asked twice and left it out)
   if (p.recorded) return false;
   return p.lead === 'none' && p.when === 'never' && !p.quote && p.reaction === 'unclear' && !p.note;
 }
