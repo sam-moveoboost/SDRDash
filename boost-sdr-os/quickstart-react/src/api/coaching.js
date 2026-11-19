@@ -61,6 +61,8 @@ export const coachingApi = {
   trends: (userId, days, fresh, temp) => request(`/trends${qs({ userId, days, fresh: fresh ? 1 : undefined, temp: temp && temp !== 'all' ? temp : undefined })}`),
   transcript: (id) => request(`/calls/${encodeURIComponent(id)}/transcript`),
   selftest: () => request('/selftest'),
+  // Managers only: what is really saved for each call, set against the board.
+  audit: (fresh) => request(`/audit${qs({ fresh: fresh ? 1 : undefined })}`),
   analyse: (ids) => request('/analyse', { method: 'POST', body: { ids } }),
   // Background analysis: start it, then ask how it is going with short requests.
   analyseStart: (ids) => request('/analyse/start', { method: 'POST', body: { ids } }),

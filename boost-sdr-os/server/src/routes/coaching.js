@@ -23,6 +23,7 @@ const { buildTrends, forEveryone } = require('../lib/trends');
 const { reviewPriority } = require('../lib/priority');
 const { ANALYSIS_SCHEMA, positioningUnrecorded, openerUnrecorded, modernOpener } = require('../lib/analysis');
 const { measured } = require('../lib/outcome');
+const { buildAudit } = require('../lib/audit');
 
 const CALLS_TTL_MS = 2 * 60 * 1000; // newer than this: served as is
 const CALLS_STALE_MS = 6 * 60 * 60 * 1000; // older: served at once while a top-up loads behind it
@@ -168,6 +169,15 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
 
   // Saved analyses for calls already marked Analysed.
   const loadAnalyses = (calls) => store.mapLimit(calls, 6, async (c) => ({ call: c, ...(await store.getAnalysisChecked(c.id)) }));
+
+  // Managers only. Reads every call in the period and what is saved for it, and reports where the board and
+  // the saved results disagree. Changes nothing.
+  router.get('/audit', handle(async (req, res) => {
+    if (!req.viewer.isAdmin) return res.status(403).json({ error: 'forbidden', message: 'Only managers can see this.' });
+    const calls = (await loadCalls(cfg.MAX_DAYS, { fresh: req.query.fresh === '1' })).filter(isCandidate);
+    const pairs = await loadAnalyses(calls);
+    res.json(buildAudit(pairs, { schema: ANALYSIS_SCHEMA, labels: { analysed: cfg.STATUS_ANALYSED, waiting: cfg.STATUS_WAITING, reanalyse: cfg.STATUS_REANALYSE } }));
+  }));
 
   router.get('/me', (req, res) => res.json({ userId: req.viewer.userId, isAdmin: req.viewer.isAdmin }));
 

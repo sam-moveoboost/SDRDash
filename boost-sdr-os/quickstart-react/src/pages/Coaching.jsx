@@ -3,6 +3,7 @@ import { readCoachingCache, writeCoachingCache } from '../utils/coachingCache';
 import { coachingApi } from '../api/coaching';
 import { demoOverview, demoCalls, demoTrends } from '../utils/coachingDemoData';
 import StatCard from '../components/shared/StatCard';
+import AuditPanel from '../components/coaching/AuditPanel';
 import {
   Section, Card, Chip, Empty, WeekBars, TeamTable, FocusPanel, CallDetail, TrendsPanel, CoverageTable, fmtWhen, pct, num, CALL_TYPE_LABELS,
 } from '../components/coaching/CoachingParts';
@@ -527,6 +528,12 @@ export default function Coaching({ user }) {
                   </div>
                 )}
               </Card>
+            </Section>
+          )}
+
+          {isAdmin && !demo && (
+            <Section title="Check what is saved" sub="Sets what the board says against what is really saved for each call, so the numbers on this page can be trusted.">
+              <Card><AuditPanel /></Card>
             </Section>
           )}
 
