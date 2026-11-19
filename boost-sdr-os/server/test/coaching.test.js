@@ -1585,3 +1585,25 @@ test('new calls with a usable transcript are set to waiting to be analysed every
     assert.equal(calls.find((c) => c.id === '6').coachingStatus || null, null); // transcript too short: left blank
   });
 });
+
+// ---- the audit: what is saved, set against what the board says ----
+test('the audit counts what is saved against the board and names the disagreements, and only managers can see it', async () => {
+  await withServer(async ({ json, call, calls, deps }) => {
+    const set = (id, label) => { calls.find((c) => c.id === id).coachingStatus = label; };
+    set('1', 'Analysed'); set('2', 'Analysed'); set('3', 'Analysed'); set('6', 'Waiting to be re-analysed');
+    await deps.store.saveAnalysis('1', { ...CURRENT_ANALYSIS });                       // fine
+    await deps.store.saveAnalysis('2', { ...CURRENT_ANALYSIS, schema: 4 });             // older rules
+    // call 3: Analysed on the board, nothing saved
+    await deps.store.saveAnalysis('6', { ...CURRENT_ANALYSIS });                       // waiting, but complete
+    const audit = await json('/audit', SAM);
+    assert.equal(audit.rulesVersion, require('../src/lib/analysis').ANALYSIS_SCHEMA);
+    assert.equal(audit.saved.record, 3);
+    const count = (key) => audit.problems.find((p) => p.key === key).count;
+    assert.equal(count('analysedButNothingSaved'), 1);
+    assert.equal(count('analysedButOlderRules'), 1);
+    assert.equal(count('waitingButCurrentAndComplete'), 1);
+    assert.equal(audit.usedByOpeningCards, 2);
+    const denied = await call('/audit', LUKE);
+    assert.equal(denied.status, 403);
+  });
+});
