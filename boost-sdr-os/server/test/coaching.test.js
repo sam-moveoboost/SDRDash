@@ -1512,6 +1512,18 @@ test('a call analysed under older rules goes to "Waiting to be re-analysed", is 
   });
 });
 
+const CURRENT_ANALYSIS = { callType: 'conversation', language: 'English', schema: 6, positioning: { recorded: true, lead: 'none', when: 'never' }, stats: { prospectWordsAfterOpening: 80, turnsAfterOpening: 10 }, opener: { recorded: true, style: 'other', quote: 'x' }, coachable: true };
+test('a call the board shows as waiting to be re-analysed but with a current saved analysis is shown as analysed and set back to Analysed', async () => {
+  await withServer(async ({ json, calls, deps }) => {
+    calls.find((c) => c.id === '1').coachingStatus = 'Waiting to be re-analysed';
+    await deps.store.saveAnalysis('1', { ...CURRENT_ANALYSIS });
+    const res = await json('/calls', LUKE);
+    await settle();
+    assert.equal(res.calls.find((c) => c.id === '1').status, 'analysed');
+    assert.equal(calls.find((c) => c.id === '1').coachingStatus, 'Analysed');
+  });
+});
+
 test('a call whose saved analysis could not be read is not flipped to waiting', async () => {
   await withServer(async ({ json, log, calls, unreadable }) => {
     calls.find((c) => c.id === '1').coachingStatus = 'Analysed';
@@ -1524,7 +1536,6 @@ test('a call whose saved analysis could not be read is not flipped to waiting', 
 });
 
 // ---- the board is set from what is saved as soon as the server starts ----
-const CURRENT_ANALYSIS = { callType: 'conversation', language: 'English', schema: 6, positioning: { recorded: true, lead: 'none', when: 'never' }, stats: { prospectWordsAfterOpening: 80, turnsAfterOpening: 10 }, opener: { recorded: true, style: 'other', quote: 'x' }, coachable: true };
 async function withBootServer(opts, fn) {
   if (typeof opts === 'function') { fn = opts; opts = {}; }
   const ctx = makeDeps(opts);

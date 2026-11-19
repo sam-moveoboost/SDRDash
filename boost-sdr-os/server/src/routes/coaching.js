@@ -216,10 +216,16 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
       .slice(0, MAX_PENDING_LOOKUPS);
 
     const transcripts = await loadTranscripts(pending);
-    const waiting = pending
+    const usableWaiting = pending
       .map((c) => ({ call: c, parsed: parseTranscript(transcripts[c.id], c.agentName) }))
       .filter((p) => usable(p.parsed));
-    const done = await loadAnalyses(analysedCalls);
+    // A call the board shows as waiting to be re-analysed may in fact have a current saved analysis (a restart
+    // or an earlier mistake put it there). Check what is saved; if it is current, it is analysed after all.
+    const held = await loadAnalyses(usableWaiting.filter((p) => p.call.coachingStatus === cfg.STATUS_REANALYSE).map((p) => p.call));
+    const restored = held.filter((p) => p.analysis && refreshOf(p.analysis) !== 'outdated');
+    const restoredIds = new Set(restored.map((p) => p.call.id));
+    const waiting = usableWaiting.filter((p) => !restoredIds.has(p.call.id));
+    const done = [...(await loadAnalyses(analysedCalls)), ...restored];
 
     const row = (c, extra) => ({
       id: c.id,
@@ -241,6 +247,7 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
     // re-analysed or analysed. A usable call with no status yet: waiting to be analysed. This runs
     // behind the response, a few at a time.
     syncBoardStatus([
+      ...restored.map((p) => ({ call: p.call, label: cfg.STATUS_ANALYSED })),
       ...done.filter((p) => p.analysis && refreshOf(p.analysis) === 'outdated').map((p) => ({ call: p.call, label: cfg.STATUS_REANALYSE })),
       ...done.filter((p) => !p.analysis && !p.unreadable).map((p) => ({ call: p.call, label: cfg.STATUS_WAITING })),
       ...waiting.filter((p) => !p.call.coachingStatus).map((p) => ({ call: p.call, label: cfg.STATUS_WAITING })),
@@ -282,6 +289,18 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
       // Calls marked Analysed whose saved result could not be read just now (storage slow). They are
       // not offered for re-analysis, so nothing is paid for twice; Refresh reads them again.
       unreadableCount: unreadable.length,
+      // For managers: why calls are waiting, in plain counts.
+      diagnosis: req.viewer.isAdmin ? (() => {
+        const d = { current: 0, olderRules: 0, noOpener: 0, noPositioning: 0, notSaved: 0, unreadable: 0 };
+        for (const p of [...done, ...held.filter((h) => !restoredIds.has(h.call.id))]) {
+          if (!p.analysis) { if (p.unreadable) d.unreadable += 1; else d.notSaved += 1; continue; }
+          if (!(p.analysis.schema >= ANALYSIS_SCHEMA)) d.olderRules += 1;
+          else if (openerUnrecorded(p.analysis)) d.noOpener += 1;
+          else if (positioningUnrecorded(p.analysis)) d.noPositioning += 1;
+          else d.current += 1;
+        }
+        return d;
+      })() : null,
       // Why, for managers: the distinct errors the stores gave, so a real fault is not hidden behind "slow".
       unreadableReasons: req.viewer.isAdmin ? [...new Set(unreadable.flatMap((p) => p.errors || []))].slice(0, 4) : [],
       transcriptTotals: { valid: analysedCalls.length + waiting.length, analysed: analysedCalls.length, waiting: waiting.length },
