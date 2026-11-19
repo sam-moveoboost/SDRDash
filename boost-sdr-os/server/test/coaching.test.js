@@ -1523,7 +1523,8 @@ test('a call whose saved analysis could not be read is not flipped to waiting', 
   });
 });
 
-// ---- a new set of rules resets the board as soon as the server starts ----
+// ---- the board is set from what is saved as soon as the server starts ----
+const CURRENT_ANALYSIS = { callType: 'conversation', language: 'English', schema: 6, positioning: { recorded: true, lead: 'none', when: 'never' }, stats: { prospectWordsAfterOpening: 80, turnsAfterOpening: 10 }, opener: { recorded: true, style: 'other', quote: 'x' }, coachable: true };
 async function withBootServer(opts, fn) {
   if (typeof opts === 'function') { fn = opts; opts = {}; }
   const ctx = makeDeps(opts);
@@ -1531,44 +1532,36 @@ async function withBootServer(opts, fn) {
   await fn({ router, ...ctx });
 }
 
-test('on the first start under new rules every analysed call is set to waiting to be re-analysed, with no page visit', async () => {
+test('on start the board is set from what is saved: current is Analysed, older rules and nothing saved are waiting to be re-analysed', async () => {
   await withBootServer(async ({ router, log, calls, deps }) => {
     for (const id of ['1', '2', '3']) calls.find((c) => c.id === id).coachingStatus = 'Analysed';
+    await deps.store.saveAnalysis('1', { ...CURRENT_ANALYSIS });
+    await deps.store.saveAnalysis('2', { ...CURRENT_ANALYSIS, schema: 4 });
     const result = await router.boot();
     assert.equal(result.failed, 0);
-    for (const id of ['1', '2', '3']) assert.equal(calls.find((c) => c.id === id).coachingStatus, 'Waiting to be re-analysed');
-    assert.equal(log.analysed.length, 0); // nothing was analysed or even read to do this
-    // The marker says the new rules have been applied, so a plain restart changes nothing.
-    const marker = await deps.store.getAnalysisChecked('meta_rules_version');
-    assert.equal(marker.analysis.rulesVersion, require('../src/lib/analysis').ANALYSIS_SCHEMA);
-    calls.find((c) => c.id === '1').coachingStatus = 'Analysed'; // analysed again since
-    const again = await router.boot();
-    assert.equal(again.upToDate, true);
+    assert.equal(calls.find((c) => c.id === '1').coachingStatus, 'Analysed');
+    assert.equal(calls.find((c) => c.id === '2').coachingStatus, 'Waiting to be re-analysed');
+    assert.equal(calls.find((c) => c.id === '3').coachingStatus, 'Waiting to be re-analysed'); // nothing saved
+    assert.equal(log.analysed.length, 0); // nothing was sent to Claude
+  });
+});
+
+test('a restart cannot undo finished work: calls set to waiting but with a current saved analysis go back to Analysed', async () => {
+  await withBootServer(async ({ router, calls, deps }) => {
+    calls.find((c) => c.id === '1').coachingStatus = 'Waiting to be re-analysed';
+    await deps.store.saveAnalysis('1', { ...CURRENT_ANALYSIS });
+    await router.boot();
+    assert.equal(calls.find((c) => c.id === '1').coachingStatus, 'Analysed');
+    await router.boot(); // starting again changes nothing further
     assert.equal(calls.find((c) => c.id === '1').coachingStatus, 'Analysed');
   });
 });
 
-test('if some calls could not be updated, the rules marker is not saved so the next start finishes the job', async () => {
-  await withBootServer(async ({ router, calls, deps }) => {
-    for (const id of ['1', '2']) calls.find((c) => c.id === id).coachingStatus = 'Analysed';
-    const original = deps.mondayApi.setStatus;
-    deps.mondayApi.setStatus = async (id, label) => { if (id === '2') throw new Error('monday said no'); return original(id, label); };
-    const first = await router.boot();
-    assert.equal(first.failed, 1);
-    assert.equal((await deps.store.getAnalysisChecked('meta_rules_version')).analysis, null);
-    deps.mondayApi.setStatus = original;
-    const second = await router.boot();
-    assert.equal(second.failed, 0);
-    assert.equal(calls.find((c) => c.id === '2').coachingStatus, 'Waiting to be re-analysed');
-  });
-});
-
-test('if the rules marker cannot be read because storage is busy, nothing is changed', async () => {
+test('a saved analysis that cannot be read on start is left alone', async () => {
   await withBootServer(async ({ router, calls, unreadable }) => {
     calls.find((c) => c.id === '1').coachingStatus = 'Analysed';
-    unreadable.add('meta_rules_version');
-    const result = await router.boot();
-    assert.equal(result.skipped, true);
+    unreadable.add('1');
+    await router.boot();
     assert.equal(calls.find((c) => c.id === '1').coachingStatus, 'Analysed');
   });
 });
