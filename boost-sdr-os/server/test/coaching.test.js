@@ -1333,7 +1333,8 @@ test('a missing positioning is not recorded, and is not counted as "did not say"
   const base = { call_type: 'conversation', coachable: false, opener_result: 'unclear', next_step_secured: false, meddpicc: {}, craft: {}, objections: [] };
   const omitted = validate({ ...base }, turns);
   assert.equal(omitted.positioning, null);
-  assert.equal(positioningUnrecorded(omitted), false); // asked for twice and left out: not offered again on every page load
+  assert.equal(positioningUnrecorded(omitted), true);
+  assert.equal(positioningUnrecorded({ ...omitted, askedTwice: true }), false); // asked twice and left out: not offered again
   const judged = validate({ ...base, positioning: { lead: 'none', when: 'never', reaction: 'ended', note: 'Hung up before the SDR said what we do.' } }, turns);
   assert.equal(judged.positioning.recorded, true);
   assert.equal(positioningUnrecorded(judged), false);
@@ -1455,7 +1456,8 @@ test('an analysis that came back with no opener is never counted as "Other", and
   const base = { call_type: 'early_hangup', coachable: false, opener_result: 'brushed_off', next_step_secured: false, craft: { opening: { score: 2 } }, objections: [], positioning: { lead: 'none', when: 'never' } };
   const without = v({ ...base }, turns);
   assert.equal(without.opener, null);
-  assert.equal(openerUnrecorded(without), false); // not offered for redoing on every page load
+  assert.equal(openerUnrecorded(without), true);
+  assert.equal(openerUnrecorded({ ...without, askedTwice: true }), false); // asked twice and left out: not offered again
   assert.ok(missingParts(without).some((p) => /"opener"/.test(p)));
   const withOne = v({ ...base, opener: { style: 'apology', quote: 'Hello' } }, turns);
   assert.equal(withOne.opener.style, 'apology');
@@ -1602,6 +1604,7 @@ test('the audit counts what is saved against the board and names the disagreemen
     assert.equal(count('analysedButNothingSaved'), 1);
     assert.equal(count('analysedButOlderRules'), 1);
     assert.equal(count('waitingButCurrentAndComplete'), 1);
+    assert.equal(count('analysedButIncomplete'), 0);
     assert.equal(audit.usedByOpeningCards, 2);
     const denied = await call('/audit', LUKE);
     assert.equal(denied.status, 403);

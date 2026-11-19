@@ -24,6 +24,7 @@ function buildAudit(pairs, { schema, labels }) {
     analysedButNothingSaved: [],
     analysedButOlderRules: [],
     analysedButNoNumbers: [],
+    analysedButIncomplete: [],
     waitingButCurrentAndComplete: [],
   };
   const example = (p) => ({ id: p.call.id, sdr: p.call.sdrName || null, startedAt: p.call.startedAt || null });
@@ -59,6 +60,7 @@ function buildAudit(pairs, { schema, labels }) {
     if (label === labels.analysed) {
       if (!current) problems.analysedButOlderRules.push(p);
       else if (!numbers) problems.analysedButNoNumbers.push(p);
+      else if (!opener || !positioning) problems.analysedButIncomplete.push(p);
     } else if (complete) {
       problems.waitingButCurrentAndComplete.push(p);
     }
@@ -68,6 +70,7 @@ function buildAudit(pairs, { schema, labels }) {
     ['analysedButNothingSaved', 'Board says Analysed, but nothing is saved for the call'],
     ['analysedButOlderRules', 'Board says Analysed, but the saved result is from older rules'],
     ['analysedButNoNumbers', 'Board says Analysed and the rules are current, but the stay-on numbers are missing'],
+    ['analysedButIncomplete', 'Board says Analysed, but the opener or what we say we are was never recorded'],
     ['waitingButCurrentAndComplete', 'Board says waiting, but a complete current result is saved'],
   ];
   out.problems = describe.map(([key, label]) => ({ key, label, count: problems[key].length, examples: problems[key].slice(0, 8).map(example) }));
