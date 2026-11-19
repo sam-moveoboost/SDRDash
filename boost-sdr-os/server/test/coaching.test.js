@@ -1333,7 +1333,7 @@ test('a missing positioning is not recorded, and is not counted as "did not say"
   const base = { call_type: 'conversation', coachable: false, opener_result: 'unclear', next_step_secured: false, meddpicc: {}, craft: {}, objections: [] };
   const omitted = validate({ ...base }, turns);
   assert.equal(omitted.positioning, null);
-  assert.equal(positioningUnrecorded(omitted), true);
+  assert.equal(positioningUnrecorded(omitted), false); // asked for twice and left out: not offered again on every page load
   const judged = validate({ ...base, positioning: { lead: 'none', when: 'never', reaction: 'ended', note: 'Hung up before the SDR said what we do.' } }, turns);
   assert.equal(judged.positioning.recorded, true);
   assert.equal(positioningUnrecorded(judged), false);
@@ -1455,7 +1455,7 @@ test('an analysis that came back with no opener is never counted as "Other", and
   const base = { call_type: 'early_hangup', coachable: false, opener_result: 'brushed_off', next_step_secured: false, craft: { opening: { score: 2 } }, objections: [], positioning: { lead: 'none', when: 'never' } };
   const without = v({ ...base }, turns);
   assert.equal(without.opener, null);
-  assert.equal(openerUnrecorded(without), true);
+  assert.equal(openerUnrecorded(without), false); // not offered for redoing on every page load
   assert.ok(missingParts(without).some((p) => /"opener"/.test(p)));
   const withOne = v({ ...base, opener: { style: 'apology', quote: 'Hello' } }, turns);
   assert.equal(withOne.opener.style, 'apology');

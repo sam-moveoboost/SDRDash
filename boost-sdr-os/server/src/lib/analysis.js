@@ -473,17 +473,20 @@ async function analyseCall({ turns, call, prospect = null }, { fetchImpl = fetch
         note = `\n\nYour previous answer left out: ${missing.join('; and ')}. Please fill these in.`;
         continue;
       }
+      // Asked twice and still missing a part: keep what there is and say it was tried, so the call is
+      // not offered again for ever (it would be flagged on every page load).
+      if (missing.length) result.askedTwice = true;
       return result;
     } catch (err) {
       const unreadable = err instanceof SyntaxError || /did not return JSON/.test(err.message);
       if (!unreadable) throw err;
       lastError = err;
       unreadableCount += 1;
-      if (thin) return thin;
+      if (thin) return Object.assign(thin, { askedTwice: true });
       if (unreadableCount >= 2) break; // an unreadable answer is retried once, no more
     }
   }
-  if (thin) return thin;
+  if (thin) return Object.assign(thin, { askedTwice: true });
   throw lastError;
 }
 
@@ -504,9 +507,9 @@ function missingParts(a) {
 
 // Analyses saved with no real opener (a default "other" with no words and no note) were never judged.
 function openerUnrecorded(a) {
-  if (!a || ['voicemail', 'automated_menu'].includes(a.callType)) return false;
+  if (!a || a.askedTwice || ['voicemail', 'automated_menu'].includes(a.callType)) return false;
   const o = a.opener;
-  if (o === null || o === undefined) return a.schema >= 6;
+  if (o === null || o === undefined) return false; // asked for twice and left out: shown as not recorded, never offered again
   if (o.recorded) return false;
   return o.style === 'other' && !o.quote && !o.note;
 }
@@ -514,9 +517,9 @@ function openerUnrecorded(a) {
 // Analyses saved before positioning was required may hold a default "did not say" the model never
 // actually judged (no words, no reaction, no note). Those are not evidence; they are offered for redoing.
 function positioningUnrecorded(a) {
-  if (!a || ['voicemail', 'automated_menu'].includes(a.callType)) return false;
+  if (!a || a.askedTwice || ['voicemail', 'automated_menu'].includes(a.callType)) return false;
   const p = a.positioning;
-  if (p === null || p === undefined) return a.schema >= 4;
+  if (p === null || p === undefined) return false; // asked for twice and left out: shown as not recorded, never offered again
   if (p.recorded) return false;
   return p.lead === 'none' && p.when === 'never' && !p.quote && p.reaction === 'unclear' && !p.note;
 }
