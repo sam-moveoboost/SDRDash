@@ -96,7 +96,7 @@ export default function Coaching({ user }) {
           coachingApi.trends(userIdParam, days, fresh, temp),
         ]);
         if (!alive) return;
-        const nextMeta = { waitingCount: cl.waitingCount, refreshCount: cl.refreshCount ?? 0, unreadableCount: cl.unreadableCount ?? 0, unreadableReasons: cl.unreadableReasons ?? [], coverage: cl.coverage, rules: cl.rules, totals: cl.transcriptTotals ?? null };
+        const nextMeta = { waitingCount: cl.waitingCount, refreshCount: cl.refreshCount ?? 0, unreadableCount: cl.unreadableCount ?? 0, unreadableReasons: cl.unreadableReasons ?? [], coverage: cl.coverage, rules: cl.rules, totals: cl.transcriptTotals ?? null, diagnosis: cl.diagnosis ?? null };
         setOverview(ov);
         setCalls(cl.calls);
         setMeta(nextMeta);
@@ -397,6 +397,17 @@ export default function Coaching({ user }) {
                         <span className="font-medium text-ink">{waiting.length}</span> call{waiting.length === 1 ? '' : 's'} waiting to be analysed
                         {(redoCount > 0 || numbersCount > 0) && ` (${[redoCount > 0 && `${redoCount} to redo with the new rules`, numbersCount > 0 && `${numbersCount} only need their numbers updated, which costs nothing`].filter(Boolean).join(', ')})`}.
                       </>
+                    )}
+                    {meta.diagnosis && waiting.length > 0 && (
+                      <div className="text-[12.5px] text-muted mt-1">
+                        What is saved for these: {[
+                          meta.diagnosis.olderRules > 0 && `${meta.diagnosis.olderRules} made under older rules`,
+                          meta.diagnosis.noOpener > 0 && `${meta.diagnosis.noOpener} with no opener recorded`,
+                          meta.diagnosis.noPositioning > 0 && `${meta.diagnosis.noPositioning} with no "what we say we are" recorded`,
+                          meta.diagnosis.notSaved > 0 && `${meta.diagnosis.notSaved} with nothing saved`,
+                          meta.diagnosis.unreadable > 0 && `${meta.diagnosis.unreadable} that could not be read just now`,
+                        ].filter(Boolean).join(', ') || 'nothing to report'}.
+                      </div>
                     )}
                     {analysing.message && <div className="text-[12.5px] text-muted mt-1">{analysing.message}</div>}
                   </div>
