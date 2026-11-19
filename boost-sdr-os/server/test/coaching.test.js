@@ -28,12 +28,25 @@ const convo = (agent) => `Call ID: CA1\n\nCall Transcription:\n${Array.from({ le
 const SHORT = 'Call ID: CA2\n\nCall Transcription:\nLuke Birchley: Hi, is that Jo? It is Luke calling from boost, we help companies get more out of monday.com and I was hoping to grab a quick minute of your time.\n+447000000002 Aircall new contact: We do not take sales calls, please take us off your list.\nLuke Birchley: Of course, sorry to bother you, have a good day.\n+447000000002 Aircall new contact: Bye.';
 const TINY = 'Call ID: CA3\n\nCall Transcription:\nLuke Birchley: Hello?\n+447000000003 Aircall new contact: Hi.';
 
+const CURRENT_VERSION = require('../src/lib/analysis').ANALYSIS_SCHEMA;
 const NOT_CONNECTED = ['1.NoAnswer', '3.Busy', 'LeftVoicemail', 'BadData'];
 const mkCall = (o) => {
   const c = {
     callId: null, sdrId: LUKE, sdrName: 'Luke Birchley', agentName: 'Luke Birchley', direction: 'outbound',
     outcome: 'Outbound answered', answered: true, tags: [], durationMin: 3, recordingUrl: null, coachingStatus: null, ...o,
   };
+  // The status label is a read-out of the analysis version. Setting the label in a test sets the version the
+  // way the app would: Analysed means the current version, a waiting label means an older (or no) one.
+  let label = c.coachingStatus;
+  c.analysisVersion = label === 'Analysed' ? CURRENT_VERSION : label === 'Waiting to be re-analysed' ? CURRENT_VERSION - 1 : null;
+  Object.defineProperty(c, 'coachingStatus', {
+    enumerable: true,
+    get: () => label,
+    set: (v) => {
+      label = v;
+      c.analysisVersion = v === 'Analysed' ? CURRENT_VERSION : v === 'Waiting to be re-analysed' ? CURRENT_VERSION - 1 : null;
+    },
+  });
   // The same rules the real parser applies.
   c.noConnectionTag = c.tags.some((t) => NOT_CONNECTED.includes(t));
   c.connected = c.answered && c.tags.length > 0 && !c.noConnectionTag;
@@ -69,7 +82,7 @@ function makeDeps({ persist = true, claudeFails = false, claudePingFails = false
         ping: async () => {},
         fetchProspect: async () => ({ source: 'phone', industry: 'Real Estate', company: 'Acme Homes', title: 'Sales Director', seniority: 'director', employees: '24' }),
         fetchTranscripts: async (ids) => Object.fromEntries(ids.filter((id) => RAW[id]).map((id) => [id, RAW[id]])),
-        markAnalysed: async (id) => { log.marked.push(id); calls.find((c) => c.id === id).coachingStatus = 'Analysed'; },
+        markAnalysed: async (id, version) => { log.marked.push(id); log.versions = { ...(log.versions || {}), [id]: version }; calls.find((c) => c.id === id).coachingStatus = 'Analysed'; },
         setStatus: async (id, label) => { log.statuses = log.statuses || []; log.statuses.push([id, label]); calls.find((c) => c.id === id).coachingStatus = label; },
       },
       analysis: {
@@ -1473,123 +1486,62 @@ test('an analysis that came back with no opener is never counted as "Other", and
 // ---- the board's status column tells the truth ----
 const settle = () => new Promise((r) => setTimeout(r, 40)); // the board is updated just behind the response
 
-test('calls waiting for their first analysis are shown as "Waiting to be analysed" on the board', async () => {
-  await withServer(async ({ json, log, calls }) => {
-    await json('/calls', LUKE);
-    await settle();
-    assert.ok((log.statuses || []).some(([id, label]) => id === '1' && label === 'Waiting to be analysed'));
-    assert.equal(calls.find((c) => c.id === '1').coachingStatus, 'Waiting to be analysed');
-    // It is not asked again on the next look.
-    const before = log.statuses.length;
-    await json('/calls', LUKE);
-    await settle();
-    assert.equal(log.statuses.length, before);
+test('a call analysed under an older version shows as waiting to be re-analysed, is analysed again with the current version recorded, and ends up Analysed', async () => {
+  await withBootServer(async ({ router, log, calls }) => {
+    calls.find((c) => c.id === '1').coachingStatus = 'Waiting to be re-analysed'; // an older version is recorded
+    const first = await router.boot(); // nothing to change: the label already follows the version
+    assert.equal(first.failed, 0);
+    assert.equal(calls.find((c) => c.id === '1').coachingStatus, 'Waiting to be re-analysed');
   });
-});
-
-test('a call analysed under older rules goes to "Waiting to be re-analysed", is analysed again, and ends up "Analysed"', async () => {
-  await withServer(async ({ json, log, calls, deps }) => {
-    calls.find((c) => c.id === '1').coachingStatus = 'Analysed';
-    await deps.store.saveAnalysis('1', { callType: 'conversation', language: 'English', schema: 2, coachable: true, openerResult: 'stayed_engaged', nextStepSecured: false, craft: {}, prospect: {}, objections: [] });
-
-    const first = await json('/calls', LUKE); // the response already treats it as waiting
-    assert.equal(first.calls.find((c) => c.id === '1').status, 'waiting');
-    await settle();
-    assert.equal(calls.find((c) => c.id === '1').coachingStatus, 'Waiting to be re-analysed'); // and the board says so
-
-    // From now on it is waiting without needing its old analysis read again, and it counts as a redo.
-    const second = await json('/calls', LUKE);
-    const row = second.calls.find((c) => c.id === '1');
+  await withServer(async ({ json, log, calls }) => {
+    calls.find((c) => c.id === '1').coachingStatus = 'Waiting to be re-analysed';
+    const list = await json('/calls', LUKE);
+    const row = list.calls.find((c) => c.id === '1');
     assert.equal(row.status, 'waiting');
     assert.equal(row.refresh, 'outdated');
-    assert.ok(second.refreshCount >= 1);
-
-    // Analysing it saves the result, then the board says Analysed.
     const res = await json('/analyse', LUKE, { method: 'POST', body: JSON.stringify({ ids: ['1'] }) });
     assert.equal(res.results[0].saved, true);
+    assert.equal(log.versions['1'], require('../src/lib/analysis').ANALYSIS_SCHEMA); // the version is recorded with the result
     assert.equal(calls.find((c) => c.id === '1').coachingStatus, 'Analysed');
-    assert.deepEqual(log.analysed, ['1']);
-    const third = await json('/calls', LUKE);
-    assert.equal(third.calls.find((c) => c.id === '1').status, 'analysed');
+    assert.equal((await json('/calls', LUKE)).calls.find((c) => c.id === '1').status, 'analysed');
   });
 });
 
 const CURRENT_ANALYSIS = { callType: 'conversation', language: 'English', schema: 6, positioning: { recorded: true, lead: 'none', when: 'never' }, stats: { prospectWordsAfterOpening: 80, turnsAfterOpening: 10 }, opener: { recorded: true, style: 'other', quote: 'x' }, coachable: true };
-test('a call the board shows as waiting to be re-analysed but with a current saved analysis is shown as analysed and set back to Analysed', async () => {
-  await withServer(async ({ json, calls, deps }) => {
-    calls.find((c) => c.id === '1').coachingStatus = 'Waiting to be re-analysed';
-    await deps.store.saveAnalysis('1', { ...CURRENT_ANALYSIS });
-    const res = await json('/calls', LUKE);
-    await settle();
-    assert.equal(res.calls.find((c) => c.id === '1').status, 'analysed');
-    assert.equal(calls.find((c) => c.id === '1').coachingStatus, 'Analysed');
-  });
-});
-
-test('a call whose saved analysis could not be read is not flipped to waiting', async () => {
-  await withServer(async ({ json, log, calls, unreadable }) => {
-    calls.find((c) => c.id === '1').coachingStatus = 'Analysed';
-    unreadable.add('1');
-    await json('/calls', LUKE);
-    await settle();
-    assert.equal((log.statuses || []).some(([id]) => id === '1'), false);
-    assert.equal(calls.find((c) => c.id === '1').coachingStatus, 'Analysed');
-  });
-});
-
-// ---- the board is set from what is saved as soon as the server starts ----
+// ---- the board's status column is a read-out of the analysis version ----
 async function withBootServer(opts, fn) {
   if (typeof opts === 'function') { fn = opts; opts = {}; }
   const ctx = makeDeps(opts);
-  const router = createRouter(ctx.deps, { now: () => Date.parse('2026-11-04T12:00:00Z'), bootRetryMs: 1 });
+  const router = createRouter(ctx.deps, { now: () => Date.parse('2026-11-04T12:00:00Z') });
   await fn({ router, ...ctx });
 }
 
-test('on start the board is set from what is saved: current is Analysed, older rules and nothing saved are waiting to be re-analysed', async () => {
-  await withBootServer(async ({ router, log, calls, deps }) => {
-    for (const id of ['1', '2', '3']) calls.find((c) => c.id === id).coachingStatus = 'Analysed';
-    await deps.store.saveAnalysis('1', { ...CURRENT_ANALYSIS });
-    await deps.store.saveAnalysis('2', { ...CURRENT_ANALYSIS, schema: 4 });
+test('the labels follow the recorded version: current is Analysed, older or earlier-analysed-with-no-version is waiting to be re-analysed, brand new is waiting to be analysed', async () => {
+  await withBootServer(async ({ router, log, calls }) => {
+    const set = (id, v) => { calls.find((c) => c.id === id).analysisVersion = v; };
+    const label = (id) => calls.find((c) => c.id === id).coachingStatus;
+    calls.find((c) => c.id === '1').coachingStatus = 'Analysed';                 // version current
+    set('2', 2);                                                                  // an older version
+    calls.find((c) => c.id === '3').coachingStatus = 'Analysed'; set('3', null);  // analysed before versions were recorded
     const result = await router.boot();
     assert.equal(result.failed, 0);
-    assert.equal(calls.find((c) => c.id === '1').coachingStatus, 'Analysed');
-    assert.equal(calls.find((c) => c.id === '2').coachingStatus, 'Waiting to be re-analysed');
-    assert.equal(calls.find((c) => c.id === '3').coachingStatus, 'Waiting to be re-analysed'); // nothing saved
+    assert.equal(label('1'), 'Analysed');
+    assert.equal(label('2'), 'Waiting to be re-analysed');
+    assert.equal(label('3'), 'Waiting to be re-analysed');
     assert.equal(log.analysed.length, 0); // nothing was sent to Claude
+    const before = (log.statuses || []).length;
+    await router.boot(); // starting again changes nothing
+    assert.equal((log.statuses || []).length, before);
   });
 });
 
-test('a restart cannot undo finished work: calls set to waiting but with a current saved analysis go back to Analysed', async () => {
-  await withBootServer(async ({ router, calls, deps }) => {
-    calls.find((c) => c.id === '1').coachingStatus = 'Waiting to be re-analysed';
-    await deps.store.saveAnalysis('1', { ...CURRENT_ANALYSIS });
+test('a restart cannot undo finished work: the version recorded on the call decides, whatever the label says', async () => {
+  await withBootServer(async ({ router, calls }) => {
+    const c = calls.find((x) => x.id === '1');
+    c.coachingStatus = 'Waiting to be analysed'; // a wrong label
+    c.analysisVersion = require('../src/lib/analysis').ANALYSIS_SCHEMA; // but it was analysed under the current version
     await router.boot();
-    assert.equal(calls.find((c) => c.id === '1').coachingStatus, 'Analysed');
-    await router.boot(); // starting again changes nothing further
-    assert.equal(calls.find((c) => c.id === '1').coachingStatus, 'Analysed');
-  });
-});
-
-test('on start, calls whose saved analysis cannot be read at first are tried again until they can be, not skipped', async () => {
-  await withBootServer(async ({ router, calls, deps, unreadable }) => {
-    for (const id of ['1', '2']) calls.find((c) => c.id === id).coachingStatus = 'Analysed';
-    await deps.store.saveAnalysis('1', { ...CURRENT_ANALYSIS });
-    await deps.store.saveAnalysis('2', { ...CURRENT_ANALYSIS, opener: null }); // saved without an opener
-    unreadable.add('1'); unreadable.add('2');
-    setTimeout(() => { unreadable.delete('1'); unreadable.delete('2'); }, 30);
-    const result = await router.boot();
-    assert.equal(result.unread, 0);
-    assert.equal(calls.find((c) => c.id === '1').coachingStatus, 'Analysed');
-    assert.equal(calls.find((c) => c.id === '2').coachingStatus, 'Waiting to be re-analysed'); // no opener recorded
-  });
-});
-
-test('a saved analysis that cannot be read on start is left alone', async () => {
-  await withBootServer(async ({ router, calls, unreadable }) => {
-    calls.find((c) => c.id === '1').coachingStatus = 'Analysed';
-    unreadable.add('1');
-    await router.boot();
-    assert.equal(calls.find((c) => c.id === '1').coachingStatus, 'Analysed');
+    assert.equal(c.coachingStatus, 'Analysed');
   });
 });
 

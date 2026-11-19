@@ -65,6 +65,9 @@ function parseCall(item) {
     // A real connection: answered, tagged by the SDR, and not tagged as no answer, busy or voicemail.
     connected: answered && tags.length > 0 && !noConnectionTag,
     coachingStatus: text(COLS.coachingStatus) || null,
+    // The rules version this call was analysed under (blank until it is analysed). This decides whether it is
+    // analysed, waiting to be re-analysed or waiting to be analysed.
+    analysisVersion: Number.isFinite(parseFloat(text(COLS.analysisVersion))) ? parseFloat(text(COLS.analysisVersion)) : null,
     direction: text(COLS.direction).toLowerCase(),
     tags,
     durationMin,
@@ -178,7 +181,10 @@ async function setStatus(itemId, label) {
   }
 }
 
-// Marks a call as analysed on the board.
-const markAnalysed = (itemId) => setStatus(itemId, STATUS_ANALYSED);
+// Marks a call as analysed: records the rules version it was analysed under and shows Analysed, in one write.
+async function markAnalysed(itemId, version) {
+  const values = JSON.stringify({ [COLS.coachingStatus]: { label: STATUS_ANALYSED }, [COLS.analysisVersion]: String(version) });
+  await gql(`mutation($b: ID!, $i: ID!, $v: JSON!) { change_multiple_column_values(board_id: $b, item_id: $i, column_values: $v, create_labels_if_missing: true) { id } }`, { b: CALLS_BOARD, i: String(itemId), v: values });
+}
 
 module.exports = { fetchCalls, fetchCall, fetchTranscripts, fetchProspect, parseCall, parseProspect, markAnalysed, setStatus, ping };
