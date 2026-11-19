@@ -19,7 +19,8 @@ module.exports = {
     endedAt: 'date_mm19jrq',
     recording: 'link_mm19c866',
     duration: 'formula_mm3jzhbk',
-    coachingStatus: 'color_mm8sjkwt', // "Coaching analysis" status column, set to Analysed by the app
+    coachingStatus: 'color_mm8sjkwt', // "Coaching analysis" status column: a read-out, set by the app
+    analysisVersion: 'numeric_mm98nyp4', // "Analysis version": the rules version the call was analysed under. This decides the status.
     prospects: 'board_relation_mm2cmzgw', // "Outbound prospects": link to the prospect the call was made to
     externalPhone: 'phone_mm19p9w6', // the number that was called
   },
