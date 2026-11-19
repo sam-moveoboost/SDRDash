@@ -1385,8 +1385,6 @@ test('an analysis that only lacks the stay-on numbers is updated from the transc
       callType: 'conversation', language: 'English', schema: 6, positioning: { recorded: true, lead: 'none', when: 'never' },
       coachable: true, openerResult: 'stayed_engaged', nextStepSecured: false, craft: {}, prospect: {}, objections: [], opener: { recorded: true, style: 'other', quote: 'x' },
     });
-    const list = await json('/calls', LUKE);
-    assert.equal(list.calls.find((c) => c.id === '1').refresh, 'numbers');
     const res = await json('/analyse', LUKE, { method: 'POST', body: JSON.stringify({ ids: ['1'] }) });
     assert.equal(res.results[0].numbersOnly, true);
     assert.equal(res.results[0].saved, true);
@@ -1513,6 +1511,20 @@ test('a call analysed under older rules goes to "Waiting to be re-analysed", is 
 });
 
 const CURRENT_ANALYSIS = { callType: 'conversation', language: 'English', schema: 6, positioning: { recorded: true, lead: 'none', when: 'never' }, stats: { prospectWordsAfterOpening: 80, turnsAfterOpening: 10 }, opener: { recorded: true, style: 'other', quote: 'x' }, coachable: true };
+test('calls saved under the current rules that only lack their stay-on numbers get them from the transcript, at no cost, when the page loads', async () => {
+  await withServer(async ({ json, calls, deps, log }) => {
+    calls.find((c) => c.id === '1').coachingStatus = 'Analysed';
+    const { stats, ...noNumbers } = CURRENT_ANALYSIS;
+    await deps.store.saveAnalysis('1', noNumbers);
+    await json('/calls', LUKE);
+    await settle();
+    await settle();
+    const saved = await deps.store.getAnalysisChecked('1');
+    assert.ok(Number.isFinite(saved.analysis.stats?.prospectWordsAfterOpening));
+    assert.equal(log.analysed.length, 0); // Claude was not used
+  });
+});
+
 test('a call the board shows as waiting to be re-analysed but with a current saved analysis is shown as analysed and set back to Analysed', async () => {
   await withServer(async ({ json, calls, deps }) => {
     calls.find((c) => c.id === '1').coachingStatus = 'Waiting to be re-analysed';

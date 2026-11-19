@@ -253,6 +253,9 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
       ...waiting.filter((p) => !p.call.coachingStatus).map((p) => ({ call: p.call, label: cfg.STATUS_WAITING })),
     ]).catch((err) => console.error(`[board] status sync failed: ${err.message}`));
 
+    // Calls missing only their stay-on numbers get them now, behind the response, at no cost.
+    backfillNumbers(done).catch((err) => console.error(`[numbers] ${err.message}`));
+
     // Every call that still needs analysing is always sent, so "Analyse all" really covers them all.
     // Finished calls fill the rest of the list, newest first, up to a cap.
     const waitingRows = [
@@ -558,6 +561,34 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
   // re-analysed. Nothing saved: Waiting to be re-analysed (it said Analysed, but there is nothing to
   // show). A saved analysis that cannot be read just now is left alone. Nothing is ever sent to Claude
   // here, and a restart cannot undo finished work, because the board is set from what is stored.
+  // Analyses saved under the current rules that are only missing the stay-on numbers get them worked out from
+  // the transcript, with no Claude and no cost, so the opening cards can use every analysed call.
+  let backfilling = false;
+  async function backfillNumbers(pairs) {
+    const need = pairs.filter((p) => p.analysis && refreshOf(p.analysis) === 'numbers');
+    if (!need.length || backfilling) return { filled: 0, needed: need.length };
+    backfilling = true;
+    let filled = 0;
+    try {
+      for (let i = 0; i < need.length; i += 10) {
+        const batch = need.slice(i, i + 10);
+        const texts = await loadTranscripts(batch.map((p) => p.call));
+        for (const p of batch) {
+          const parsed = parseTranscript(texts[p.call.id], p.call.agentName);
+          if (!parsed) continue;
+          const updated = { ...p.analysis, stats: { ...(p.analysis.stats || {}), ...statsToKeep(parsed.stats) } };
+          if (await store.saveAnalysis(p.call.id, updated)) { p.analysis = updated; filled += 1; }
+        }
+      }
+    } catch (err) {
+      console.error(`[numbers] could not finish: ${err.message}`);
+    } finally {
+      backfilling = false;
+    }
+    console.log(`[numbers] ${filled} of ${need.length} calls given their stay-on numbers`);
+    return { filled, needed: need.length };
+  }
+
   router.boot = async () => {
     try {
       const all = await loadCalls(cfg.MAX_DAYS);
@@ -573,6 +604,7 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
         targets.push({ call: p.call, label });
       }
       const result = await syncBoardStatus(targets);
+      await backfillNumbers(pairs);
       console.log(`[rules] board checked against saved analyses: ${result.changed} changed, ${result.failed} failed`);
       return result;
     } catch (err) {
