@@ -14,7 +14,15 @@ const OPENER_RESULT_LABELS = {
   stayed_engaged: 'Prospect stayed', brushed_off: 'Brushed off', hung_up: 'Prospect hung up', blocked_by_gatekeeper: 'Blocked by gatekeeper', unclear: 'Unclear',
 };
 const OPENER_STYLE_LABELS = { warm_followup: 'Warm reference', apology: 'Apology', role_check: 'Role check', cold_permission_ask: 'Permission ask', credentials_first: 'Who we are first', named_person_ask: 'Other', pain_question_hook: 'Problem or result hook', other: 'Other' };
-const OBJECTION_GROUP_LABELS = { not_interested: 'Not interested', not_a_good_time: 'Not a good time', no_time: 'Not a good time', bad_timing: 'Not a good time', send_email: 'Send me an email', already_covered: 'Already covered', already_have_solution: 'Already covered', using_competitor: 'Already covered', no_budget: 'No budget', too_small_or_no_need: 'Too small or no need', wrong_person: 'Wrong person', data_source_challenge: 'Asks how they got the number', other: 'Other' };
+const OBJECTION_GROUP_LABELS = {
+  not_now_busy: 'Not now, busy', already_covered: 'Already covered', no_need_or_not_applicable: 'No need or does not fit', not_my_remit: 'Not my remit',
+  send_info_deferral: 'Send me information', flat_no: 'Flat no', stale_contact: 'Left or wrong number', trust_identity_challenge: 'Who are you, how did you get my number',
+  no_budget_priority_capacity: 'Budget, priority or capacity', gatekeeper_block: 'Gatekeeper block', other: 'Other',
+  // names used by analyses made under earlier rules
+  not_interested: 'Flat no', not_a_good_time: 'Not now, busy', no_time: 'Not now, busy', bad_timing: 'Not now, busy', send_email: 'Send me information',
+  already_have_solution: 'Already covered', using_competitor: 'Already covered', no_budget: 'Budget, priority or capacity', too_small_or_no_need: 'No need or does not fit',
+  wrong_person: 'Not my remit', data_source_challenge: 'Who are you, how did you get my number',
+};
 const openerTone = (r) => (r === 'stayed_engaged' ? 'good' : r === 'hung_up' || r === 'brushed_off' ? 'bad' : 'muted');
 
 export const pct = (v, dp = 0) => (v == null ? 'n/a' : `${(v * 100).toFixed(dp)}%`);
@@ -329,7 +337,7 @@ export function CallDetail({ call, demo }) {
           <div className="space-y-3">
             {a.objections.map((o, i) => (
               <div key={i} className="rounded-xl border border-line p-3">
-                <div className="flex items-center gap-2 mb-2"><Chip tone="info">{OBJECTION_GROUP_LABELS[o.category] || o.category.replace(/_/g, ' ')}</Chip>{o.stage && <Chip>{o.stage === 'opener' ? 'in the opener' : o.stage === 'close' ? 'at the close' : 'mid-call'}</Chip>}<Chip tone={o.handled === 'well' ? 'good' : o.handled === 'poorly' ? 'bad' : 'warn'}>handled {o.handled}</Chip></div>
+                <div className="flex items-center gap-2 mb-2"><Chip tone="info">{OBJECTION_GROUP_LABELS[o.category] || o.category.replace(/_/g, ' ')}</Chip>{o.stage && <Chip>{o.stage === 'opener' ? 'in the opener' : o.stage === 'close' ? 'at the close' : 'mid-call'}</Chip>}<Chip tone={o.handled === 'well' ? 'good' : o.handled === 'poorly' ? 'bad' : 'warn'}>handled {o.handled}{Number.isFinite(o.score) ? ` (${o.score}/10)` : ''}</Chip>{o.brushOff && <Chip>brush-off</Chip>}</div>
                 <Said label="Prospect: " en={o.quoteEn} original={o.quote} />
                 {o.responseQuote && <div className="mt-1.5"><Said label="SDR: " en={o.responseQuoteEn} original={o.responseQuote} /></div>}
                 {o.why && <div className="text-[12px] text-muted mt-1.5">{o.why}</div>}
