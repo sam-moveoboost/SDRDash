@@ -1606,6 +1606,7 @@ test('every part of the answer shape is required and nothing else is allowed', (
       assert.deepEqual(n.required, Object.keys(n.properties));
     }
     assert.equal('minimum' in n || 'maximum' in n || 'minItems' in n, false);
+    assert.equal('anyOf' in n, false); // value-or-empty choices make the grammar too large for Claude to accept
     Object.values(n).forEach(check);
   };
   check(OUTPUT_SCHEMA);
