@@ -56,4 +56,6 @@ module.exports = {
 
   RUBRIC_VERSION: 1, // bump to re-analyse everything after changing the rubric
   CLAUDE_MODEL: 'claude-sonnet-5-5',
+  // How hard Claude thinks per call. Low keeps each call to seconds; the trial checks quality holds.
+  CLAUDE_EFFORT: 'low',
 };

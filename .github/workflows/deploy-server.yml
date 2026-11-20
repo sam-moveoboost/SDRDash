@@ -60,4 +60,19 @@ jobs:
           VERSION_ID: ${{ inputs.version_id || vars.SERVER_VERSION_ID || '19622115' }}
         run: |
           echo "{\"accessToken\":\"$MAPPS_ACCESS_TOKEN\"}" > .mappsrc
-          mapps code:push -i "$VERSION_ID"
+          # monday refuses a new deployment while an earlier one is still in progress. Wait and try again
+          # (up to about 30 minutes) instead of failing, so a merge always ends up live.
+          set -o pipefail
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            if mapps code:push -i "$VERSION_ID" 2>&1 | tee push.log; then
+              exit 0
+            fi
+            if grep -q "existing deployment in progress" push.log; then
+              echo "An earlier deployment is still in progress (attempt $attempt). Waiting 3 minutes."
+              sleep 180
+            else
+              exit 1
+            fi
+          done
+          echo "Gave up: monday still reports an earlier deployment in progress."
+          exit 1

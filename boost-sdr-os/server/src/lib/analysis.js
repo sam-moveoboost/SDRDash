@@ -3,7 +3,7 @@
 // and why people hang up is some of the most useful coaching data.
 
 const { getSecret } = require('./secrets');
-const { CLAUDE_MODEL, RUBRIC_VERSION } = require('./config');
+const { CLAUDE_MODEL, CLAUDE_EFFORT, RUBRIC_VERSION } = require('./config');
 const { renderForModel } = require('./transcript');
 
 
@@ -156,6 +156,30 @@ const ANALYSIS_TOOL = {
   },
 };
 
+// The shape Claude must answer in. Structured outputs on the API guarantee the answer matches it exactly: every
+// object lists all its fields as required and allows nothing else, and a field that may be empty says so with
+// null. Number limits are not supported there, so they are checked in validate() instead.
+function strictSchema(node) {
+  if (Array.isArray(node)) return node.map(strictSchema);
+  if (!node || typeof node !== 'object') return node;
+  const out = {};
+  for (const [k, v] of Object.entries(node)) {
+    if (['minimum', 'maximum', 'minItems', 'maxItems', 'minLength', 'maxLength'].includes(k)) continue;
+    out[k] = k === 'properties' ? Object.fromEntries(Object.entries(v).map(([pk, pv]) => [pk, strictSchema(pv)])) : strictSchema(v);
+  }
+  // ["object", "null"] and the like become anyOf, the form structured outputs accept.
+  if (Array.isArray(out.type)) {
+    const { type, ...rest } = out;
+    return { anyOf: type.map((t) => (t === 'null' ? { type: 'null' } : strictSchema({ ...rest, type: t }))) };
+  }
+  if (out.type === 'object' && out.properties) {
+    out.required = Object.keys(out.properties);
+    out.additionalProperties = false;
+  }
+  return out;
+}
+const OUTPUT_SCHEMA = strictSchema(ANALYSIS_TOOL.input_schema);
+
 const SYSTEM = `You are a sales coach reviewing a recorded call by an SDR (sales development rep) at boost, a monday.com partner that sells implementation and consulting services. Coach the way a good sales manager would: specific, fair, practical and kind, never harsh.
 
 You will get a transcript where the SDR is labelled "SDR" and the other person "PROSPECT". Transcripts are machine-generated and can contain errors; do not criticise transcription mistakes. Many calls are short. A prospect who hangs up or brushes the SDR off within the first few exchanges is useful data, so analyse it, do not dismiss it.
@@ -180,7 +204,8 @@ Rules:
 - Coach on what the SDR controls (the opening, listening, how they answered the objection, the ask for the next step), not on the prospect's behaviour. Praise only specific things, and keep the tone of a manager who wants this person to improve.
 - Be honest. Praise only what happened.
 - "objections": each genuine objection or brush-off from the prospect (up to four) with the SDR's actual reply and where it came ("opener" means within the first couple of exchanges). Use an empty list if there were none.
-- "prospect" and "opener": only use what is said on the call. Use null or "unknown" when it is not stated; never guess a job title.
+- "prospect": only use what is said on the call. Use null or "unknown" when it is not stated; never guess a job title.
+- "opener" and "positioning": always fill these in for every call where a person answered, even a very short one. Judge them from the first things the SDR said; if the call ended before the SDR said anything usable, use style "other" or lead "none" and say so in the note.
 - "industry": always choose the closest item from the fixed list, so industries can be compared across calls. If the message includes a CRM record, use its industry (mapped onto the list) and set industry_source to "crm". Otherwise use what is said on the call ("call"), or, when the company name makes the industry clear, that ("company_name"). If it cannot be told, use "Other" with industry_source "unknown". The CRM record is context from our own database and can be incomplete; the call itself wins if they clearly disagree.
 
 Opener style: almost every call starts by checking who is on the line ("is that Alex?", "am I speaking to the right person?"). Ignore that step, and any automated screener ("record your name and reason"). Judge by the FIRST THING the SDR says after it: what they do next, not how the call went. Choose exactly one, using this order when more than one fits (warm reference, apology, role check, then the rest):
@@ -212,7 +237,7 @@ Objection category: choose the closest group and use "other" only when none fits
 - data_source_challenge: asks how the SDR got their number or details.
 Give each distinct objection its own entry. If the prospect misunderstood what boost does, pick the closest group and explain in "why".
 
-Record your analysis by calling the record_call_analysis tool, using exactly this shape:
+Return your analysis as one JSON object in exactly this shape:
 {
   "call_type": ${list(CALL_TYPES)},
   "language": "the main language the call was spoken in, written in English, for example English or Hebrew",
@@ -406,7 +431,7 @@ function extractJson(text) {
 
 async function askClaude(user, apiKey, fetchImpl) {
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 55000);
+  const timer = setTimeout(() => ctrl.abort(), 120000);
   try {
     const res = await fetchImpl('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -414,14 +439,13 @@ async function askClaude(user, apiKey, fetchImpl) {
       headers: anthropicHeaders(apiKey),
       body: JSON.stringify({
         model: CLAUDE_MODEL,
-        // Generous: an analysis with several quotes, each given in the original language and in
-        // English (Hebrew costs more tokens), can run long. Only tokens actually produced are paid for.
-        max_tokens: 8000,
+        // Room for an analysis with several quotes in the original language and in English. Only tokens
+        // actually produced are paid for.
+        max_tokens: 16000,
         system: SYSTEM,
-        tools: [ANALYSIS_TOOL],
-        // Forcing the tool is refused by this model, so it is offered and asked for instead.
-        // A plain-text reply is still understood (see readAnalysis).
-        tool_choice: { type: 'auto' },
+        // The answer must match OUTPUT_SCHEMA exactly (structured outputs). Effort is kept low: classifying and
+        // coaching one call does not need long deliberation, and high effort is what made each call slow.
+        output_config: { effort: CLAUDE_EFFORT, format: { type: 'json_schema', schema: OUTPUT_SCHEMA } },
         messages: [{ role: 'user', content: user }],
       }),
     });
@@ -435,6 +459,7 @@ async function askClaude(user, apiKey, fetchImpl) {
 // The structured answer, or (if Claude replied in plain text instead) JSON pulled out of the text.
 function readAnalysis(json) {
   if (json.stop_reason === 'max_tokens') throw new Error('Claude ran out of room before finishing its answer');
+  if (json.stop_reason === 'refusal') throw new Error('Claude declined to analyse this call');
   const blocks = json.content || [];
   const tool = blocks.find((b) => b.type === 'tool_use' && b.name === ANALYSIS_TOOL.name);
   if (tool && tool.input && typeof tool.input === 'object') return tool.input;
@@ -454,40 +479,31 @@ async function analyseCall({ turns, call, prospect = null }, { fetchImpl = fetch
     prospect.industry && `Industry (CRM): ${prospect.industry}`,
   ].filter(Boolean) : [];
   const crm = crmLines.length ? `\n\nCRM record for the person called (from our own database, may be incomplete):\n${crmLines.join('\n')}` : '';
-  const user = `Call length: ${length}.${crm}\n\nTranscript:\n${renderForModel(turns)}\n\nRecord your analysis by calling the record_call_analysis tool.`;
+  const user = `Call length: ${length}.${crm}\n\nTranscript:\n${renderForModel(turns)}\n\nReturn your analysis as JSON.`;
 
-  // An unreadable answer is retried once; any other failure is reported straight away. A real
-  // conversation that comes back with no craft scores and no key exchanges is sent back once, asking
-  // for the feedback that was left out.
-  let lastError;
-  let thin = null;
+  // One request. An unreadable answer (which structured outputs should prevent) is tried once more. An answer
+  // missing a required part is sent back once naming what is missing; if it is still missing, the call fails
+  // with the reason and is NOT saved, so an incomplete result can never be counted as analysed.
   let note = '';
-  let unreadableCount = 0;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  let unreadable = 0;
+  for (;;) {
     const json = await askClaude(user + note, apiKey, fetchImpl);
+    let result;
     try {
-      const result = validate(readAnalysis(json), turns, prospect);
-      const missing = missingParts(result);
-      if (missing.length && !note) {
-        thin = result;
-        note = `\n\nYour previous answer left out: ${missing.join('; and ')}. Please fill these in.`;
-        continue;
-      }
-      // Asked twice and still missing a part: keep what there is and say it was tried, so the call is
-      // not offered again for ever (it would be flagged on every page load).
-      if (missing.length) result.askedTwice = true;
-      return result;
+      result = validate(readAnalysis(json), turns, prospect);
     } catch (err) {
-      const unreadable = err instanceof SyntaxError || /did not return JSON/.test(err.message);
-      if (!unreadable) throw err;
-      lastError = err;
-      unreadableCount += 1;
-      if (thin) return Object.assign(thin, { askedTwice: true });
-      if (unreadableCount >= 2) break; // an unreadable answer is retried once, no more
+      const isUnreadable = err instanceof SyntaxError || /did not return JSON/.test(err.message);
+      if (!isUnreadable || unreadable >= 1) throw err;
+      unreadable += 1;
+      continue;
     }
+    const missing = missingParts(result);
+    if (!missing.length) return result;
+    if (note) {
+      throw Object.assign(new Error(`incomplete: ${missing.map((m) => m.split(':')[0]).join(', ')}`), { code: 'incomplete' });
+    }
+    note = `\n\nYour previous answer left out: ${missing.join('; and ')}. Please fill these in.`;
   }
-  if (thin) return Object.assign(thin, { askedTwice: true });
-  throw lastError;
 }
 
 // A call with a person on the line and no craft scores at all has not been coached, however short it was.
@@ -507,9 +523,9 @@ function missingParts(a) {
 
 // Analyses saved with no real opener (a default "other" with no words and no note) were never judged.
 function openerUnrecorded(a) {
-  if (!a || a.askedTwice || ['voicemail', 'automated_menu'].includes(a.callType)) return false;
+  if (!a || ['voicemail', 'automated_menu'].includes(a.callType)) return false;
   const o = a.opener;
-  if (o === null || o === undefined) return true; // never recorded (unless Claude was asked twice and left it out)
+  if (o === null || o === undefined) return true; // never recorded
   if (o.recorded) return false;
   return o.style === 'other' && !o.quote && !o.note;
 }
@@ -517,9 +533,9 @@ function openerUnrecorded(a) {
 // Analyses saved before positioning was required may hold a default "did not say" the model never
 // actually judged (no words, no reaction, no note). Those are not evidence; they are offered for redoing.
 function positioningUnrecorded(a) {
-  if (!a || a.askedTwice || ['voicemail', 'automated_menu'].includes(a.callType)) return false;
+  if (!a || ['voicemail', 'automated_menu'].includes(a.callType)) return false;
   const p = a.positioning;
-  if (p === null || p === undefined) return true; // never recorded (unless Claude was asked twice and left it out)
+  if (p === null || p === undefined) return true; // never recorded
   if (p.recorded) return false;
   return p.lead === 'none' && p.when === 'never' && !p.quote && p.reaction === 'unclear' && !p.note;
 }
@@ -535,15 +551,14 @@ async function ping({ fetchImpl = fetch } = {}) {
       method: 'POST',
       signal: ctrl.signal,
       headers: anthropicHeaders(apiKey),
-      // Sends the real analysis tool too, so a format Anthropic would reject shows up here
+      // Sends the real answer schema too, so a format Anthropic would reject shows up here
       // and not on every analysis. The tiny token limit keeps the cost negligible; running out
       // of room is fine because only the request being accepted matters.
       body: JSON.stringify({
         model: CLAUDE_MODEL,
         max_tokens: 16,
-        tools: [ANALYSIS_TOOL],
-        tool_choice: { type: 'auto' },
-        messages: [{ role: 'user', content: 'Check: record a test analysis.' }],
+        output_config: { effort: CLAUDE_EFFORT, format: { type: 'json_schema', schema: OUTPUT_SCHEMA } },
+        messages: [{ role: 'user', content: 'Check: return a test analysis.' }],
       }),
     });
     if (!res.ok) throw new Error(await describeFailure(res));
@@ -629,6 +644,7 @@ const CALL_TYPE_LABELS = {
 };
 
 module.exports = {
+  OUTPUT_SCHEMA,
   analyseCall, isThin, missingParts, positioningUnrecorded, openerUnrecorded, ping, validate, extractJson, CRAFT, SYSTEM, ANALYSIS_SCHEMA, INDUSTRIES,
   OBJECTION_LABELS, OBJECTION_DESCRIPTIONS, POSITIONING_LABELS, POSITIONING_DESCRIPTIONS, OPENER_LABELS, OPENER_DESCRIPTIONS, modernCategory, modernOpener, SENIORITY_LABELS, CALL_TYPE_LABELS,
 };

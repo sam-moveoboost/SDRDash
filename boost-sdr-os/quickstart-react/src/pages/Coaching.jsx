@@ -4,6 +4,7 @@ import { coachingApi } from '../api/coaching';
 import { demoOverview, demoCalls, demoTrends } from '../utils/coachingDemoData';
 import StatCard from '../components/shared/StatCard';
 import AuditPanel from '../components/coaching/AuditPanel';
+import TrialPanel from '../components/coaching/TrialPanel';
 import {
   Section, Card, Chip, Empty, WeekBars, TeamTable, FocusPanel, CallDetail, TrendsPanel, CoverageTable, fmtWhen, pct, num, CALL_TYPE_LABELS,
 } from '../components/coaching/CoachingParts';
@@ -11,8 +12,8 @@ import {
 const DAY_OPTIONS = [14, 30, 60, 90];
 const fmtDay = (iso) => new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
 const BATCH = 5;
-const ALL_WORKERS = 2; // calls analysed at the same time when running them all
-const SECONDS_PER_CALL = 45; // rough guide for the time estimate
+const ALL_WORKERS = 8; // calls analysed at the same time when running them all (matches the server)
+const SECONDS_PER_CALL = 20; // rough guide for the time estimate (low effort, structured answer)
 
 // Turns a failed request into something a person can act on.
 function explain(err) {
@@ -534,6 +535,8 @@ export default function Coaching({ user }) {
           {isAdmin && !demo && (
             <Section title="Check what is saved" sub="Sets what the board says against what is really saved for each call, so the numbers on this page can be trusted.">
               <Card><AuditPanel /></Card>
+              <div className="h-3" />
+              <Card><TrialPanel /></Card>
             </Section>
           )}
 

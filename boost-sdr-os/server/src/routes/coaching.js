@@ -21,7 +21,7 @@ const { statsFor, bySdr } = require('../lib/metrics');
 const { summarise } = require('../lib/focus');
 const { buildTrends, forEveryone } = require('../lib/trends');
 const { reviewPriority } = require('../lib/priority');
-const { ANALYSIS_SCHEMA, positioningUnrecorded, openerUnrecorded, modernOpener } = require('../lib/analysis');
+const { ANALYSIS_SCHEMA, positioningUnrecorded, openerUnrecorded, modernOpener, missingParts } = require('../lib/analysis');
 const { measured } = require('../lib/outcome');
 const { buildAudit } = require('../lib/audit');
 
@@ -33,7 +33,7 @@ const RECHECK_OLD_MS = 6 * 60 * 60 * 1000;
 const MAX_PENDING_LOOKUPS = 400;
 const MAX_ROWS = 200;
 
-function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() } = {}) {
+function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now(), maxJobWorkers = 8 } = {}) {
   const { mondayApi, analysis, store } = { ...defaults, ...deps };
   const router = express.Router();
   router.use(auth);
@@ -454,7 +454,7 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
   // analysing on its own, a couple at a time, and the page only ever makes short requests. Results
   // are kept in memory for a while; the analyses themselves are saved permanently as before.
   const JOB_KEEP_MS = 30 * 60 * 1000;
-  const MAX_JOB_WORKERS = 2;
+  const MAX_JOB_WORKERS = maxJobWorkers; // calls analysed at the same time (8 live); each takes seconds at low effort
   const MAX_JOB_IDS = 200;
   const jobs = new Map(); // id -> { state, viewerId, result?, at }
   const jobQueue = [];
@@ -476,6 +476,72 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
   }
   const sweepJobs = () => { for (const [id, j] of jobs) if (now() - j.at > JOB_KEEP_MS && j.state !== 'running') jobs.delete(id); };
   const mayRead = (job, viewer) => viewer.isAdmin || job.viewerId === viewer.userId;
+
+  // ---- trial: analyse a handful of real calls and show the raw result, saving nothing ----
+  // Managers only. Picks calls of different lengths (or the ones asked for), runs the real analysis on each, and
+  // reports the time taken and whether every required part came back. Nothing is saved and the board is not
+  // touched, so it can be run before trusting a new set of rules on every call.
+  let trial = null; // { startedAt, done, total, results }
+  async function runTrial(calls) {
+    trial = { startedAt: new Date(now()).toISOString(), done: 0, total: calls.length, results: [] };
+    const mine = trial;
+    await Promise.all(calls.map(async (call) => {
+      const t0 = Date.now();
+      const base = { id: call.id, sdrName: call.sdrName, startedAt: call.startedAt, durationMin: call.durationMin };
+      try {
+        const raw = (await loadTranscripts([call]))[call.id];
+        const parsed = parseTranscript(raw, call.agentName);
+        if (!usable(parsed)) throw new Error('no usable transcript');
+        const prospect = typeof mondayApi.fetchProspect === 'function' ? await mondayApi.fetchProspect(call) : null;
+        const a = await analysis.analyseCall({ turns: parsed.turns, call, prospect });
+        mine.results.push({
+          ...base,
+          seconds: Math.round((Date.now() - t0) / 100) / 10,
+          complete: missingParts(a).length === 0,
+          callType: a.callType,
+          openerResult: a.openerResult,
+          opener: a.opener && { style: a.opener.style, quote: a.opener.quoteEn || a.opener.quote, note: a.opener.note },
+          positioning: a.positioning && { lead: a.positioning.lead, quote: a.positioning.quoteEn || a.positioning.quote, note: a.positioning.note },
+          objections: a.objections.map((o) => ({ category: o.category, stage: o.stage, quote: o.quoteEn || o.quote, reply: o.responseQuoteEn || o.responseQuote, handled: o.handled })),
+          craftScored: Object.values(a.craft || {}).filter((c) => Number.isFinite(c?.score)).length,
+          keyExchanges: a.keyExchanges.length,
+          summary: a.summary,
+        });
+      } catch (err) {
+        mine.results.push({ ...base, seconds: Math.round((Date.now() - t0) / 100) / 10, complete: false, error: err.message });
+      } finally {
+        mine.done += 1;
+      }
+    }));
+  }
+
+  router.post('/analyse/trial', express.json(), handle(async (req, res) => {
+    if (!req.viewer.isAdmin) return res.status(403).json({ error: 'forbidden', message: 'Only managers can run a trial.' });
+    if (trial && trial.done < trial.total) return res.json({ started: false, message: 'A trial is already running.' });
+    const ids = [...new Set((req.body?.ids || []).map(String))].slice(0, 10);
+    let picked;
+    if (ids.length) {
+      picked = (await Promise.all(ids.map((id) => getCall(id)))).filter(Boolean);
+    } else {
+      // Two short, two medium and two long calls with usable transcripts, from different SDRs where possible.
+      const recent = (await loadCalls(30)).filter(isCandidate).slice(0, 120);
+      const texts = await loadTranscripts(recent);
+      const usableCalls = recent
+        .map((c) => ({ c, p: parseTranscript(texts[c.id], c.agentName) }))
+        .filter((x) => usable(x.p))
+        .sort((x, y) => x.p.stats.chars - y.p.stats.chars);
+      const n = usableCalls.length;
+      const at = (f) => usableCalls[Math.min(n - 1, Math.floor(f * n))]?.c;
+      picked = [...new Set([at(0.1), at(0.25), at(0.45), at(0.6), at(0.8), at(0.95)].filter(Boolean))];
+    }
+    runTrial(picked).catch((err) => console.error(`[trial] ${err.message}`));
+    res.json({ started: true, total: picked.length });
+  }));
+
+  router.get('/analyse/trial', handle(async (req, res) => {
+    if (!req.viewer.isAdmin) return res.status(403).json({ error: 'forbidden', message: 'Only managers can see the trial.' });
+    res.json(trial || { done: 0, total: 0, results: [] });
+  }));
 
   router.post('/analyse/start', express.json(), handle(async (req, res) => {
     const ids = [...new Set((req.body?.ids || []).map(String))].slice(0, MAX_JOB_IDS);
