@@ -47,10 +47,10 @@ const modernOpener = (c) => LEGACY_OPENER[c] || c;
 // Five opening types, grouped from a read of the real transcripts since 1 Nov (65 valid ones):
 // about half referred to an earlier connection, a fifth were a cold request for a moment, and the
 // rest were credentials first, asking for a named person, or opening with a pain-point question.
-const OPENER_STYLES = ['warm_followup', 'apology', 'role_check', 'cold_permission_ask', 'credentials_first', 'pain_question_hook', 'other'];
+const OPENER_STYLES = ['warm_followup', 'apology', 'role_check', 'cold_permission_ask', 'credentials_first', 'pain_question_hook', 'pleasantry', 'other'];
 
 // Bump when the shape or the rules of an analysis change, so earlier analyses are offered for redoing.
-const ANALYSIS_SCHEMA = 7; // 7: guaranteed answer shape, objection groups from the call study, handling checks
+const ANALYSIS_SCHEMA = 8; // 7: guaranteed answer shape, objection groups, handling checks. 8: pleasantry opener, tighter permission ask and who we are first
 const SENIORITY = ['c_level', 'vp_director', 'manager', 'individual', 'unknown'];
 // One fixed list so "Who books, by industry" groups cleanly instead of every call having its own wording.
 const INDUSTRIES = [
@@ -234,14 +234,15 @@ Rules:
 - "opener" and "positioning": always fill these in for every call where a person answered, even a very short one. Judge them from the first things the SDR said; if the call ended before the SDR said anything usable, use style "other" or lead "none" and say so in the note.
 - "industry": always choose the closest item from the fixed list, so industries can be compared across calls. If the message includes a CRM record, use its industry (mapped onto the list) and set industry_source to "crm". Otherwise use what is said on the call ("call"), or, when the company name makes the industry clear, that ("company_name"). If it cannot be told, use "Other" with industry_source "unknown". The CRM record is context from our own database and can be incomplete; the call itself wins if they clearly disagree.
 
-Opener style: almost every call starts by checking who is on the line ("is that Alex?", "am I speaking to the right person?"). Ignore that step, and any automated screener ("record your name and reason"). Judge by the FIRST THING the SDR says after it: what they do next, not how the call went. Choose exactly one, using this order when more than one fits (warm reference, apology, role check, then the rest):
+Opener style: almost every call starts by checking who is on the line ("is that Alex?", "am I speaking to the right person?"). Ignore that step, and any automated screener ("record your name and reason"). Judge by the FIRST THING the SDR says after it: what they do next, not how the call went. Choose exactly one, using this order when more than one fits: warm reference, apology, role check, who we are first, problem or result hook, permission ask, pleasantry:
 - warm_followup: the first thing refers to an earlier meeting, event, call or conversation, a named person who referred them, or a previous attempt (for example "we met at the event", "we spoke yesterday", "Gershon suggested I call you", "it's Emad again").
 - apology: the first thing is an apology or an admission that this is an interruption (for example "I'm sorry for calling you out of the blue", "sorry that this is a cold call", "I know you're busy, I'm sorry to take your time", "apologies for the interruption"), even when a request for a moment follows.
 - role_check: opens by checking their role or that they are still in post, using what we know about them (for example "I saw you're head of operations at X, is that still right?", "are you still at Y?"). This is not the plain check on who is on the line.
-- cold_permission_ask: gives a name and company and asks for a moment or any request to continue, without apologising and without saying what we do yet (for example "do you have 30 seconds?", "how are you, have you got a minute?").
-- credentials_first: goes straight into what the company does or who it works with, naming clients or partners (for example "we work with monday.com and Anthropic and clients like ..."), before or while asking for a minute.
+- cold_permission_ask: gives a name and company and explicitly asks for time or permission to continue, without apologising and without saying what we do yet (for example "do you have 30 seconds?", "have you got a minute?", "is now a bad time?"). A greeting such as "how are you?" on its own is not a request for time.
+- credentials_first: goes straight into what the company does or who it works with, naming clients or partners (for example "we are an implementation company for technology solutions, we work with Anthropic and monday.com"), before or while asking for a minute. Only saying the company name ("calling from monday.com") does not count: that is recorded under positioning.
 - pain_question_hook: opens with a problem or a result and a question as the hook (for example "how do you handle leads that sit untouched in the CRM?", "hours wasted on spreadsheets, is that familiar?").
-- other: use ONLY when there was no real opening to judge (the call joined mid-sentence, or the SDR said nothing usable). If the opening is unusual, still pick the closest of the five. Aim for "other" on fewer than one call in five.
+- pleasantry: after giving a name and company, the first thing is a greeting or social question ("how are you doing today?", "how is your week going?") with no request for time and nothing about what we do.
+- other: use ONLY when there was no real opening to judge (the call joined mid-sentence, or the SDR said nothing usable). If the opening is unusual, still pick the closest type. Aim for "other" on fewer than one call in five.
 
 Positioning (who boost says it is): look at what the SDR says boost is in the first 20 to 30 seconds of the call (the first few turns, before the real conversation). Always fill this in, even when the call was short: if the SDR never says what boost is in that time, say so with lead "none". Record:
 - lead: the FIRST way the SDR describes what boost is. "monday" if boost is described as a monday.com business or partner (for example "we are a monday.com partner", "we implement monday.com"). "ai" if it is described as an AI business (for example "we build AI agents", "we do AI automation"). "other" if it is described another way (a consultancy, a software company, services, clients or partners named, or only what boost achieves for customers). "none" if the SDR never says who boost is.
@@ -709,16 +710,18 @@ const OPENER_LABELS = {
   cold_permission_ask: 'Permission ask',
   credentials_first: 'Who we are first',
   pain_question_hook: 'Problem or result hook',
+  pleasantry: 'How are you',
   other: 'Other',
 };
 const OPENER_DESCRIPTIONS = {
   warm_followup: 'Refers to an earlier call, meeting, event, a referrer or a previous attempt ("we spoke yesterday").',
   apology: 'Starts by apologising for the interruption ("sorry for calling out of the blue", "I know you are busy").',
   role_check: 'Starts by checking their role or that they are still in post ("I saw you are head of operations at X, is that still right?").',
-  cold_permission_ask: 'Gives a name and company and asks for a moment, without apologising or saying what we do yet ("30 seconds?").',
-  credentials_first: 'Goes straight into what we do or names clients or partners, then asks for a minute.',
+  cold_permission_ask: 'Gives a name and company and explicitly asks for time, without apologising or saying what we do yet ("30 seconds?", "is now a bad time?").',
+  credentials_first: 'Goes straight into what we do or names clients or partners, then asks for a minute. A company name alone does not count.',
   pain_question_hook: 'Opens with a problem or a result and a question ("how do you handle leads that go untouched?"). Rarely used so far, worth an A/B test.',
-  other: 'Does not clearly fit one of the five. The check on who is on the line is ignored; this is about what comes next.',
+  pleasantry: 'Gives a name and company, then a greeting or social question ("how are you doing today?") with no ask and nothing about what we do.',
+  other: 'Does not clearly fit one of the types. The check on who is on the line is ignored; this is about what comes next.',
 };
 const SENIORITY_LABELS = {
   c_level: 'C-level',
@@ -738,7 +741,7 @@ const CALL_TYPE_LABELS = {
 };
 
 module.exports = {
-  OUTPUT_SCHEMA, PART_SCHEMAS, PART_FIELDS,
+  OUTPUT_SCHEMA, PART_SCHEMAS, PART_FIELDS, OPENER_STYLES,
   analyseCall, isThin, missingParts, positioningUnrecorded, openerUnrecorded, ping, validate, extractJson, CRAFT, SYSTEM, ANALYSIS_SCHEMA, INDUSTRIES,
   OBJECTION_LABELS, OBJECTION_DESCRIPTIONS, HANDLING_CHECKS, HANDLING_CHECK_LABELS, POSITIONING_LABELS, POSITIONING_DESCRIPTIONS, OPENER_LABELS, OPENER_DESCRIPTIONS, modernCategory, modernOpener, SENIORITY_LABELS, CALL_TYPE_LABELS,
 };
