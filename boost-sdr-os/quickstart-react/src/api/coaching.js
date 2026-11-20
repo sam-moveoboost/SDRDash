@@ -16,7 +16,12 @@ async function sessionToken() {
   return res.data;
 }
 
-async function request(path, { method = 'GET', body } = {}) {
+// A restart of the server shows up as a dropped connection or a gateway error for a few minutes.
+// Reads try again a couple of times quickly; the page then keeps trying by itself (see Coaching.jsx).
+const looksLikeRestart = (err) => err instanceof TypeError || ([502, 503, 504].includes(err?.status) && err?.code !== 'not_configured');
+const wait = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
+
+async function requestOnce(path, { method = 'GET', body } = {}) {
   const token = await sessionToken();
   const res = await fetch(`${SERVER_URL}/coaching${path}`, {
     method,
@@ -31,16 +36,39 @@ async function request(path, { method = 'GET', body } = {}) {
   return json;
 }
 
+async function request(path, opts = {}) {
+  const isRead = !opts.method || opts.method === 'GET';
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await requestOnce(path, opts);
+    } catch (err) {
+      // Only reads are repeated; an analysis is never sent twice behind the person's back.
+      if (!isRead || attempt >= 2 || !looksLikeRestart(err)) throw err;
+      await wait(1500 * (attempt + 1));
+    }
+  }
+}
+
 const qs = (params) => {
   const s = new URLSearchParams(Object.entries(params).filter(([, v]) => v != null && v !== ''));
   return s.toString() ? `?${s}` : '';
 };
 
 export const coachingApi = {
-  overview: (userId, days) => request(`/overview${qs({ userId, days })}`),
-  calls: (userId, days) => request(`/calls${qs({ userId, days })}`),
-  trends: (userId, days) => request(`/trends${qs({ userId, days })}`),
+  // `fresh` makes the server re-read the board now instead of using the list it already holds.
+  overview: (userId, days, fresh) => request(`/overview${qs({ userId, days, fresh: fresh ? 1 : undefined })}`),
+  calls: (userId, days, fresh) => request(`/calls${qs({ userId, days, fresh: fresh ? 1 : undefined })}`),
+  trends: (userId, days, fresh, temp) => request(`/trends${qs({ userId, days, fresh: fresh ? 1 : undefined, temp: temp && temp !== 'all' ? temp : undefined })}`),
   transcript: (id) => request(`/calls/${encodeURIComponent(id)}/transcript`),
   selftest: () => request('/selftest'),
+  // Managers only: what is really saved for each call, set against the board.
+  audit: (fresh) => request(`/audit${qs({ fresh: fresh ? 1 : undefined })}`),
+  // Managers only: run the analysis on a few real calls and show the raw result. Saves nothing.
+  trialStart: (ids) => request('/analyse/trial', { method: 'POST', body: { ids: ids || [] } }),
+  trialStatus: () => request('/analyse/trial'),
   analyse: (ids) => request('/analyse', { method: 'POST', body: { ids } }),
+  // Background analysis: start it, then ask how it is going with short requests.
+  analyseStart: (ids) => request('/analyse/start', { method: 'POST', body: { ids } }),
+  analyseStatus: (ids) => request(`/analyse/status${qs({ ids: ids.join(',') })}`),
+  analyseCancel: (ids) => request('/analyse/cancel', { method: 'POST', body: { ids } }),
 };

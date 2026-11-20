@@ -31,7 +31,7 @@ export const demoOverview = {
   coachingFrom: '2026-11-01',
   connectionCheck: { analysed: 12, taggedConnectedButVoicemail: 1, untaggedButVoicemail: 2 },
   coaching: {
-    analysedCalls: 12,
+    totalAnalysed: 17, craftCalls: 16, analysedCalls: 12,
     enoughForFocus: true,
     minCallsForFocus: 3,
     nextStepRate: 0.42,
@@ -70,8 +70,12 @@ const analysis = {
     next_step_ask: { score: 4, note: 'Asked for a specific time.' }, tone_and_control: { score: 4, note: 'Relaxed and in control.' },
   },
   prospect: { role: 'Sales manager', seniority: 'manager', industry: 'software' },
-  opener: { style: 'permission_based', quote: 'have you got a minute', note: 'Asked permission before pitching.' },
-  objections: [{ category: 'no_time', stage: 'middle', quote: 'we are really busy right now', responseQuote: 'totally get it, would ten minutes next week be easier', handled: 'well', why: 'Acknowledged, then made the ask smaller.' }],
+  opener: { style: 'cold_permission_ask', quote: 'have you got a minute', note: 'Asked permission before pitching.' },
+  keyExchanges: [
+    { kind: 'prospect_question', prospectQuote: 'what do you actually offer', sdrQuote: 'it is not a solution, well it is a solution', verdict: 'missed', whatHappened: 'A simple question got a shifting answer ("not a solution", then "a solution"), so the prospect asked again.', better: 'We make sure none of your leads sit untouched. Is that something you have?' },
+    { kind: 'next_step', prospectQuote: 'call me tomorrow at nine', sdrQuote: 'could we book twenty minutes tomorrow morning', verdict: 'landed', whatHappened: 'Asked for a specific time and got one.', better: 'Keep proposing a concrete slot.' },
+  ],
+  objections: [{ category: 'not_a_good_time', stage: 'middle', quote: 'we are really busy right now', responseQuote: 'totally get it, would ten minutes next week be easier', handled: 'well', why: 'Acknowledged, then made the ask smaller.' }],
   bestMoment: { quote: 'totally get it, would ten minutes next week be easier', why: 'Turned a brush-off into a specific next step.' },
   missedMoment: { quote: 'it is a mess', better: 'Ask what the mess costs them each week before moving on.' },
   tryNextTime: ['When someone says it is a mess, ask: "what does that cost you in a typical week?"', 'Name the decision maker: "who else would need to see this?"'],
@@ -81,14 +85,28 @@ const hangup = {
   callType: 'early_hangup', coachable: false, nextStepSecured: false, openerResult: 'hung_up', endedBy: 'prospect',
   summary: 'The prospect said they do not take sales calls and hung up after the second sentence.',
   meddpicc: {}, craft: {}, prospect: { role: null, seniority: 'unknown', industry: null },
-  opener: { style: 'direct_pitch', quote: 'we help companies get more out of monday.com', note: 'Went straight into the pitch before asking for a moment.' },
+  opener: { style: 'credentials_first', quote: 'we help companies get more out of monday.com', note: 'Went straight into the pitch before asking for a moment.' },
   objections: [{ category: 'not_interested', stage: 'opener', quote: 'we do not take sales calls', responseQuote: null, handled: 'poorly', why: 'No reply before the line went dead.' }],
   bestMoment: null, missedMoment: { quote: 'we do not take sales calls', better: 'Acknowledge it and ask one specific question about their pipeline before they go.' },
   tryNextTime: ['Open with who you are and ask for ten seconds before the pitch.'],
 };
 
+const hebrewCall = {
+  callType: 'conversation', language: 'Hebrew', coachable: true, nextStepSecured: true, openerResult: 'stayed_engaged', endedBy: 'sdr',
+  summary: 'The prospect said they were busy, the SDR acknowledged it and asked for a shorter slot next week, and they agreed to ten minutes.',
+  meddpicc: { identify_pain: { score: 1, evidence: 'אין לי זמן עכשיו', evidenceEn: 'I do not have time right now' } },
+  craft: { opening: { score: 4, note: 'Asked permission before pitching.' }, discovery: { score: null, note: '' }, objection_handling: { score: 4, note: 'Acknowledged the objection, then made the ask smaller.' }, next_step_ask: { score: 4, note: 'Asked for a specific time.' }, tone_and_control: { score: 4, note: 'Calm and respectful.' } },
+  prospect: { role: null, seniority: 'unknown', industry: null },
+  opener: { style: 'cold_permission_ask', quote: 'יש לך רגע', quoteEn: 'do you have a moment', note: 'Asked permission first.' },
+  objections: [{ category: 'not_a_good_time', stage: 'opener', quote: 'אין לי זמן עכשיו', quoteEn: 'I do not have time right now', responseQuote: 'אפשר עשר דקות בשבוע הבא', responseQuoteEn: 'could we do ten minutes next week', handled: 'well', why: 'Acknowledged, then made the ask smaller.' }],
+  bestMoment: { quote: 'מבין לגמרי', quoteEn: 'I completely understand', why: 'Showed empathy before making the ask.' },
+  missedMoment: null,
+  tryNextTime: ['Ask one question about how they run their pipeline today before booking the follow-up.'],
+};
+
 export const demoCalls = {
   waitingCount: 2,
+  transcriptTotals: { valid: 5, analysed: 3, waiting: 2 },
   rules: { from: '2026-11-01', minChars: 250 },
   coverage: [
     { sdrId: '3', sdrName: 'Tayla Jones', answered: 41, withTranscript: 38 },
@@ -96,9 +114,10 @@ export const demoCalls = {
     { sdrId: '1', sdrName: 'Luke Birchley', answered: 33, withTranscript: 0 },
   ],
   calls: [
-    { id: 'd1', sdrId: '1', sdrName: 'Luke Birchley', startedAt: '2026-11-02 14:56', createdAt: '2026-11-02T14:57:00Z', durationMin: 11, outcome: 'Outbound answered', tags: ['MeetingBooked'], recordingUrl: null, status: 'analysed', transcript: { available: true }, analysis },
+    { id: 'd1', sdrId: '1', sdrName: 'Luke Birchley', startedAt: '2026-11-02 14:56', createdAt: '2026-11-02T14:57:00Z', durationMin: 11, outcome: 'Outbound answered', tags: ['MeetingBooked'], recordingUrl: null, status: 'analysed', priority: { score: 8, level: 'high', reasons: ['Long conversation', '1 objection handled poorly', 'Weak: Discovery'] }, transcript: { available: true }, analysis },
     { id: 'd2', sdrId: '2', sdrName: 'Emad Mahamid', startedAt: '2026-11-02 14:44', createdAt: '2026-11-02T14:44:00Z', durationMin: 4, outcome: 'Outbound answered', tags: [], recordingUrl: null, status: 'waiting', transcript: { available: true, chars: 1800 }, analysis: null },
-    { id: 'd3', sdrId: '3', sdrName: 'Tayla Jones', startedAt: '2026-11-04 10:14', createdAt: '2026-11-04T10:14:00Z', durationMin: 0, outcome: 'Outbound answered', tags: [], recordingUrl: null, status: 'analysed', transcript: { available: true }, analysis: hangup },
+    { id: 'd3', sdrId: '3', sdrName: 'Tayla Jones', startedAt: '2026-11-04 10:14', createdAt: '2026-11-04T10:14:00Z', durationMin: 0, outcome: 'Outbound answered', tags: [], recordingUrl: null, status: 'analysed', priority: { score: 4, level: 'medium', reasons: ['Early hang-up', '1 objection handled poorly', 'A missed moment to learn from'] }, transcript: { available: true }, analysis: hangup },
+    { id: 'd5', sdrId: '2', sdrName: 'Emad Mahamid', startedAt: '2026-11-03 11:05', createdAt: '2026-11-03T11:05:00Z', durationMin: 3, outcome: 'Outbound answered', tags: [], recordingUrl: null, status: 'analysed', priority: { score: 3, level: 'low', reasons: ['Went well'] }, transcript: { available: true }, analysis: hebrewCall },
     { id: 'd4', sdrId: '3', sdrName: 'Tayla Jones', startedAt: '2026-11-04 10:22', createdAt: '2026-11-04T10:22:00Z', durationMin: 1, outcome: 'Outbound answered', tags: [], recordingUrl: null, status: 'waiting', transcript: { available: true, chars: 640 }, analysis: null },
   ],
 };
@@ -110,21 +129,28 @@ export const demoTrends = {
     analysedCalls: 12, coachableCalls: 7, bookedCalls: 4, objectionCount: 17,
     topObjections: [
       { category: 'send_email', label: 'Send me an email', count: 6, share: 0.35, handledWell: 2, handledPoorly: 3, bookedAfter: 1, examples: [{ quote: 'just send me something over', sdrName: 'Emad Mahamid' }] },
-      { category: 'no_time', label: 'No time', count: 5, share: 0.29, handledWell: 4, handledPoorly: 0, bookedAfter: 3, examples: [{ quote: 'we are really busy right now', sdrName: 'Tayla Jones' }] },
+      { category: 'not_a_good_time', label: 'Not a good time', count: 5, share: 0.29, handledWell: 4, handledPoorly: 0, bookedAfter: 3, examples: [{ quote: 'we are really busy right now', sdrName: 'Tayla Jones' }] },
       { category: 'not_interested', label: 'Not interested', count: 4, share: 0.24, handledWell: 1, handledPoorly: 3, bookedAfter: 0, examples: [] },
-      { category: 'already_have_solution', label: 'Already have a solution', count: 2, share: 0.12, handledWell: 1, handledPoorly: 1, bookedAfter: 0, examples: [{ quote: 'we already run everything in monday', sdrName: 'Tayla Jones' }] },
+      { category: 'already_covered', label: 'Already covered', count: 2, share: 0.12, handledWell: 1, handledPoorly: 1, bookedAfter: 0, examples: [{ quote: 'we already run everything in monday', sdrName: 'Tayla Jones' }] },
     ],
     bestHandling: [
-      { category: 'no_time', label: 'No time', examples: [{ sdrName: 'Tayla Jones', quote: 'we are really busy right now', response: 'totally get it, would ten minutes next week be easier', why: 'Acknowledged, then made the ask smaller.', booked: true, stayed: true, startedAt: '2026-11-02 14:56', callId: 'd1' }] },
+      { category: 'not_a_good_time', label: 'Not a good time', examples: [{ sdrName: 'Tayla Jones', quote: 'we are really busy right now', response: 'totally get it, would ten minutes next week be easier', why: 'Acknowledged, then made the ask smaller.', booked: true, stayed: true, startedAt: '2026-11-02 14:56', callId: 'd1' }] },
     ],
     earlyObjections: [
       { category: 'not_interested', label: 'Not interested', count: 4, handledWell: 1, handledPoorly: 3, bookedAfter: 0, stayedAfter: 1, hungUpAfter: 3, examples: [{ sdrName: 'Tayla Jones', stage: 'opener', quote: 'not interested thanks', response: 'fair enough, can I ask one quick question before you go', why: 'Accepted it, then made the next ask tiny.', booked: false, stayed: true, startedAt: '2026-11-04 10:12', callId: 'd5' }] },
       { category: 'send_email', label: 'Send me an email', count: 3, handledWell: 1, handledPoorly: 2, bookedAfter: 0, stayedAfter: 1, hungUpAfter: 1, examples: [] },
     ],
+    positioningCalls: 12,
+    bestPositioning: 'ai',
+    positioning: [
+      { key: 'ai', label: 'AI business', description: 'Said we are an AI business or build AI, with no mention of monday.com.', calls: 5, stayed: 4, stayedRate: 0.8, hungUp: 1, neither: 0, neitherRate: 0.0, hungUpRate: 0.2, engagedRate: 0.6, booked: 2, bookedRate: 0.4, nextStepRate: 0.4, avgDurationMin: 3.4, smallSample: false, stayExamples: [{ quote: 'we build AI agents for sales teams' }], hangUpExamples: [] },
+      { key: 'monday', label: 'monday.com business', description: 'Said we are a monday.com partner or implement monday.com, with no mention of AI.', calls: 4, stayed: 1, stayedRate: 0.25, hungUp: 3, neither: 0, neitherRate: 0.0, hungUpRate: 0.75, engagedRate: 0.25, booked: 1, bookedRate: 0.25, nextStepRate: 0.25, avgDurationMin: 1.6, smallSample: true, stayExamples: [], hangUpExamples: [{ quote: 'we are a monday.com partner' }] },
+      { key: 'none', label: 'Did not say in the first 20 seconds', description: 'Did not say what we are in that time, or the call ended before it could be said.', calls: 3, stayed: 1, stayedRate: 0.33, hungUp: 2, neither: 0, neitherRate: 0.0, hungUpRate: 0.67, engagedRate: 0.33, booked: 0, bookedRate: 0, nextStepRate: 0, avgDurationMin: 0.9, smallSample: true, stayExamples: [], hangUpExamples: [] },
+    ],
     openers: [
-      { style: 'permission_based', label: 'Permission based', calls: 6, stayed: 4, stayedRate: 0.67, hungUp: 1, hungUpRate: 0.17, booked: 3, bookedRate: 0.5, nextStepRate: 0.67, stayExamples: [{ quote: 'have you got ten seconds', sdrName: 'Tayla Jones' }], hangUpExamples: [] },
-      { style: 'direct_pitch', label: 'Direct pitch', calls: 5, stayed: 1, stayedRate: 0.2, hungUp: 3, hungUpRate: 0.6, booked: 1, bookedRate: 0.2, nextStepRate: 0.2, stayExamples: [], hangUpExamples: [{ quote: 'we help companies get more out of monday.com', sdrName: 'Luke Birchley' }] },
-      { style: 'referral_or_context', label: 'Referral or context', calls: 1, stayed: 1, stayedRate: 1, hungUp: 0, hungUpRate: 0, booked: 0, bookedRate: 0, nextStepRate: 1, stayExamples: [], hangUpExamples: [] },
+      { style: 'cold_permission_ask', label: 'Cold permission ask', description: 'Gives a name and company, then asks for a moment before saying what they offer.', calls: 6, stayed: 4, stayedRate: 0.67, hungUp: 1, neither: 1, neitherRate: 0.17, hungUpRate: 0.17, booked: 3, bookedRate: 0.5, nextStepRate: 0.67, stayExamples: [{ quote: 'have you got ten seconds', sdrName: 'Tayla Jones' }], hangUpExamples: [] },
+      { style: 'credentials_first', label: 'Credentials first', description: 'Says what the company does and names clients or partners, then asks for a minute.', calls: 5, stayed: 1, stayedRate: 0.2, hungUp: 3, neither: 1, neitherRate: 0.2, hungUpRate: 0.6, booked: 1, bookedRate: 0.2, nextStepRate: 0.2, stayExamples: [], hangUpExamples: [{ quote: 'we help companies get more out of monday.com', sdrName: 'Luke Birchley' }] },
+      { style: 'warm_followup', label: 'Warm follow-up', description: 'Refers to an earlier meeting, event, conversation, a named referrer or a previous attempt.', calls: 1, stayed: 1, stayedRate: 1, hungUp: 0, neither: 0, neitherRate: 0.0, hungUpRate: 0, booked: 0, bookedRate: 0, nextStepRate: 1, stayExamples: [], hangUpExamples: [] },
     ],
     hangups: {
       count: 4, share: 0.33,
@@ -134,12 +160,12 @@ export const demoTrends = {
       ],
     },
     profile: {
+      bookedCount: 4, industryMissing: 1,
       bySeniority: [
-        { label: 'Manager', calls: 5, booked: 2, bookedRate: 0.4 }, { label: 'VP or director', calls: 4, booked: 2, bookedRate: 0.5 },
-        { label: 'C-level', calls: 2, booked: 0, bookedRate: 0 }, { label: 'Not stated', calls: 1, booked: 0, bookedRate: 0 },
+        { label: 'VP or director', count: 2, share: 0.5 }, { label: 'Manager', count: 1, share: 0.25 }, { label: 'Not recorded', count: 1, share: 0.25, missing: true },
       ],
       byIndustry: [
-        { label: 'software', calls: 4, booked: 2, bookedRate: 0.5 }, { label: 'professional services', calls: 3, booked: 1, bookedRate: 0.33 },
+        { label: 'software', count: 2, share: 0.5 }, { label: 'professional services', count: 1, share: 0.25 }, { label: 'Not recorded', count: 1, share: 0.25, missing: true },
       ],
       bookedRoles: [{ label: 'head of sales', count: 2 }, { label: 'operations manager', count: 1 }],
     },

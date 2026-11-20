@@ -1,48 +1,38 @@
 // Turns saved analyses into "where to focus" and "what is working", without another AI call.
+// This is about call craft: these are cold calls, not discovery calls, so there is no qualification
+// framework scoring here, only how the SDR handled the call.
 
-const { MEDDPICC, CRAFT } = require('./analysis');
+const { CRAFT } = require('./analysis');
 
-// MEDDPICC elements an SDR can realistically open up on a first call. Paper process
-// and decision criteria are mostly for later in the deal, so they are shown but not
-// used to pick focus areas.
-const SDR_RELEVANT = new Set(['identify_pain', 'economic_buyer', 'champion', 'metrics', 'competition', 'decision_process']);
 const MIN_CALLS_FOR_FOCUS = 3;
 
 function summarise(analyses) {
+  // A full conversation is one where the prospect really took part.
   const real = analyses.filter((a) => a && a.coachable && a.callType !== 'not_a_conversation');
-  const meddpicc = {};
-  for (const { key, label } of MEDDPICC) {
-    const scores = real.map((a) => a.meddpicc?.[key]?.score).filter((s) => Number.isFinite(s));
-    meddpicc[key] = {
-      label,
-      avg: scores.length ? scores.reduce((s, v) => s + v, 0) / scores.length : null,
-      touchedShare: scores.length ? scores.filter((s) => s >= 1).length / scores.length : null,
-    };
-  }
+  // Call craft is scored on every call with a person on the line that was coached.
+  const human = analyses.filter((a) => a && a.callType !== 'voicemail' && a.callType !== 'automated_menu');
+
   const craft = {};
   for (const { key, label } of CRAFT) {
-    const scores = real.map((a) => a.craft?.[key]?.score).filter((s) => Number.isFinite(s));
-    craft[key] = { label, avg: scores.length ? scores.reduce((s, v) => s + v, 0) / scores.length : null };
+    const scores = human.map((a) => a.craft?.[key]?.score).filter((s) => Number.isFinite(s));
+    craft[key] = { label, avg: scores.length ? scores.reduce((s, v) => s + v, 0) / scores.length : null, calls: scores.length };
   }
 
-  // Everything on a 0 to 1 scale so craft and MEDDPICC can be ranked together.
-  const areas = [
-    ...CRAFT.map(({ key, label }) => ({ key, label, kind: 'craft', value: craft[key].avg == null ? null : (craft[key].avg - 1) / 4 })),
-    ...MEDDPICC.filter(({ key }) => SDR_RELEVANT.has(key)).map(({ key, label }) => ({
-      key, label, kind: 'meddpicc', value: meddpicc[key].avg == null ? null : meddpicc[key].avg / 2,
-    })),
-  ].filter((a) => a.value != null);
-
-  const enough = real.length >= MIN_CALLS_FOR_FOCUS;
+  const craftCalls = human.filter((a) => Object.values(a.craft || {}).some((c) => Number.isFinite(c?.score))).length;
+  // On a 0 to 1 scale (1 is the weakest score, 5 the strongest).
+  const areas = CRAFT.map(({ key, label }) => ({ key, label, kind: 'craft', value: craft[key].avg == null ? null : (craft[key].avg - 1) / 4 })).filter((a) => a.value != null);
+  const enough = craftCalls >= MIN_CALLS_FOR_FOCUS;
   const ranked = [...areas].sort((a, b) => a.value - b.value);
+  const pick = (x) => ({ key: x.key, label: x.label, kind: x.kind, value: x.value });
   return {
+    totalAnalysed: human.length,
     analysedCalls: real.length,
+    craftCalls,
     enoughForFocus: enough,
     minCallsForFocus: MIN_CALLS_FOR_FOCUS,
-    meddpicc,
     craft,
-    focus: enough ? ranked.slice(0, 3).map(({ key, label, kind, value }) => ({ key, label, kind, value })) : [],
-    strengths: enough ? ranked.slice(-2).reverse().map(({ key, label, kind, value }) => ({ key, label, kind, value })) : [],
+    focus: enough ? ranked.slice(0, 3).map(pick) : [],
+    strengths: enough ? ranked.slice(-2).reverse().map(pick) : [],
     nextStepRate: real.length ? real.filter((a) => a.nextStepSecured).length / real.length : null,
   };
 }

@@ -36,11 +36,19 @@ app.get('/briefing/status', (_req, res) => {
   });
 });
 
-app.use('/coaching', createRouter());
+const coaching = createRouter();
+app.use('/coaching', coaching);
 
 // Log (never swallow) anything unexpected so it shows in the monday code Logs tab.
 process.on('unhandledRejection', (err) => console.error('[unhandledRejection]', err?.message));
 process.on('uncaughtException', (err) => console.error('[uncaughtException]', err?.message));
 
 const port = process.env.PORT || 8080;
-app.listen(port, () => console.log(`sdr-os-server listening on ${port}`));
+app.listen(port, () => {
+  console.log(`sdr-os-server listening on ${port}`);
+  // Apply any new analysis rules to the board first (so the page and the preload only read what is
+  // still current), then preload, then keep new calls labelled every few minutes.
+  coaching.boot().then(() => coaching.warm());
+  setInterval(() => coaching.tick(), 10 * 60 * 1000);
+  setTimeout(() => coaching.tick(), 60 * 1000);
+});

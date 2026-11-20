@@ -4,7 +4,10 @@
 // Short calls are included: openers and early hang-ups are exactly what managers
 // want to see. Only voicemail and phone menus are left out.
 
-const { OBJECTION_LABELS, OPENER_LABELS, SENIORITY_LABELS } = require('./analysis');
+const { POSITIONING_LABELS, POSITIONING_DESCRIPTIONS, OBJECTION_LABELS, OBJECTION_DESCRIPTIONS, OPENER_LABELS, OPENER_DESCRIPTIONS, SENIORITY_LABELS, modernCategory, modernOpener, positioningUnrecorded, openerUnrecorded } = require('./analysis');
+
+const { stayedOn, isBlocked, measured } = require('./outcome');
+const { ANALYSIS_SCHEMA } = require('./analysis');
 
 const NON_HUMAN = new Set(['voicemail', 'automated_menu']);
 
@@ -37,8 +40,61 @@ function groupRate(items, keyFn, labelFn = (k) => k, limit = 8) {
 // Best examples first: the call booked, then the prospect stayed, then a next step was secured.
 const successScore = (p) => Number(isBooked(p.call)) * 4 + Number(stayed(p.analysis)) * 2 + Number(p.analysis.nextStepSecured);
 
+// Analyses saved under earlier rules use older group names; show them under the current groups.
+function modernise(p) {
+  const a = p.analysis;
+  return {
+    ...p,
+    analysis: {
+      ...a,
+      opener: a.opener ? { ...a.opener, style: modernOpener(a.opener.style) } : a.opener,
+      objections: (a.objections || []).map((o) => ({ ...o, category: modernCategory(o.category) })),
+    },
+  };
+}
+
+// The industry to show for a call: the fixed-list pick (CRM, call or company name), or the older
+// free-text wording on analyses made before that. "Other" with no source means nothing was known.
+function industryOf(a) {
+  const pr = a.prospect || {};
+  if (pr.industryGroup && !(pr.industryGroup === 'Other' && pr.industrySource === 'unknown')) return norm(pr.industryGroup);
+  if (pr.industryGroup) return null;
+  return norm(pr.industry) || null;
+}
+
+// Which group a call's description of who boost is falls in. Said only later, or never, counts as
+// "did not say". Analyses made before this was recorded have no positioning and are left out.
+function positioningGroup(a) {
+  const pos = a.positioning;
+  if (!pos || positioningUnrecorded(a)) return null; // not recorded: leave it out rather than count it as "did not say"
+  if (pos.lead === 'none' || pos.when === 'later' || pos.when === 'never') return 'none';
+  if (pos.mentionsMonday && pos.mentionsAi) return 'both';
+  if (pos.mentionsMonday) return 'monday';
+  if (pos.mentionsAi) return 'ai';
+  if (pos.otherKind === 'results_only' || pos.otherKind === 'credentials_only') return 'other';
+  return 'consultancy';
+}
+const POSITIONING_ORDER = ['monday', 'ai', 'both', 'consultancy', 'other', 'none'];
+// Every call ends one of three ways, so the three shares always add up to 100%: the prospect stayed
+// on, hung up or brushed us off, or neither (gatekeeper, a line that dropped, unclear).
+const outcomeStats = (group) => {
+  const n = group.length;
+  const st = group.filter((p) => stayedOn(p.analysis)).length;
+  return {
+    stayed: st,
+    stayedRate: rate(st, n),
+    hungUp: n - st,
+    hungUpRate: rate(n - st, n),
+    blocked: group.filter((p) => isBlocked(p.analysis)).length, // of the hung-up calls, gatekeepers that blocked it
+  };
+};
+// The two cards that compare wordings only use calls analysed under the latest rules, with the
+// stay-on numbers measured. Older ones join as they are redone, so a stale analysis cannot skew them.
+const onLatestRules = (p) => p.analysis.schema >= ANALYSIS_SCHEMA && measured(p.analysis);
+const MIN_FOR_VERDICT = 5; // fewer calls than this is too few to say one wording beats another
+
 function buildTrends(pairs) {
-  const human = pairs.filter((p) => p.analysis && !NON_HUMAN.has(p.analysis.callType));
+  const human = pairs.filter((p) => p.analysis && !NON_HUMAN.has(p.analysis.callType)).map(modernise);
   const real = human.filter((p) => p.analysis.coachable);
   const booked = human.filter((p) => isBooked(p.call));
 
@@ -53,6 +109,7 @@ function buildTrends(pairs) {
   const catSummary = (category, items) => ({
     category,
     label: OBJECTION_LABELS[category] || category,
+    description: OBJECTION_DESCRIPTIONS[category] || null,
     count: items.length,
     handledWell: items.filter((o) => o.handled === 'well').length,
     handledPoorly: items.filter((o) => o.handled === 'poorly').length,
@@ -67,8 +124,8 @@ function buildTrends(pairs) {
     .map((o) => ({
       sdrName: o.pair.call.sdrName,
       stage: o.stage,
-      quote: o.quote,
-      response: o.responseQuote,
+      quote: o.quoteEn || o.quote,
+      response: o.responseQuoteEn || o.responseQuote,
       why: o.why,
       booked: isBooked(o.pair.call),
       stayed: stayed(o.pair.analysis),
@@ -80,7 +137,7 @@ function buildTrends(pairs) {
     .map((g) => ({
       ...catSummary(g.category, g.items),
       share: rate(g.items.length, objections.length),
-      examples: g.items.slice(0, 2).map((o) => ({ quote: o.quote, sdrName: o.pair.call.sdrName })),
+      examples: g.items.slice(0, 2).map((o) => ({ quote: o.quoteEn || o.quote, sdrName: o.pair.call.sdrName })),
     }))
     .sort((a, b) => b.count - a.count);
 
@@ -101,25 +158,58 @@ function buildTrends(pairs) {
     .sort((a, b) => b.count - a.count);
 
   // ---- how calls open, and who stays ----
-  const styles = [...new Set(human.map((p) => p.analysis.opener?.style).filter(Boolean))];
+  const cardPairs = human.filter(onLatestRules);
+  // An opener the model never gave is left out of the openers card, not counted as "Other".
+  const openerPairs = cardPairs.filter((p) => !openerUnrecorded(p.analysis));
+  const styles = [...new Set(openerPairs.map((p) => p.analysis.opener?.style).filter(Boolean))];
   const openers = styles.map((style) => {
-    const group = human.filter((p) => p.analysis.opener?.style === style);
-    const quoteOf = (p) => (p.analysis.opener?.quote ? { quote: p.analysis.opener.quote, sdrName: p.call.sdrName } : null);
+    const group = openerPairs.filter((p) => p.analysis.opener?.style === style);
+    const quoteOf = (p) => (p.analysis.opener?.quote ? { quote: p.analysis.opener.quoteEn || p.analysis.opener.quote, sdrName: p.call.sdrName } : null);
     return {
       style,
       label: OPENER_LABELS[style] || style,
+      description: OPENER_DESCRIPTIONS[style] || null,
       calls: group.length,
-      stayed: group.filter((p) => stayed(p.analysis)).length,
-      stayedRate: rate(group.filter((p) => stayed(p.analysis)).length, group.length),
-      hungUp: group.filter((p) => hungUp(p.analysis)).length,
-      hungUpRate: rate(group.filter((p) => hungUp(p.analysis)).length, group.length),
+      ...outcomeStats(group),
       booked: group.filter((p) => isBooked(p.call)).length,
       bookedRate: rate(group.filter((p) => isBooked(p.call)).length, group.length),
       nextStepRate: rate(group.filter((p) => p.analysis.nextStepSecured).length, group.length),
-      stayExamples: group.filter((p) => stayed(p.analysis)).sort((a, b) => successScore(b) - successScore(a)).map(quoteOf).filter(Boolean).slice(0, 2),
-      hangUpExamples: group.filter((p) => hungUp(p.analysis)).map(quoteOf).filter(Boolean).slice(0, 2),
+      avgDurationMin: avg(group.map((p) => p.call.durationMin)),
+      smallSample: group.length < MIN_FOR_VERDICT,
+      stayExamples: group.filter((p) => stayedOn(p.analysis)).sort((a, b) => successScore(b) - successScore(a)).map(quoteOf).filter(Boolean).slice(0, 2),
+      hangUpExamples: group.filter((p) => !stayedOn(p.analysis)).map(quoteOf).filter(Boolean).slice(0, 2),
     };
   }).sort((a, b) => b.calls - a.calls);
+
+  // The opening that keeps most people on the call, among those with enough calls to say so.
+  const bestOpener = openers.filter((o) => o.calls >= MIN_FOR_VERDICT && o.style !== 'other').sort((a, b) => b.stayedRate - a.stayedRate || b.booked - a.booked)[0]?.style || null;
+
+  // ---- what we say we are, and what keeps people on the call ----
+  const withPositioning = cardPairs.filter((p) => positioningGroup(p.analysis));
+  const posQuoteOf = (p) => (p.analysis.positioning?.quote ? { quote: p.analysis.positioning.quoteEn || p.analysis.positioning.quote, sdrName: p.call.sdrName } : null);
+  const positioning = POSITIONING_ORDER.map((key) => {
+    const group = withPositioning.filter((p) => positioningGroup(p.analysis) === key);
+    const engaged = group.filter((p) => p.analysis.positioning.reaction === 'engaged').length;
+    return {
+      key,
+      label: POSITIONING_LABELS[key],
+      description: POSITIONING_DESCRIPTIONS[key],
+      calls: group.length,
+      ...outcomeStats(group),
+      engagedRate: rate(engaged, group.length),
+      booked: group.filter((p) => isBooked(p.call)).length,
+      bookedRate: rate(group.filter((p) => isBooked(p.call)).length, group.length),
+      nextStepRate: rate(group.filter((p) => p.analysis.nextStepSecured).length, group.length),
+      avgDurationMin: avg(group.map((p) => p.call.durationMin)),
+      smallSample: group.length < MIN_FOR_VERDICT,
+      stayExamples: group.filter((p) => stayedOn(p.analysis)).sort((a, b) => successScore(b) - successScore(a)).map(posQuoteOf).filter(Boolean).slice(0, 2),
+      hangUpExamples: group.filter((p) => !stayedOn(p.analysis)).map(posQuoteOf).filter(Boolean).slice(0, 2),
+    };
+  }).filter((g) => g.calls > 0);
+  // The one that keeps most people on the call, among groups with enough calls to say so.
+  const bestPositioning = positioning
+    .filter((g) => g.calls >= MIN_FOR_VERDICT && g.key !== 'none')
+    .sort((a, b) => b.stayedRate - a.stayedRate || b.booked - a.booked)[0]?.key || null;
 
   // ---- hang-ups ----
   const hangs = human.filter((p) => hungUp(p.analysis));
@@ -129,7 +219,7 @@ function buildTrends(pairs) {
     const key = first ? first.category : 'no_objection_given';
     const g = reasonMap.get(key) || { category: key, count: 0, examples: [] };
     g.count += 1;
-    if (first && g.examples.length < 2) g.examples.push({ quote: first.quote, sdrName: p.call.sdrName, opener: p.analysis.opener?.quote || null });
+    if (first && g.examples.length < 2) g.examples.push({ quote: first.quoteEn || first.quote, sdrName: p.call.sdrName, opener: p.analysis.opener?.quoteEn || p.analysis.opener?.quote || null });
     reasonMap.set(key, g);
   }
   const hangups = {
@@ -141,9 +231,24 @@ function buildTrends(pairs) {
   };
 
   // ---- who is being booked ----
+  // Who books: only calls that booked a meeting. Where the call never stated the industry (or seniority)
+  // it shows as "Not recorded", so a gap is visible and can be filled in rather than hiding the booking.
+  const bookedBreakdown = (keyFn, labelFn = (k) => k) => {
+    const m = new Map();
+    for (const p of booked) {
+      const k = keyFn(p) || null;
+      m.set(k, (m.get(k) || 0) + 1);
+    }
+    return [...m.entries()]
+      .map(([k, count]) => ({ label: k == null ? 'Not recorded' : labelFn(k), count, share: rate(count, booked.length), missing: k == null }))
+      .sort((a, b) => Number(a.missing) - Number(b.missing) || b.count - a.count)
+      .slice(0, 8);
+  };
   const profile = {
-    bySeniority: groupRate(human, (p) => p.analysis.prospect?.seniority, (k) => SENIORITY_LABELS[k] || k),
-    byIndustry: groupRate(human, (p) => norm(p.analysis.prospect?.industry)),
+    bookedCount: booked.length,
+    bySeniority: bookedBreakdown((p) => (p.analysis.prospect?.seniority !== 'unknown' ? p.analysis.prospect?.seniority : null), (k) => SENIORITY_LABELS[k] || k),
+    byIndustry: bookedBreakdown((p) => industryOf(p.analysis)),
+    industryMissing: booked.filter((p) => !industryOf(p.analysis)).length,
     bookedRoles: (() => {
       const m = new Map();
       for (const p of booked) {
@@ -193,6 +298,11 @@ function buildTrends(pairs) {
     bestHandling,
     earlyObjections,
     openers,
+    positioning,
+    latestRules: { used: cardPairs.length, total: human.length },
+    positioningCalls: withPositioning.length,
+    bestPositioning,
+    openerFit: { inType: human.filter((p) => p.analysis.opener?.style && p.analysis.opener.style !== 'other').length, total: human.filter((p) => p.analysis.opener?.style).length },
     hangups,
     profile,
     talk: { booked: talk(booked), notBooked: talk(human.filter((p) => !isBooked(p.call))) },
@@ -200,4 +310,17 @@ function buildTrends(pairs) {
   };
 }
 
-module.exports = { buildTrends };
+// The team patterns, with nothing that points at an individual: no names, no IDs, no link back to
+// a particular call, and no SDR-by-SDR comparison. Short example quotes stay, because seeing what
+// works is the point, but they cannot be traced to a person or opened as a transcript.
+const PEOPLE_KEYS = new Set(['sdrName', 'sdrId', 'callId', 'startedAt', 'sdrs']);
+
+function forEveryone(value) {
+  if (Array.isArray(value)) return value.map(forEveryone);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).filter(([k]) => !PEOPLE_KEYS.has(k)).map(([k, v]) => [k, forEveryone(v)]));
+  }
+  return value;
+}
+
+module.exports = { buildTrends, forEveryone };

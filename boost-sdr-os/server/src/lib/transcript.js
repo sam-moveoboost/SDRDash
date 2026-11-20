@@ -43,6 +43,10 @@ function parseTranscript(raw, agentName = '') {
     }
   }
   const total = words.sdr + words.prospect;
+  // The opening is the first exchange (the check on who is on the line and the reply). What the
+  // prospect says after it, and how long the call carries on, is what "stayed on" is measured by.
+  const afterOpening = turns.slice(2);
+  const prospectWordsAfterOpening = afterOpening.filter((t) => t.who === 'prospect').reduce((n, t) => n + wordCount(t.text), 0);
   return {
     turns,
     stats: {
@@ -51,6 +55,8 @@ function parseTranscript(raw, agentName = '') {
       prospectWords: words.prospect,
       sdrShare: total ? words.sdr / total : null,
       turns: turns.length,
+      prospectWordsAfterOpening,
+      turnsAfterOpening: afterOpening.length,
       longestSdrTurnWords: longestSdrTurn,
       sdrQuestions,
       // A real conversation has both sides saying something substantial. Gatekeepers,

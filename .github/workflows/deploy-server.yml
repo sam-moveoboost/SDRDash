@@ -1,12 +1,24 @@
 name: Deploy server to monday code
 
-# Manual only. Run it from the Actions tab and paste the monday app version ID.
+# Runs by itself whenever server code is merged to main, and can still be run by hand from the
+# Actions tab with a different monday app version ID. Without one it deploys to the version below
+# (v4, the live one); change SERVER_VERSION_ID under Settings, Variables, Actions to move it.
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'boost-sdr-os/server/**'
+      - '.github/workflows/deploy-server.yml'
   workflow_dispatch:
     inputs:
       version_id:
-        description: 'monday app version ID to deploy the server code to'
-        required: true
+        description: 'monday app version ID to deploy the server code to (leave empty for the usual one)'
+        required: false
+
+# One server deploy at a time, so two merges in a row cannot overlap.
+concurrency:
+  group: deploy-server
+  cancel-in-progress: false
 
 jobs:
   deploy-server:
@@ -45,7 +57,22 @@ jobs:
         working-directory: boost-sdr-os/server
         env:
           MAPPS_ACCESS_TOKEN: ${{ secrets.MAPPS_ACCESS_TOKEN }}
-          VERSION_ID: ${{ inputs.version_id }}
+          VERSION_ID: ${{ inputs.version_id || vars.SERVER_VERSION_ID || '19622115' }}
         run: |
           echo "{\"accessToken\":\"$MAPPS_ACCESS_TOKEN\"}" > .mappsrc
-          mapps code:push -i "$VERSION_ID"
+          # monday refuses a new deployment while an earlier one is still in progress. Wait and try again
+          # (up to about 30 minutes) instead of failing, so a merge always ends up live.
+          set -o pipefail
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            if mapps code:push -i "$VERSION_ID" 2>&1 | tee push.log; then
+              exit 0
+            fi
+            if grep -q "existing deployment in progress" push.log; then
+              echo "An earlier deployment is still in progress (attempt $attempt). Waiting 3 minutes."
+              sleep 180
+            else
+              exit 1
+            fi
+          done
+          echo "Gave up: monday still reports an earlier deployment in progress."
+          exit 1

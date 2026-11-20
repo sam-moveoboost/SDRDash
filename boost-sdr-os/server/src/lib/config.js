@@ -19,14 +19,34 @@ module.exports = {
     endedAt: 'date_mm19jrq',
     recording: 'link_mm19c866',
     duration: 'formula_mm3jzhbk',
-    coachingStatus: 'color_mm8sjkwt', // "Coaching analysis" status column, set to Analysed by the app
+    coachingStatus: 'color_mm8sjkwt', // "Coaching analysis" status column: a read-out, set by the app
+    analysisVersion: 'numeric_mm98nyp4', // "Analysis version": the rules version the call was analysed under. This decides the status.
+    prospects: 'board_relation_mm2cmzgw', // "Outbound prospects": link to the prospect the call was made to
+    externalPhone: 'phone_mm19p9w6', // the number that was called
+  },
+
+  // The Outbound prospects board holds the CRM record for each person called. The industry,
+  // company, job title and seniority come from here, so they do not depend on the prospect
+  // saying them on the call.
+  PROSPECTS_BOARD: '5089407333',
+  PROSPECT_COLS: {
+    industry: 'dropdown_mkz4vqpg', // "Industry (CRM)"
+    company: 'text_mkw7ezh6',
+    title: 'text_mm0wcwfm',
+    seniority: 'text_mm04hrym',
+    employees: 'text_mm095qj2',
+    phones: 'phone_mm1t253',
   },
 
   // Aircall counts a voicemail pick-up as "answered". SDRs tag those calls with one of
   // these, so a call only counts as a real connection if it carries none of them.
   NOT_CONNECTED_TAGS: ['1.NoAnswer', '3.Busy', 'LeftVoicemail', 'BadData'],
 
+  // The "Coaching analysis" column on the calls board shows where each call is: blank (no usable
+  // transcript yet), waiting to be analysed, waiting to be re-analysed (analysed under older rules), or analysed.
   STATUS_ANALYSED: 'Analysed',
+  STATUS_WAITING: 'Waiting to be analysed',
+  STATUS_REANALYSE: 'Waiting to be re-analysed',
   COACHING_FROM_MS: Date.parse('2026-11-01T00:00:00Z'), // nothing before this is analysed
   MIN_TRANSCRIPT_CHARS: 250, // shorter transcripts are ignored; short hang-ups still count above this
 
@@ -36,4 +56,6 @@ module.exports = {
 
   RUBRIC_VERSION: 1, // bump to re-analyse everything after changing the rubric
   CLAUDE_MODEL: 'claude-sonnet-5-5',
+  // How hard Claude thinks per call. Low keeps each call to seconds; the trial checks quality holds.
+  CLAUDE_EFFORT: 'low',
 };

@@ -2,7 +2,7 @@
 // depends on (or exposes) a token in the browser.
 
 const { getSecret } = require('./secrets');
-const { CALLS_BOARD, COLS, STATUS_ANALYSED, NOT_CONNECTED_TAGS } = require('./config');
+const { CALLS_BOARD, COLS, STATUS_ANALYSED, NOT_CONNECTED_TAGS, PROSPECTS_BOARD, PROSPECT_COLS } = require('./config');
 
 const API_VERSION = '2024-01';
 
@@ -26,6 +26,7 @@ const ITEM_FIELDS = `
   column_values(ids: [${COLUMN_IDS.map((c) => `"${c}"`).join(', ')}]) {
     id text
     ... on PeopleValue { persons_and_teams { id kind } }
+    ... on BoardRelationValue { linked_item_ids }
   }
 `;
 
@@ -64,10 +65,16 @@ function parseCall(item) {
     // A real connection: answered, tagged by the SDR, and not tagged as no answer, busy or voicemail.
     connected: answered && tags.length > 0 && !noConnectionTag,
     coachingStatus: text(COLS.coachingStatus) || null,
+    // The rules version this call was analysed under (blank until it is analysed). This decides whether it is
+    // analysed, waiting to be re-analysed or waiting to be analysed.
+    analysisVersion: Number.isFinite(parseFloat(text(COLS.analysisVersion))) ? parseFloat(text(COLS.analysisVersion)) : null,
     direction: text(COLS.direction).toLowerCase(),
     tags,
     durationMin,
     recordingUrl: recording,
+    // For looking up the CRM record: the linked prospect, else the number that was called.
+    prospectIds: (col(COLS.prospects)?.linked_item_ids ?? []).map(String),
+    externalPhone: text(COLS.externalPhone).replace(/\D/g, ''),
   };
 }
 
@@ -98,6 +105,47 @@ async function fetchCall(id) {
   return item && String(item.board?.id) === String(CALLS_BOARD) ? parseCall(item) : null;
 }
 
+// The CRM record of the person called: Industry (CRM), company, job title, seniority, size.
+// Found through the call's link to the Outbound prospects board, or else by the number that was
+// called. Never throws: a call is analysed the same without it, just with less context.
+const PROSPECT_FIELDS = `id column_values(ids: [${Object.values(PROSPECT_COLS).map((c) => `"${c}"`).join(', ')}]) { id text }`;
+
+function parseProspect(item, source) {
+  const text = (id) => (item.column_values?.find((c) => c.id === id)?.text || '').trim() || null;
+  return {
+    source,
+    industry: text(PROSPECT_COLS.industry),
+    company: text(PROSPECT_COLS.company),
+    title: text(PROSPECT_COLS.title),
+    seniority: text(PROSPECT_COLS.seniority),
+    employees: text(PROSPECT_COLS.employees),
+  };
+}
+
+async function fetchProspect(call) {
+  try {
+    if (call.prospectIds?.length) {
+      const data = await gql(`query($ids: [ID!]) { items(ids: $ids) { ${PROSPECT_FIELDS} } }`, { ids: [call.prospectIds[0]] });
+      const item = data.items?.[0];
+      if (item) return parseProspect(item, 'link');
+    }
+    const digits = String(call.externalPhone || '').replace(/\D/g, '');
+    if (digits.length >= 7) {
+      // Numbers are stored with different prefixes (+972..., 972..., 0...), so match on the last nine digits.
+      const tail = digits.slice(-9);
+      // `tail` is digits only, so it is safe to write into the query directly.
+      const data = await gql(
+        `query { boards(ids: ["${PROSPECTS_BOARD}"]) { items_page(limit: 3, query_params: { rules: [{ column_id: "${PROSPECT_COLS.phones}", compare_value: ["${tail}"], operator: contains_text }] }) { items { ${PROSPECT_FIELDS} } } } }`,
+      );
+      const item = data.boards?.[0]?.items_page?.items?.[0];
+      if (item) return parseProspect(item, 'phone');
+    }
+  } catch (err) {
+    console.error(`[prospect] lookup failed: ${err.message}`);
+  }
+  return null;
+}
+
 // Cheap check that the token works.
 async function ping() {
   await gql('query { me { id } }');
@@ -120,12 +168,23 @@ async function fetchTranscripts(itemIds) {
   return out;
 }
 
-// Marks a call as analysed on the board. The analysis itself is not written here.
-async function markAnalysed(itemId) {
-  await gql(
-    `mutation($b: ID!, $i: ID!, $c: String!, $v: String!) { change_simple_column_value(board_id: $b, item_id: $i, column_id: $c, value: $v) { id } }`,
-    { b: CALLS_BOARD, i: String(itemId), c: COLS.coachingStatus, v: STATUS_ANALYSED },
-  );
+// Sets the call's status on the board ("Analysed", "Waiting to be analysed", "Waiting to be re-analysed").
+// A label that does not exist yet is created. The analysis itself is not written here.
+async function setStatus(itemId, label) {
+  const vars = { b: CALLS_BOARD, i: String(itemId), c: COLS.coachingStatus, v: label };
+  try {
+    await gql(`mutation($b: ID!, $i: ID!, $c: String!, $v: String!) { change_simple_column_value(board_id: $b, item_id: $i, column_id: $c, value: $v, create_labels_if_missing: true) { id } }`, vars);
+  } catch (err) {
+    // Without permission to create labels, or on an API that does not know the option, try plainly.
+    if (!/create_labels_if_missing|Unknown argument|label/i.test(err.message)) throw err;
+    await gql(`mutation($b: ID!, $i: ID!, $c: String!, $v: String!) { change_simple_column_value(board_id: $b, item_id: $i, column_id: $c, value: $v) { id } }`, vars);
+  }
 }
 
-module.exports = { fetchCalls, fetchCall, fetchTranscripts, parseCall, markAnalysed, ping };
+// Marks a call as analysed: records the rules version it was analysed under and shows Analysed, in one write.
+async function markAnalysed(itemId, version) {
+  const values = JSON.stringify({ [COLS.coachingStatus]: { label: STATUS_ANALYSED }, [COLS.analysisVersion]: String(version) });
+  await gql(`mutation($b: ID!, $i: ID!, $v: JSON!) { change_multiple_column_values(board_id: $b, item_id: $i, column_values: $v, create_labels_if_missing: true) { id } }`, { b: CALLS_BOARD, i: String(itemId), v: values });
+}
+
+module.exports = { fetchCalls, fetchCall, fetchTranscripts, fetchProspect, parseCall, parseProspect, markAnalysed, setStatus, ping };

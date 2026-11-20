@@ -19,16 +19,21 @@ const defaults = {
 const { parseTranscript } = require('../lib/transcript');
 const { statsFor, bySdr } = require('../lib/metrics');
 const { summarise } = require('../lib/focus');
-const { buildTrends } = require('../lib/trends');
+const { buildTrends, forEveryone } = require('../lib/trends');
+const { reviewPriority } = require('../lib/priority');
+const { ANALYSIS_SCHEMA, positioningUnrecorded, openerUnrecorded, modernOpener, missingParts } = require('../lib/analysis');
+const { measured } = require('../lib/outcome');
+const { buildAudit } = require('../lib/audit');
 
-const CALLS_TTL_MS = 3 * 60 * 1000;
+const CALLS_TTL_MS = 2 * 60 * 1000; // newer than this: served as is
+const CALLS_STALE_MS = 6 * 60 * 60 * 1000; // older: served at once while a top-up loads behind it
 const FRESH_CALL_MS = 60 * 60 * 1000; // a transcript can still arrive for about an hour
 const RECHECK_FRESH_MS = 5 * 60 * 1000;
 const RECHECK_OLD_MS = 6 * 60 * 60 * 1000;
 const MAX_PENDING_LOOKUPS = 400;
 const MAX_ROWS = 200;
 
-function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() } = {}) {
+function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now(), maxJobWorkers = 4 } = {}) {
   const { mondayApi, analysis, store } = { ...defaults, ...deps };
   const router = express.Router();
   router.use(auth);
@@ -37,12 +42,30 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
   const callsCache = new Map(); // days -> { at, calls }
   const transcriptCache = new Map(); // itemId -> { at, raw|null }
 
-  async function loadCalls(days) {
+  // The calls list is kept and served straight away. When it is older than the TTL it is topped
+  // up in the background (one shared load, however many requests ask), so opening the tab never
+  // waits on monday once the server has the list. `fresh` (the Refresh button) waits for a reload.
+  const loading = new Map(); // days -> in-flight load
+  function reloadCalls(days) {
+    if (!loading.has(days)) {
+      const p = mondayApi.fetchCalls(now() - days * 86400000)
+        .then((calls) => { callsCache.set(days, { at: now(), calls }); return calls; })
+        .finally(() => loading.delete(days));
+      loading.set(days, p);
+    }
+    return loading.get(days);
+  }
+  async function loadCalls(days, { fresh = false } = {}) {
     const hit = callsCache.get(days);
-    if (hit && now() - hit.at < CALLS_TTL_MS) return hit.calls;
-    const calls = await mondayApi.fetchCalls(now() - days * 86400000);
-    callsCache.set(days, { at: now(), calls });
-    return calls;
+    if (hit && !fresh) {
+      const age = now() - hit.at;
+      if (age < CALLS_TTL_MS) return hit.calls;
+      if (age < CALLS_STALE_MS) {
+        reloadCalls(days).catch((err) => console.error(`[calls] background refresh failed: ${err.message}`));
+        return hit.calls;
+      }
+    }
+    return reloadCalls(days);
   }
 
   // Looks up transcripts, remembering "none yet" for a short time on fresh calls
@@ -75,7 +98,52 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
   // Answered and not tagged as no answer, busy or voicemail. Untagged calls stay in,
   // because a fresh call may not be tagged yet and its transcript will show what it was.
   const isCandidate = (c) => c.answered && !c.noConnectionTag && Date.parse(c.createdAt) >= cfg.COACHING_FROM_MS;
-  const isAnalysed = (c) => c.coachingStatus === cfg.STATUS_ANALYSED;
+  // A call is analysed when the rules version recorded on it is the current one. Nothing else decides it.
+  const isAnalysed = (c) => (c.analysisVersion ?? 0) >= ANALYSIS_SCHEMA;
+  // An analysis that is missing, or was made under older rules (before English findings, before the
+  // opening types), is offered for redoing so the whole set follows the current rules.
+  const refreshOf = (analysis) => {
+    if (!analysis) return 'missing';
+    if (!(analysis.schema >= ANALYSIS_SCHEMA) || positioningUnrecorded(analysis) || openerUnrecorded(analysis)) return 'outdated';
+    return measured(analysis) ? null : 'numbers'; // current, only missing the stay-on numbers: updated without Claude
+  };
+
+  // ---- keeping the board's status column true ----
+  // Every call that can be analysed shows where it is on the board: waiting to be analysed, waiting to
+  // be re-analysed (it was analysed under older rules), or analysed. The app sets the first two when
+  // it finds a call needs the work, and "Analysed" only once the result is saved and read back.
+  const boardAsked = new Map(); // call id -> the label we last asked the board to show
+  const recentlyAnalysed = new Set(); // calls analysed since the server started, never flipped back by a late write
+  let syncingBoard = false;
+  async function syncBoardStatus(items) {
+    const todo = items.filter(({ call, label }) => call.coachingStatus !== label && boardAsked.get(call.id) !== label);
+    const result = { changed: 0, failed: 0 };
+    if (!todo.length || syncingBoard || typeof mondayApi.setStatus !== 'function') return { ...result, skipped: todo.length > 0 };
+    syncingBoard = true;
+    try {
+      let next = 0;
+      const worker = async () => {
+        while (next < todo.length) {
+          const { call, label } = todo[next++];
+          // A call finished while this was running keeps its Analysed status.
+          if (label !== cfg.STATUS_ANALYSED && call.coachingStatus === cfg.STATUS_ANALYSED && recentlyAnalysed.has(call.id)) continue;
+          try {
+            await mondayApi.setStatus(call.id, label);
+            call.coachingStatus = label; // keep the cached list in step
+            boardAsked.set(call.id, label);
+            result.changed += 1;
+          } catch (err) {
+            result.failed += 1;
+            console.error(`[board] could not set ${call.id} to "${label}": ${err.message}`);
+          }
+        }
+      };
+      await Promise.all(Array.from({ length: 3 }, worker));
+    } finally {
+      syncingBoard = false;
+    }
+    return result;
+  }
   const parseDays = (q) => Math.min(cfg.MAX_DAYS, Math.max(7, parseInt(q, 10) || 30));
   const usable = (parsed) => !!parsed && parsed.stats.chars >= cfg.MIN_TRANSCRIPT_CHARS;
 
@@ -101,7 +169,16 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
   }
 
   // Saved analyses for calls already marked Analysed.
-  const loadAnalyses = (calls) => store.mapLimit(calls, 8, async (c) => ({ call: c, analysis: await store.getAnalysis(c.id) }));
+  const loadAnalyses = (calls) => store.mapLimit(calls, 6, async (c) => ({ call: c, ...(await store.getAnalysisChecked(c.id)) }));
+
+  // Managers only. Reads every call in the period and what is saved for it, and reports where the board and
+  // the saved results disagree. Changes nothing.
+  router.get('/audit', handle(async (req, res) => {
+    if (!req.viewer.isAdmin) return res.status(403).json({ error: 'forbidden', message: 'Only managers can see this.' });
+    const calls = (await loadCalls(cfg.MAX_DAYS, { fresh: req.query.fresh === '1' })).filter(isCandidate);
+    const pairs = await loadAnalyses(calls);
+    res.json(buildAudit(pairs, { schema: ANALYSIS_SCHEMA, labels: { analysed: cfg.STATUS_ANALYSED, waiting: cfg.STATUS_WAITING, reanalyse: cfg.STATUS_REANALYSE } }));
+  }));
 
   router.get('/me', (req, res) => res.json({ userId: req.viewer.userId, isAdmin: req.viewer.isAdmin }));
 
@@ -109,7 +186,7 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
     const scope = scopeOr403(req, res);
     if (!scope) return;
     const days = parseDays(req.query.days);
-    const all = await loadCalls(days);
+    const all = await loadCalls(days, { fresh: req.query.fresh === '1' });
     const calls = inScope(all, scope.sdrId);
 
     const analysedCalls = calls.filter(isCandidate).filter(isAnalysed);
@@ -142,7 +219,7 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
     const scope = scopeOr403(req, res);
     if (!scope) return;
     const days = parseDays(req.query.days);
-    const candidates = inScope(await loadCalls(days), scope.sdrId).filter(isCandidate);
+    const candidates = inScope(await loadCalls(days, { fresh: req.query.fresh === '1' }), scope.sdrId).filter(isCandidate);
     const analysedCalls = candidates.filter(isAnalysed);
     const pending = candidates
       .filter((c) => !isAnalysed(c))
@@ -167,10 +244,22 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
       recordingUrl: c.recordingUrl,
       ...extra,
     });
-    const rows = [
-      ...done.map((p) => row(p.call, { status: 'analysed', transcript: { available: true }, analysis: p.analysis, detailsMissing: !p.analysis })),
-      ...waiting.map((p) => row(p.call, { status: 'waiting', transcript: { available: true, chars: p.parsed.stats.chars }, analysis: null })),
-    ].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).slice(0, MAX_ROWS);
+    const byNewest = (x, y) => String(y.createdAt).localeCompare(String(x.createdAt));
+    const unreadable = done.filter((p) => !p.analysis && p.unreadable);
+    const refreshing = done.filter((p) => !(!p.analysis && p.unreadable) && refreshOf(p.analysis));
+
+    // Every call that still needs analysing is always sent, so "Analyse all" really covers them all.
+    // Finished calls fill the rest of the list, newest first, up to a cap.
+    const waitingRows = [
+      ...refreshing.map((p) => row(p.call, { status: 'waiting', refresh: refreshOf(p.analysis), transcript: { available: true }, analysis: p.analysis, detailsMissing: !p.analysis, priority: p.analysis ? reviewPriority(p.analysis, p.call) : null })),
+      ...waiting.map((p) => row(p.call, { status: 'waiting', refresh: (p.call.analysisVersion ?? 0) > 0 || p.call.coachingStatus === cfg.STATUS_REANALYSE ? 'outdated' : null, transcript: { available: true, chars: p.parsed.stats.chars }, analysis: null })),
+    ];
+    const finishedRows = done
+      .filter((p) => !refreshOf(p.analysis))
+      .map((p) => row(p.call, { status: 'analysed', refresh: null, transcript: { available: true }, analysis: p.analysis, detailsMissing: false, priority: reviewPriority(p.analysis, p.call) }))
+      .sort(byNewest)
+      .slice(0, MAX_ROWS);
+    const rows = [...waitingRows, ...finishedRows].sort(byNewest);
 
     // Managers can see which SDRs actually have transcripts to coach from.
     let coverage = [];
@@ -189,23 +278,55 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
 
     res.json({
       calls: rows,
-      waitingCount: waiting.length,
+      waitingCount: waitingRows.length,
+      refreshCount: refreshing.length + waiting.filter((p) => (p.call.analysisVersion ?? 0) > 0 || p.call.coachingStatus === cfg.STATUS_REANALYSE).length,
+      // Every call in the period that could be analysed: already analysed plus still waiting.
+      // Calls marked Analysed whose saved result could not be read just now (storage slow). They are
+      // not offered for re-analysis, so nothing is paid for twice; Refresh reads them again.
+      unreadableCount: unreadable.length,
+      // Why, for managers: the distinct errors the stores gave, so a real fault is not hidden behind "slow".
+      unreadableReasons: req.viewer.isAdmin ? [...new Set(unreadable.flatMap((p) => p.errors || []))].slice(0, 4) : [],
+      transcriptTotals: { valid: analysedCalls.length + waiting.length, analysed: analysedCalls.length, waiting: waiting.length },
       coverage,
       rules: { from: new Date(cfg.COACHING_FROM_MS).toISOString().slice(0, 10), minChars: cfg.MIN_TRANSCRIPT_CHARS },
     });
   }));
 
-  // Team-wide patterns. Managers only: SDRs are refused even if they ask for their own.
+  // Team-wide patterns: top objections, the best ways they were handled, how calls open, who books.
+  // Everyone sees the whole team's patterns, with nothing that points at an individual or opens a
+  // transcript. Managers also get names, links to calls, the SDR comparison, and can look at one SDR.
   router.get('/trends', handle(async (req, res) => {
-    if (!req.viewer.isAdmin) {
-      return res.status(403).json({ error: 'forbidden', message: 'Trends are for managers.' });
-    }
-    const scope = scopeOr403(req, res);
-    if (!scope) return;
     const days = parseDays(req.query.days);
-    const analysedCalls = inScope(await loadCalls(days), scope.sdrId).filter(isCandidate).filter(isAnalysed);
-    const pairs = (await loadAnalyses(analysedCalls)).filter((p) => p.analysis);
-    res.json({ scope: { sdrId: scope.sdrId, days }, analysedCount: analysedCalls.length, trends: buildTrends(pairs) });
+    let sdrId = null; // everyone else always gets the whole team, whatever they ask for
+    if (req.viewer.isAdmin) {
+      const scope = scopeOr403(req, res);
+      if (!scope) return;
+      sdrId = scope.sdrId;
+    }
+    const loaded = await loadCalls(days, { fresh: req.query.fresh === '1' });
+    const analysedCalls = inScope(loaded, sdrId).filter(isCandidate).filter(isAnalysed);
+    let pairs = (await loadAnalyses(analysedCalls)).filter((p) => p.analysis);
+
+    // Warm or cold: warm is a call where the SDR referred to an earlier contact, or where this number
+    // had an earlier answered call in the period. Everything else is cold. Wordings are only fairly
+    // compared within the same kind of call, because warm calls behave very differently.
+    const byPhone = new Map();
+    for (const c of loaded) {
+      if (c.externalPhone && c.externalPhone.length >= 7) byPhone.set(c.externalPhone, [...(byPhone.get(c.externalPhone) || []), c]);
+    }
+    const hadEarlierConversation = (c) => (byPhone.get(c.externalPhone) || []).some((o) => o.id !== c.id && o.answered && !o.noConnectionTag && Date.parse(o.createdAt) < Date.parse(c.createdAt));
+    const isWarm = (p) => modernOpener(p.analysis.opener?.style) === 'warm_followup' || hadEarlierConversation(p.call);
+    const warmCount = pairs.filter(isWarm).length;
+    const temperature = { selected: ['warm', 'cold'].includes(req.query.temp) ? req.query.temp : 'all', all: pairs.length, warm: warmCount, cold: pairs.length - warmCount };
+    if (temperature.selected === 'warm') pairs = pairs.filter(isWarm);
+    if (temperature.selected === 'cold') pairs = pairs.filter((p) => !isWarm(p));
+    const trends = buildTrends(pairs);
+    res.json({
+      scope: req.viewer.isAdmin ? { sdrId, days } : { days, everyone: true },
+      analysedCount: analysedCalls.length,
+      temperature,
+      trends: req.viewer.isAdmin ? trends : forEveryone(trends),
+    });
   }));
 
   router.get('/calls/:id/transcript', handle(async (req, res) => {
@@ -223,69 +344,229 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
   // Analyses calls (the app sends one at a time) and saves the result privately in the
   // app's own storage. The board only gets the "Analysed" status, set after the save
   // is confirmed, so a call is never marked done unless its analysis is kept.
+  // What is kept from the transcript with each analysis. The last two decide "stayed on".
+  const statsToKeep = ({ sdrShare, sdrQuestions, longestSdrTurnWords, chars, prospectWordsAfterOpening, turnsAfterOpening }) => ({
+    sdrShare, sdrQuestions, longestSdrTurnWords, chars, prospectWordsAfterOpening, turnsAfterOpening,
+  });
+
+  // Analyses one call and says what happened. Used by the request that waits for the answer and by
+  // the background jobs below.
+  async function analyseOne(id, viewer, { patient = false } = {}) {
+    // Time each step and name the one that fails, so a problem is easy to find in the logs.
+    let stepName = 'start';
+    const t0 = Date.now();
+    const step = async (name, fn) => {
+      stepName = name;
+      const s0 = Date.now();
+      const out = await fn();
+      console.log(`[analyse] ${id} ${name} ${Date.now() - s0}ms`);
+      return out;
+    };
+    try {
+      const call = await step('find call', () => getCall(id));
+      // Same rule as everywhere else: SDRs can only analyse their own calls.
+      if (!call || (!viewer.isAdmin && call.sdrId !== viewer.userId) || !isCandidate(call)) {
+        return { id, error: 'not_found' };
+      }
+      if (isAnalysed(call)) {
+        let checked = await step('read saved analysis', () => store.getAnalysisChecked(id));
+        // A background run can afford to wait while storage catches up (it loads saved analyses in
+        // small batches after a restart), instead of giving up on the call straight away.
+        for (let wait = 0; patient && !checked.analysis && checked.unreadable && wait < 18; wait += 1) {
+          await new Promise((resolve) => { setTimeout(resolve, 5000); });
+          checked = await store.getAnalysisChecked(id);
+        }
+        if (!checked.analysis && checked.unreadable) {
+          return { id, error: 'storage_unreadable', message: 'The saved analysis could not be read just now because storage was slow. It was not redone, so nothing was paid for twice. Try again in a minute.' };
+        }
+        const existing = checked.analysis;
+        if (existing && existing.schema >= ANALYSIS_SCHEMA && !positioningUnrecorded(existing) && !openerUnrecorded(existing)) {
+          if (measured(existing)) return { id, analysis: existing, saved: true, marked: true };
+          // Only the stay-on numbers are missing: work them out from the transcript. No Claude, no cost.
+          const rawText = await step('read transcript', async () => (await loadTranscripts([call]))[id]);
+          const parsedText = parseTranscript(rawText, call.agentName);
+          if (parsedText) {
+            const updated = { ...existing, stats: { ...(existing.stats || {}), ...statsToKeep(parsedText.stats) } };
+            const savedNumbers = await step('save the numbers', () => store.saveAnalysis(id, updated));
+            return { id, analysis: savedNumbers ? updated : existing, saved: savedNumbers, marked: true, numbersOnly: true };
+          }
+        }
+        // Marked done, but the saved analysis is missing or was made under older rules: redo it.
+      }
+      const raw = await step('read transcript', async () => (await loadTranscripts([call]))[id]);
+      const parsed = parseTranscript(raw, call.agentName);
+      if (!usable(parsed)) {
+        return { id, error: parsed ? 'too_short' : 'no_transcript' };
+      }
+
+      // The CRM record (industry, company, title) gives the analysis context the call may never state.
+      const prospect = typeof mondayApi.fetchProspect === 'function' ? await step('look up the prospect', () => mondayApi.fetchProspect(call)) : null;
+      const result = await step('analyse with Claude', () => analysis.analyseCall({ turns: parsed.turns, call, prospect }));
+      result.stats = statsToKeep(parsed.stats);
+
+      // The board is only marked once the analysis is confirmed saved permanently.
+      const saved = await step('save analysis', () => store.saveAnalysis(id, result));
+      let marked = false;
+      if (saved) {
+        try {
+          await step('mark as analysed on the board', () => mondayApi.markAnalysed(id, ANALYSIS_SCHEMA));
+          marked = true;
+          call.coachingStatus = cfg.STATUS_ANALYSED; // keep the cached list in step
+          call.analysisVersion = ANALYSIS_SCHEMA;
+          recentlyAnalysed.add(id);
+        } catch (err) {
+          console.error(`[analyse] ${id} could not mark the board: ${err.message}`);
+        }
+      }
+      console.log(`[analyse] ${id} done in ${Date.now() - t0}ms (saved ${saved}, marked ${marked})`);
+      return { id, analysis: result, saved, marked };
+    } catch (err) {
+      if (err.code === 'not_configured') throw err;
+      console.error(`[analyse] ${id} failed at "${stepName}" after ${Date.now() - t0}ms: ${err.message}`);
+      return { id, error: 'failed', step: stepName, message: `${stepName}: ${err.message}` };
+    }
+  }
+
+  // The request that waits for the answer (kept for small jobs and for tests).
   router.post('/analyse', express.json(), handle(async (req, res) => {
     const ids = [...new Set((req.body?.ids || []).map(String))].slice(0, cfg.MAX_ANALYSE_PER_REQUEST);
     if (!ids.length) return res.status(400).json({ error: 'bad_request', message: 'No calls given.' });
-
     const results = [];
-    for (const id of ids) {
-      // Time each step and name the one that fails, so a problem is easy to find in the logs.
-      let stepName = 'start';
-      const t0 = Date.now();
-      const step = async (name, fn) => {
-        stepName = name;
-        const s0 = Date.now();
-        const out = await fn();
-        console.log(`[analyse] ${id} ${name} ${Date.now() - s0}ms`);
-        return out;
-      };
-      try {
-        const call = await step('find call', () => getCall(id));
-        // Same rule as everywhere else: SDRs can only analyse their own calls.
-        if (!call || (!req.viewer.isAdmin && call.sdrId !== req.viewer.userId) || !isCandidate(call)) {
-          results.push({ id, error: 'not_found' });
-          continue;
-        }
-        if (isAnalysed(call)) {
-          const existing = await step('read saved analysis', () => store.getAnalysis(id));
-          if (existing) {
-            results.push({ id, analysis: existing, saved: true, marked: true });
-            continue;
-          }
-          // Marked done but the saved analysis is missing: fall through and redo it.
-        }
-        const raw = await step('read transcript', async () => (await loadTranscripts([call]))[id]);
-        const parsed = parseTranscript(raw, call.agentName);
-        if (!usable(parsed)) {
-          results.push({ id, error: parsed ? 'too_short' : 'no_transcript' });
-          continue;
-        }
-
-        const result = await step('analyse with Claude', () => analysis.analyseCall({ turns: parsed.turns, call }));
-        const { sdrShare, sdrQuestions, longestSdrTurnWords, chars } = parsed.stats;
-        result.stats = { sdrShare, sdrQuestions, longestSdrTurnWords, chars };
-
-        // The board is only marked once the analysis is confirmed saved permanently.
-        const saved = await step('save analysis', () => store.saveAnalysis(id, result));
-        let marked = false;
-        if (saved) {
-          try {
-            await step('mark as analysed on the board', () => mondayApi.markAnalysed(id));
-            marked = true;
-            call.coachingStatus = cfg.STATUS_ANALYSED; // keep the cached list in step
-          } catch (err) {
-            console.error(`[analyse] ${id} could not mark the board: ${err.message}`);
-          }
-        }
-        console.log(`[analyse] ${id} done in ${Date.now() - t0}ms (saved ${saved}, marked ${marked})`);
-        results.push({ id, analysis: result, saved, marked });
-      } catch (err) {
-        if (err.code === 'not_configured') throw err;
-        console.error(`[analyse] ${id} failed at "${stepName}" after ${Date.now() - t0}ms: ${err.message}`);
-        results.push({ id, error: 'failed', step: stepName, message: `${stepName}: ${err.message}` });
-      }
-    }
+    for (const id of ids) results.push(await analyseOne(id, req.viewer));
     return res.json({ results });
+  }));
+
+  // ---- background analysis ----
+  // One analysis can take a minute now that the coaching is richer, and a long request can be cut off
+  // by the hosting. So the page starts the work and then asks how it is going: the server does the
+  // analysing on its own, a couple at a time, and the page only ever makes short requests. Results
+  // are kept in memory for a while; the analyses themselves are saved permanently as before.
+  const JOB_KEEP_MS = 30 * 60 * 1000;
+  const MAX_JOB_WORKERS = maxJobWorkers; // calls analysed at the same time (4 live, each three requests to Claude), to stay within Claude's rate limit
+  const MAX_JOB_IDS = 200;
+  const jobs = new Map(); // id -> { state, viewerId, result?, at }
+  const jobQueue = [];
+  let jobWorkers = 0;
+
+  function runJobs() {
+    while (jobWorkers < MAX_JOB_WORKERS && jobQueue.length) {
+      const { id, viewer } = jobQueue.shift();
+      const job = jobs.get(id);
+      if (!job || job.state !== 'queued') continue; // cancelled
+      jobWorkers += 1;
+      job.state = 'running';
+      job.at = now();
+      analyseOne(id, viewer, { patient: true })
+        .then((result) => { jobs.set(id, { state: result.error ? 'failed' : 'done', viewerId: viewer.userId, result, at: now() }); })
+        .catch((err) => { jobs.set(id, { state: 'failed', viewerId: viewer.userId, result: { id, error: 'failed', message: err.message }, at: now() }); })
+        .finally(() => { jobWorkers -= 1; runJobs(); });
+    }
+  }
+  const sweepJobs = () => { for (const [id, j] of jobs) if (now() - j.at > JOB_KEEP_MS && j.state !== 'running') jobs.delete(id); };
+  const mayRead = (job, viewer) => viewer.isAdmin || job.viewerId === viewer.userId;
+
+  // ---- trial: analyse a handful of real calls and show the raw result, saving nothing ----
+  // Managers only. Picks calls of different lengths (or the ones asked for), runs the real analysis on each, and
+  // reports the time taken and whether every required part came back. Nothing is saved and the board is not
+  // touched, so it can be run before trusting a new set of rules on every call.
+  let trial = null; // { startedAt, done, total, results }
+  async function runTrial(calls) {
+    trial = { startedAt: new Date(now()).toISOString(), done: 0, total: calls.length, results: [] };
+    const mine = trial;
+    await Promise.all(calls.map(async (call) => {
+      const t0 = Date.now();
+      const base = { id: call.id, sdrName: call.sdrName, startedAt: call.startedAt, durationMin: call.durationMin };
+      try {
+        const raw = (await loadTranscripts([call]))[call.id];
+        const parsed = parseTranscript(raw, call.agentName);
+        if (!usable(parsed)) throw new Error('no usable transcript');
+        const prospect = typeof mondayApi.fetchProspect === 'function' ? await mondayApi.fetchProspect(call) : null;
+        const a = await analysis.analyseCall({ turns: parsed.turns, call, prospect });
+        mine.results.push({
+          ...base,
+          seconds: Math.round((Date.now() - t0) / 100) / 10,
+          complete: missingParts(a).length === 0,
+          callType: a.callType,
+          openerResult: a.openerResult,
+          opener: a.opener && { style: a.opener.style, quote: a.opener.quoteEn || a.opener.quote, note: a.opener.note },
+          positioning: a.positioning && { lead: a.positioning.lead, quote: a.positioning.quoteEn || a.positioning.quote, note: a.positioning.note },
+          objections: a.objections.map((o) => ({ category: o.category, stage: o.stage, quote: o.quoteEn || o.quote, reply: o.responseQuoteEn || o.responseQuote, handled: o.handled, score: o.score, brushOff: o.brushOff, endedSoon: o.endedSoon })),
+          aiScreener: a.aiScreener,
+          craftScored: Object.values(a.craft || {}).filter((c) => Number.isFinite(c?.score)).length,
+          keyExchanges: a.keyExchanges.length,
+          summary: a.summary,
+        });
+      } catch (err) {
+        mine.results.push({ ...base, seconds: Math.round((Date.now() - t0) / 100) / 10, complete: false, error: err.message });
+      } finally {
+        mine.done += 1;
+      }
+    }));
+  }
+
+  router.post('/analyse/trial', express.json(), handle(async (req, res) => {
+    if (!req.viewer.isAdmin) return res.status(403).json({ error: 'forbidden', message: 'Only managers can run a trial.' });
+    if (trial && trial.done < trial.total) return res.json({ started: false, message: 'A trial is already running.' });
+    const ids = [...new Set((req.body?.ids || []).map(String))].slice(0, 10);
+    let picked;
+    if (ids.length) {
+      picked = (await Promise.all(ids.map((id) => getCall(id)))).filter(Boolean);
+    } else {
+      // Two short, two medium and two long calls with usable transcripts, from different SDRs where possible.
+      const recent = (await loadCalls(30)).filter(isCandidate).slice(0, 120);
+      const texts = await loadTranscripts(recent);
+      const usableCalls = recent
+        .map((c) => ({ c, p: parseTranscript(texts[c.id], c.agentName) }))
+        .filter((x) => usable(x.p))
+        .sort((x, y) => x.p.stats.chars - y.p.stats.chars);
+      const n = usableCalls.length;
+      const at = (f) => usableCalls[Math.min(n - 1, Math.floor(f * n))]?.c;
+      picked = [...new Set([at(0.1), at(0.25), at(0.45), at(0.6), at(0.8), at(0.95)].filter(Boolean))];
+    }
+    runTrial(picked).catch((err) => console.error(`[trial] ${err.message}`));
+    res.json({ started: true, total: picked.length });
+  }));
+
+  router.get('/analyse/trial', handle(async (req, res) => {
+    if (!req.viewer.isAdmin) return res.status(403).json({ error: 'forbidden', message: 'Only managers can see the trial.' });
+    res.json(trial || { done: 0, total: 0, results: [] });
+  }));
+
+  router.post('/analyse/start', express.json(), handle(async (req, res) => {
+    const ids = [...new Set((req.body?.ids || []).map(String))].slice(0, MAX_JOB_IDS);
+    if (!ids.length) return res.status(400).json({ error: 'bad_request', message: 'No calls given.' });
+    sweepJobs();
+    const accepted = [];
+    for (const id of ids) {
+      const existing = jobs.get(id);
+      if (existing && (existing.state === 'queued' || existing.state === 'running')) { accepted.push(id); continue; } // already on its way
+      jobs.set(id, { state: 'queued', viewerId: req.viewer.userId, at: now() });
+      jobQueue.push({ id, viewer: { userId: req.viewer.userId, isAdmin: req.viewer.isAdmin } });
+      accepted.push(id);
+    }
+    runJobs();
+    return res.status(202).json({ accepted });
+  }));
+
+  router.get('/analyse/status', handle(async (req, res) => {
+    const ids = String(req.query.ids || '').split(',').map((x) => x.trim()).filter(Boolean).slice(0, MAX_JOB_IDS);
+    const out = {};
+    for (const id of ids) {
+      const job = jobs.get(id);
+      if (!job || !mayRead(job, req.viewer)) { out[id] = { state: 'unknown' }; continue; }
+      out[id] = job.state === 'done' || job.state === 'failed' ? { state: job.state, result: job.result } : { state: job.state };
+    }
+    return res.json({ jobs: out, queued: jobQueue.length, running: jobWorkers });
+  }));
+
+  router.post('/analyse/cancel', express.json(), handle(async (req, res) => {
+    const ids = new Set((req.body?.ids || []).map(String));
+    let cancelled = 0;
+    for (const id of ids) {
+      const job = jobs.get(id);
+      if (job && job.state === 'queued' && mayRead(job, req.viewer)) { jobs.delete(id); cancelled += 1; }
+    }
+    return res.json({ cancelled });
   }));
 
   // Managers only: proves Claude, storage and monday can each be reached from the server.
@@ -310,6 +591,65 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now() 
     const checks = [claude, ...saving, monday];
     return res.json({ ok: checks.every((c) => c.ok), checks });
   }));
+
+  // Run once when the server starts, so the first person to open the tab does not wait for it.
+  router.warm = async (days = 30) => {
+    try {
+      const all = await loadCalls(days);
+      await loadAnalyses(all.filter(isCandidate).filter(isAnalysed));
+      console.log(`[warm] ${all.length} calls and their analyses are ready`);
+    } catch (err) {
+      console.error(`[warm] could not preload: ${err.message}`);
+    }
+  };
+
+  // ---- the board's status column follows the rules version recorded on each call ----
+  // The "Analysis version" number on each call is the one fact that decides its status:
+  //   the current version   -> Analysed
+  //   an older version      -> Waiting to be re-analysed
+  //   nothing, had a status -> Waiting to be re-analysed (it was analysed before versions were recorded)
+  //   nothing, usable call  -> Waiting to be analysed
+  // So one read of the board is enough. Nothing is read from storage and nothing is sent to Claude. When the
+  // analysis logic changes, ANALYSIS_SCHEMA goes up by one and every older call shows as waiting.
+  async function labelBoard() {
+    const all = (await loadCalls(cfg.MAX_DAYS)).filter(isCandidate);
+    const targets = [];
+    const blank = [];
+    for (const call of all) {
+      const v = call.analysisVersion ?? 0;
+      if (v >= ANALYSIS_SCHEMA) targets.push({ call, label: cfg.STATUS_ANALYSED });
+      else if (v > 0 || call.coachingStatus) targets.push({ call, label: cfg.STATUS_REANALYSE });
+      else blank.push(call);
+    }
+    if (blank.length) {
+      const transcripts = await loadTranscripts(blank);
+      for (const call of blank) {
+        if (usable(parseTranscript(transcripts[call.id], call.agentName))) targets.push({ call, label: cfg.STATUS_WAITING });
+      }
+    }
+    return syncBoardStatus(targets);
+  }
+
+  router.boot = async () => {
+    try {
+      const result = await labelBoard();
+      console.log(`[board] labels checked against the analysis version: ${result.changed} changed, ${result.failed} failed${result.skipped ? ', one update already running' : ''}`);
+      return result;
+    } catch (err) {
+      console.error(`[board] could not check the labels: ${err.message}`);
+      return { error: err.message };
+    }
+  };
+
+  // The same check every few minutes, so new calls are labelled without anyone opening the page.
+  router.tick = async () => {
+    try {
+      return await labelBoard();
+    } catch (err) {
+      console.error(`[board] could not check for new calls: ${err.message}`);
+      return { error: err.message };
+    }
+  };
 
   return router;
 }
