@@ -28,12 +28,19 @@ const OPENER_RESULTS = ['stayed_engaged', 'brushed_off', 'hung_up', 'blocked_by_
 // Objection groups, kept broad so "other" stays rare. "Not a good time" covers both "I have no time"
 // and "bad timing" (they are the same thing said two ways); "already covered" covers an existing
 // tool, a competitor or partner, an in-house team, or already doing it with AI.
+// Built from a study of 117 real calls (2 to 19 Nov, 180 objections): the groups that actually occur.
 const OBJECTION_CATEGORIES = [
-  'not_interested', 'not_a_good_time', 'send_email', 'already_covered',
-  'no_budget', 'too_small_or_no_need', 'wrong_person', 'data_source_challenge', 'other',
+  'not_now_busy', 'already_covered', 'no_need_or_not_applicable', 'not_my_remit', 'send_info_deferral',
+  'flat_no', 'stale_contact', 'trust_identity_challenge', 'no_budget_priority_capacity', 'gatekeeper_block', 'other',
 ];
+// How well the SDR handled an objection: five checks, each 0 (no), 1 (partly) or 2 (yes).
+const HANDLING_CHECKS = ['acknowledged', 'asked_back', 'fit_the_objection', 'reason_to_continue', 'secured_something'];
 // Names used by analyses saved under earlier rules, mapped onto the groups above.
-const LEGACY_OBJECTION = { no_time: 'not_a_good_time', bad_timing: 'not_a_good_time', already_have_solution: 'already_covered', using_competitor: 'already_covered' };
+const LEGACY_OBJECTION = {
+  no_time: 'not_now_busy', bad_timing: 'not_now_busy', not_a_good_time: 'not_now_busy', not_interested: 'flat_no', send_email: 'send_info_deferral',
+  already_have_solution: 'already_covered', using_competitor: 'already_covered', no_budget: 'no_budget_priority_capacity',
+  too_small_or_no_need: 'no_need_or_not_applicable', wrong_person: 'not_my_remit', data_source_challenge: 'trust_identity_challenge',
+};
 const LEGACY_OPENER = { named_person_ask: 'other', permission_based: 'cold_permission_ask', direct_pitch: 'credentials_first', referral_or_context: 'warm_followup', pattern_interrupt: 'pain_question_hook' };
 const modernCategory = (c) => LEGACY_OBJECTION[c] || c;
 const modernOpener = (c) => LEGACY_OPENER[c] || c;
@@ -43,7 +50,7 @@ const modernOpener = (c) => LEGACY_OPENER[c] || c;
 const OPENER_STYLES = ['warm_followup', 'apology', 'role_check', 'cold_permission_ask', 'credentials_first', 'pain_question_hook', 'other'];
 
 // Bump when the shape or the rules of an analysis change, so earlier analyses are offered for redoing.
-const ANALYSIS_SCHEMA = 6;
+const ANALYSIS_SCHEMA = 7; // 7: guaranteed answer shape, objection groups from the call study, handling checks
 const SENIORITY = ['c_level', 'vp_director', 'manager', 'individual', 'unknown'];
 // One fixed list so "Who books, by industry" groups cleanly instead of every call having its own wording.
 const INDUSTRIES = [
@@ -77,6 +84,7 @@ const ANALYSIS_TOOL = {
       opener_result: { type: 'string', enum: OPENER_RESULTS },
       ended_by: { type: 'string', enum: ['prospect', 'sdr', 'unclear'] },
       next_step_secured: { type: 'boolean' },
+      ai_screener: { type: 'boolean' },
       craft: {
         type: 'object',
         properties: Object.fromEntries(CRAFT.map((c) => [c.key, {
@@ -121,14 +129,18 @@ const ANALYSIS_TOOL = {
           properties: {
             category: { type: 'string', enum: OBJECTION_CATEGORIES },
             stage: { type: 'string', enum: STAGES },
+            is_brush_off: { type: 'boolean' },
             quote: str,
             quote_en: str,
             response_quote: str,
             response_quote_en: str,
-            handled: { type: 'string', enum: ['well', 'ok', 'poorly'] },
+            checks: {
+              type: 'object',
+              properties: Object.fromEntries(HANDLING_CHECKS.map((k) => [k, { type: 'integer', enum: [0, 1, 2] }])),
+            },
             why: str,
           },
-          required: ['category', 'stage', 'quote', 'handled'],
+          required: ['category', 'stage', 'is_brush_off', 'quote', 'checks'],
         },
       },
       key_exchanges: {
@@ -203,7 +215,7 @@ Rules:
 - "best_moment" and "missed_moment": pick the moment that teaches the most, quote it, and say specifically why it worked or what a stronger SDR would have said instead. Use null only when nothing on the call qualifies.
 - Coach on what the SDR controls (the opening, listening, how they answered the objection, the ask for the next step), not on the prospect's behaviour. Praise only specific things, and keep the tone of a manager who wants this person to improve.
 - Be honest. Praise only what happened.
-- "objections": each genuine objection or brush-off from the prospect (up to four) with the SDR's actual reply and where it came ("opener" means within the first couple of exchanges). Use an empty list if there were none.
+- "objections": see the objection rules below. Quote the prospect's exact words and the SDR's exact reply.
 - "prospect": only use what is said on the call. Use null or "unknown" when it is not stated; never guess a job title.
 - "opener" and "positioning": always fill these in for every call where a person answered, even a very short one. Judge them from the first things the SDR said; if the call ended before the SDR said anything usable, use style "other" or lead "none" and say so in the note.
 - "industry": always choose the closest item from the fixed list, so industries can be compared across calls. If the message includes a CRM record, use its industry (mapped onto the list) and set industry_source to "crm". Otherwise use what is said on the call ("call"), or, when the company name makes the industry clear, that ("company_name"). If it cannot be told, use "Other" with industry_source "unknown". The CRM record is context from our own database and can be incomplete; the call itself wins if they clearly disagree.
@@ -226,16 +238,29 @@ Positioning (who boost says it is): look at what the SDR says boost is in the fi
 - reaction: how the prospect responded straight after: "engaged" (asked a question, stayed, showed interest), "neutral", "pushed_back" (for example "what is this about", "not interested"), "ended" (hung up) or "unclear".
 Judge only from what is actually said; do not infer it.
 
-Objection category: choose the closest group and use "other" only when none fits.
-- not_interested: a plain no, "we do not take sales calls", "not for us".
-- not_a_good_time: busy, in a meeting, "not a great time", "can you call later", "I have no time", or priorities and bandwidth are elsewhere right now. These are one group, however they are worded.
-- send_email: asks for an email, brochure or information instead of talking.
-- already_covered: already has a tool, partner, competitor or an in-house team, or is already doing this (for example already using AI).
-- no_budget: no money, no budget, too expensive, spend frozen.
-- too_small_or_no_need: the team is too small or not big enough, or they say they do not need it.
-- wrong_person: not the right contact, has left the role or company, or someone else decides.
-- data_source_challenge: asks how the SDR got their number or details.
-Give each distinct objection its own entry. If the prospect misunderstood what boost does, pick the closest group and explain in "why".
+Objections. An objection is a turn by the prospect or a gatekeeper that declines or limits the call, gives a reason the offer does not apply, moves the conversation to a slower channel, challenges whether the call is legitimate, or blocks access. Record every one (up to eight), one entry per distinct reason; if the prospect raises it again after the SDR's reply, that is a new entry. These are NOT objections: a neutral "what is this regarding?" or "who are you?" (a question; it becomes trust_identity_challenge only when it carries suspicion, and flat_no if the prospect then refuses to hear the answer), buying signals ("can we book next week?"), bad lines, a plain hang-up with nothing said, and a colleague saying the person is away. Use an empty list only when there truly were none.
+Category, choosing the closest:
+- not_now_busy: cannot talk at this moment (in a meeting, driving, on leave, unwell, "call me later").
+- already_covered: already has a tool, an in-house build or AI team, a competitor, a consultancy or partner, or has outsourced it.
+- no_need_or_not_applicable: happy as they are, too small or too early, the idea does not fit how they work, or a policy or values clash.
+- not_my_remit: still at the company but the wrong role, or not the person who decides.
+- send_info_deferral: "email me", "send it on LinkedIn", "I will reach out if needed", "do not call us".
+- flat_no: refuses with no reason given, including "we do not take sales calls".
+- stale_contact: has left the company, or it is a wrong number (a data problem, not the SDR's fault).
+- trust_identity_challenge: "how did you get my number?", "are you an AI?", "why me?", or suspicion about who is calling.
+- no_budget_priority_capacity: no budget, a merger or new leadership, other priorities, or no capacity to take this on.
+- gatekeeper_block: a receptionist, assistant or switchboard stops the SDR reaching the person.
+- other: only when none of these fits.
+is_brush_off: true when no real reason is given, it comes before the SDR has said anything of value, or the reason changes when probed. Still choose the category as usual.
+stage: "opener" (within the first couple of exchanges after the SDR's opening), "middle", or "close" (at or after the ask for a next step).
+checks, each 0 (no), 1 (partly) or 2 (yes), judged on the SDR's reply:
+- acknowledged: accepted what the prospect said before moving on, without arguing.
+- asked_back: asked a question back to understand or open it up (the strongest move: it kept calls going far more often than anything else).
+- fit_the_objection: the reply suited this kind of objection (for not_now_busy, asking for a specific time to call back; for not_my_remit, asking who the right person is; for already_covered, asking how it is going rather than pitching again).
+- reason_to_continue: gave the prospect a concrete reason to keep talking or to meet.
+- secured_something: came away with something definite (a fixed time, a meeting, a named referral, agreement to a follow-up). A vague "speak soon" is 0.
+Re-pitching or listing credentials straight after an objection, accepting and ending the call at the first objection, and talking over a time the prospect offered are all weak replies: score them low and say so in "why".
+ai_screener: true when an automated call screener ("record your name and the reason for your call") answered before any person.
 
 Return your analysis as one JSON object in exactly this shape:
 {
@@ -246,11 +271,12 @@ Return your analysis as one JSON object in exactly this shape:
   "opener_result": ${list(OPENER_RESULTS)},
   "ended_by": "prospect" | "sdr" | "unclear",
   "next_step_secured": boolean,
+  "ai_screener": boolean,
   "craft": { ${CRAFT.map((c) => `"${c.key}": { "score": 1-5 or null, "note": "one sentence" }`).join(', ')} },
   "prospect": { "role_or_title": "as said on the call, or null", "seniority": ${list(SENIORITY)}, "company_type_or_industry": "as said or clearly implied, or null", "industry": ${list(INDUSTRIES)}, "industry_source": ${list(INDUSTRY_SOURCES)} },
   "positioning": { "lead": ${list(POSITIONING_LEADS)}, "other_kind": ${list(POSITIONING_OTHER_KINDS)}, "mentions_monday": true|false, "mentions_ai": true|false, "when": ${list(POSITIONING_WHEN)}, "quote": "verbatim, original language: how the SDR described who boost is, or empty", "quote_en": "English translation", "reaction": ${list(POSITIONING_REACTIONS)}, "note": "one sentence" },
   "opener": { "style": ${list(OPENER_STYLES)}, "quote": "verbatim, original language: how the SDR opened, the first thing said after the greeting", "quote_en": "English translation", "note": "one sentence" },
-  "objections": [ { "category": ${list(OBJECTION_CATEGORIES)}, "stage": ${list(STAGES)}, "quote": "verbatim prospect words, original language", "quote_en": "English translation", "response_quote": "verbatim SDR reply in the original language, or empty string", "response_quote_en": "English translation of the reply", "handled": "well" | "ok" | "poorly", "why": "one sentence" } ],
+  "objections": [ { "category": ${list(OBJECTION_CATEGORIES)}, "stage": ${list(STAGES)}, "quote": "verbatim prospect words, original language", "quote_en": "English translation", "response_quote": "verbatim SDR reply in the original language, or empty string", "response_quote_en": "English translation of the reply", "is_brush_off": true|false, "checks": { "acknowledged": 0|1|2, "asked_back": 0|1|2, "fit_the_objection": 0|1|2, "reason_to_continue": 0|1|2, "secured_something": 0|1|2 }, "why": "one sentence: what the SDR did and what would have been better" } ],
   "key_exchanges": [ { "kind": ${list(KX_KINDS)}, "prospect_quote": "verbatim prospect words, original language", "prospect_quote_en": "English translation", "sdr_quote": "verbatim SDR answer, original language", "sdr_quote_en": "English translation", "verdict": ${list(KX_VERDICTS)}, "what_happened": "specific critique with the exact words", "better": "what to say instead" } ],
   "best_moment": { "quote": "verbatim, original language", "quote_en": "English translation", "why": "one sentence" } | null,
   "missed_moment": { "quote": "verbatim, original language", "quote_en": "English translation", "better": "what could have been said or asked instead" } | null,
@@ -324,6 +350,7 @@ function validate(raw, turns, crm = null) {
     openerResult: oneOf(raw.opener_result, OPENER_RESULTS, 'unclear'),
     endedBy: oneOf(raw.ended_by, ['prospect', 'sdr', 'unclear'], 'unclear'),
     nextStepSecured: Boolean(raw.next_step_secured),
+    aiScreener: Boolean(raw.ai_screener),
     craft: {},
     prospect: {
       role: raw.prospect?.role_or_title ? String(raw.prospect.role_or_title).slice(0, 80) : null,
@@ -379,20 +406,41 @@ function validate(raw, turns, crm = null) {
     out.craft[key] = { score: c.score == null ? null : clampScore(c.score, 1, 5), note: String(c.note || '').slice(0, 300) };
   }
 
-  // An objection only counts if the prospect's words really are in the transcript.
+  // An objection only counts if the prospect's words really are in the transcript. Where it happened in the
+  // call is found from the quote, so what followed (did the call carry on?) is measured, not guessed.
+  const turnNorms = turns.map((t) => norm(t.text));
+  const turnOf = (quote) => {
+    const q = norm(quote);
+    if (q.length < 8) return -1;
+    const i = turnNorms.findIndex((t) => t.includes(q));
+    if (i >= 0) return i;
+    const head = q.split(' ').slice(0, 6).join(' ');
+    return turnNorms.findIndex((t) => t.includes(head));
+  };
   out.objections = (Array.isArray(raw.objections) ? raw.objections : [])
     .filter((o) => o?.quote && quoteIsReal(tNorm, o.quote))
-    .slice(0, 4)
+    .slice(0, 8)
     .map((o) => {
       const responseQuote = o.response_quote && quoteIsReal(tNorm, o.response_quote) ? String(o.response_quote) : null;
+      const checks = Object.fromEntries(HANDLING_CHECKS.map((k) => [k, [0, 1, 2].includes(o.checks?.[k]) ? o.checks[k] : 0]));
+      const score = Object.values(checks).reduce((n, v) => n + v, 0); // 0 to 10
+      const at = turnOf(o.quote);
+      const turnsAfter = at >= 0 ? turns.length - 1 - at : null;
       return {
         category: oneOf(modernCategory(o.category), OBJECTION_CATEGORIES, 'other'),
         stage: oneOf(o.stage, STAGES, 'middle'),
+        brushOff: Boolean(o.is_brush_off),
         quote: String(o.quote),
         quoteEn: english(String(o.quote), o.quote_en),
         responseQuote,
         responseQuoteEn: responseQuote ? english(responseQuote, o.response_quote_en) : null,
-        handled: oneOf(o.handled, ['well', 'ok', 'poorly'], 'ok'),
+        checks,
+        score,
+        // One summary word from the five checks, so every screen uses the same judgement.
+        handled: score >= 7 ? 'well' : score >= 4 ? 'ok' : 'poorly',
+        // Measured from the transcript: how many turns the call went on for after the objection.
+        turnsAfter,
+        endedSoon: turnsAfter == null ? null : turnsAfter <= 2,
         why: String(o.why || '').slice(0, 300),
       };
     });
@@ -570,26 +618,37 @@ async function ping({ fetchImpl = fetch } = {}) {
 }
 
 const OBJECTION_LABELS = {
-  not_interested: 'Not interested',
-  not_a_good_time: 'Not a good time',
-  send_email: 'Send me an email',
+  not_now_busy: 'Not now, busy',
   already_covered: 'Already covered',
-  no_budget: 'No budget',
-  too_small_or_no_need: 'Too small or no need',
-  wrong_person: 'Wrong person',
-  data_source_challenge: 'Asks how they got the number',
+  no_need_or_not_applicable: 'No need or does not fit',
+  not_my_remit: 'Not my remit',
+  send_info_deferral: 'Send me information',
+  flat_no: 'Flat no',
+  stale_contact: 'Left or wrong number',
+  trust_identity_challenge: 'Who are you, how did you get my number',
+  no_budget_priority_capacity: 'Budget, priority or capacity',
+  gatekeeper_block: 'Gatekeeper block',
   other: 'Other',
 };
 const OBJECTION_DESCRIPTIONS = {
-  not_interested: 'A plain no, or "we do not take sales calls".',
-  not_a_good_time: 'Busy, in a meeting, "not a great time", "call me later" or "no time".',
-  send_email: 'Asks for an email or information instead of talking.',
-  already_covered: 'Already has a tool, partner, competitor or in-house team, or is already doing AI.',
-  no_budget: 'No money, no budget, too expensive or spend frozen.',
-  too_small_or_no_need: 'Team too small, not big enough, or "we do not need it".',
-  wrong_person: 'Not the right contact, left the role, or the decision sits with someone else.',
-  data_source_challenge: 'Asks how the SDR got their number or details.',
+  not_now_busy: 'Cannot talk at this moment: in a meeting, driving, away or "call me later".',
+  already_covered: 'Already has a tool, in-house build or AI team, a competitor or a partner.',
+  no_need_or_not_applicable: 'Happy as they are, too small or too early, or it does not fit how they work.',
+  not_my_remit: 'Still at the company but the wrong role, or not the person who decides.',
+  send_info_deferral: 'Email me, send it on LinkedIn, or "I will reach out if needed".',
+  flat_no: 'Refuses with no reason, including "we do not take sales calls".',
+  stale_contact: 'Has left the company, or a wrong number: a data problem, not the SDR.',
+  trust_identity_challenge: 'Asks how we got their number, whether this is an AI, or why them.',
+  no_budget_priority_capacity: 'No budget, a merger or new leadership, other priorities or no capacity.',
+  gatekeeper_block: 'A receptionist, assistant or switchboard stops the call.',
   other: 'Does not clearly fit one of these.',
+};
+const HANDLING_CHECK_LABELS = {
+  acknowledged: 'Acknowledged it',
+  asked_back: 'Asked a question back',
+  fit_the_objection: 'Reply fit the objection',
+  reason_to_continue: 'Gave a reason to continue',
+  secured_something: 'Secured something definite',
 };
 // The ways of saying who boost is, grouped for the trends (see trends.js).
 const POSITIONING_LABELS = {
@@ -646,5 +705,5 @@ const CALL_TYPE_LABELS = {
 module.exports = {
   OUTPUT_SCHEMA,
   analyseCall, isThin, missingParts, positioningUnrecorded, openerUnrecorded, ping, validate, extractJson, CRAFT, SYSTEM, ANALYSIS_SCHEMA, INDUSTRIES,
-  OBJECTION_LABELS, OBJECTION_DESCRIPTIONS, POSITIONING_LABELS, POSITIONING_DESCRIPTIONS, OPENER_LABELS, OPENER_DESCRIPTIONS, modernCategory, modernOpener, SENIORITY_LABELS, CALL_TYPE_LABELS,
+  OBJECTION_LABELS, OBJECTION_DESCRIPTIONS, HANDLING_CHECKS, HANDLING_CHECK_LABELS, POSITIONING_LABELS, POSITIONING_DESCRIPTIONS, OPENER_LABELS, OPENER_DESCRIPTIONS, modernCategory, modernOpener, SENIORITY_LABELS, CALL_TYPE_LABELS,
 };

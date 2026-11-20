@@ -69,7 +69,7 @@ export default function TrialPanel() {
                     <div><b>What we said we are:</b> {r.positioning ? `${LABEL(r.positioning.lead)}${r.positioning.quote ? ` - "${r.positioning.quote}"` : ''}` : 'missing'}</div>
                     <div><b>Objections:</b> {r.objections.length === 0 ? 'none found' : ''}</div>
                     {r.objections.map((o, i) => (
-                      <div key={i} className="pl-3">{LABEL(o.category)} ({LABEL(o.stage)}, handled {o.handled}): "{o.quote}"{o.reply ? ` - reply: "${o.reply}"` : ''}</div>
+                      <div key={i} className="pl-3">{LABEL(o.category)} ({LABEL(o.stage)}{o.brushOff ? ', brush-off' : ''}, handled {o.handled} {o.score}/10{o.endedSoon ? ', call ended soon after' : ''}): "{o.quote}"{o.reply ? ` - reply: "${o.reply}"` : ''}</div>
                     ))}
                     {r.summary && <div className="text-muted">{r.summary}</div>}
                   </div>
