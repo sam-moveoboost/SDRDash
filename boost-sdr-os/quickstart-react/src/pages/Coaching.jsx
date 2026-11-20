@@ -208,7 +208,7 @@ export default function Coaching({ user }) {
 
     const progress = () => {
       const finished = done + unsaved + failed + lost;
-      let eta = ` Each takes about ${SECONDS_PER_CALL} seconds, two at a time.`;
+      let eta = ` Each takes about ${SECONDS_PER_CALL} seconds, ${ALL_WORKERS} at a time.`;
       // Only calls that really went through Claude say how long one takes; quick refusals would
       // make the estimate far too hopeful.
       const analysed = done + unsaved;
