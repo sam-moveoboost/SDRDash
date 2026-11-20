@@ -597,14 +597,16 @@ const toolReply = (input) => ({ ok: true, json: async () => ({ stop_reason: 'too
 test('Claude must answer in the exact structured shape, so quotes containing speech marks cannot break it', async () => {
   const { analyseCall } = require('../src/lib/analysis');
   await withKey(async () => {
-    let body;
+    const bodies = [];
     const fetchImpl = async (_url, init) => {
-      body = JSON.parse(init.body);
+      bodies.push(JSON.parse(init.body));
       // A quote with speech marks in it: as free text this is exactly what produced "Expected ',' or '}'".
       return toolReply({ ...FULL, call_type: 'conversation', coachable: true, opener_result: 'brushed_off', next_step_secured: true, objections: [{ category: 'bad_timing', stage: 'middle', quote: 'He said "not now" and then "call back in March"', handled: 'well', why: 'x' }] });
     };
     const out = await analyseCall({ turns: quoteTurns, call: { durationMin: 1 } }, { fetchImpl });
-    // Structured outputs: the answer must match the schema exactly. No tool and no forced tool choice.
+    // Structured outputs, in three smaller parts at once: each answer must match its part's schema exactly.
+    assert.equal(bodies.length, 3);
+    const body = bodies.find((b) => /only these fields: call_type/.test(b.messages[0].content));
     assert.equal(body.output_config.format.type, 'json_schema');
     assert.equal(body.output_config.format.schema.properties.opener.additionalProperties, false);
     assert.ok(body.output_config.format.schema.required.includes('opener'));
@@ -627,7 +629,7 @@ test('an unreadable plain-text reply is retried once, and a good second answer i
       return { ok: true, json: async () => ({ stop_reason: 'end_turn', content: [{ type: 'text', text }] }) };
     };
     const out = await analyseCall({ turns: quoteTurns, call: { durationMin: 1 } }, { fetchImpl });
-    assert.equal(calls, 2);
+    assert.equal(calls, 4); // three parts, one of them asked again after an unreadable answer
     assert.equal(out.callType, 'conversation');
   });
 });
@@ -638,7 +640,7 @@ test('an answer that stays unreadable fails clearly after two tries', async () =
     let calls = 0;
     const fetchImpl = async () => { calls += 1; return { ok: true, json: async () => ({ stop_reason: 'end_turn', content: [{ type: 'text', text: 'not json at all' }] }) }; };
     await assert.rejects(() => analyseCall({ turns: quoteTurns, call: { durationMin: 1 } }, { fetchImpl }), /did not return JSON/);
-    assert.equal(calls, 2);
+    assert.ok(calls >= 4 && calls <= 6); // each part tries at most twice
   });
 });
 
@@ -648,7 +650,7 @@ test('a reply cut off for length is reported plainly and not retried', async () 
     let calls = 0;
     const fetchImpl = async () => { calls += 1; return { ok: true, json: async () => ({ stop_reason: 'max_tokens', content: [] }) }; };
     await assert.rejects(() => analyseCall({ turns: quoteTurns, call: { durationMin: 1 } }, { fetchImpl }), /ran out of room/);
-    assert.equal(calls, 1);
+    assert.equal(calls, 3); // the three parts, none of them retried
   });
 });
 
@@ -726,7 +728,7 @@ test('Anthropic never receives a forced tool choice, which this model rejects', 
     };
     await analyseCall({ turns: quoteTurns, call: { durationMin: 1 } }, { fetchImpl });
     await ping({ fetchImpl });
-    assert.deepEqual(seen, [null, null]); // no tool choice is sent at all
+    assert.ok(seen.length >= 2 && seen.every((t) => t === null)); // no tool choice is ever sent
   });
 });
 
@@ -1168,13 +1170,13 @@ test('a real conversation that comes back with no coaching is sent back once for
     const fetchImpl = async (_u, init) => {
       bodies.push(JSON.parse(init.body));
       // First answer: scored nothing and said nothing. Second: the real feedback.
-      return bodies.length === 1
+      return !/left out/.test(bodies[bodies.length - 1].messages[0].content)
         ? toolReply({ ...posBase, opener: FULL.opener, positioning: FULL.positioning, coachable: false, summary: 'Nothing much.' })
         : toolReply({ ...posBase, opener: FULL.opener, positioning: FULL.positioning, craft: { discovery: { score: 2 } }, key_exchanges: [{ kind: 'prospect_question', prospect_quote: 'What exactly does boost offer?', sdr_quote: 'It is not a solution, well it is a solution', verdict: 'missed', what_happened: 'x', better: 'y' }] });
     };
     const out = await analyseCall({ turns: longTurns, call: { durationMin: 4 } }, { fetchImpl });
-    assert.equal(bodies.length, 2);
-    assert.match(bodies[1].messages[0].content, /left out: the call craft scores/);
+    assert.equal(bodies.length, 4); // three parts, then the one with the gap asked again
+    assert.match(bodies[3].messages[0].content, /left out: the call craft scores/);
     assert.equal(out.keyExchanges.length, 1);
     assert.equal(out.craft.discovery.score, 2);
   });
@@ -1430,10 +1432,10 @@ test('a real conversation with key moments but no craft scores is still sent bac
     const fetchImpl = async (_u, init) => {
       bodies.push(JSON.parse(init.body));
       // The first answer treated the call as not coachable: moments recorded, craft left blank.
-      return bodies.length === 1 ? toolReply({ ...posBase, opener: FULL.opener, positioning: FULL.positioning, coachable: false, ...withExchange }) : toolReply({ ...posBase, opener: FULL.opener, positioning: FULL.positioning, craft: { opening: { score: 3 }, discovery: { score: 1 } }, ...withExchange });
+      return !/left out/.test(bodies[bodies.length - 1].messages[0].content) ? toolReply({ ...posBase, opener: FULL.opener, positioning: FULL.positioning, coachable: false, ...withExchange }) : toolReply({ ...posBase, opener: FULL.opener, positioning: FULL.positioning, craft: { opening: { score: 3 }, discovery: { score: 1 } }, ...withExchange });
     };
     const out = await analyseCall({ turns: longTurns, call: { durationMin: 4 } }, { fetchImpl });
-    assert.equal(bodies.length, 2);
+    assert.equal(bodies.length, 4); // three parts, then the one with the gap asked again
     assert.equal(out.craft.discovery.score, 1);
   });
 });
@@ -1460,10 +1462,10 @@ test('a short brushed-off call still gets its opening scored, and is sent back i
     const base = { call_type: 'early_hangup', coachable: false, opener_result: 'brushed_off', next_step_secured: false, objections: [], key_exchanges: [], positioning: { lead: 'none', when: 'never' }, opener: { style: 'apology', quote: '', note: 'n' } };
     const fetchImpl = async (_u, init) => {
       bodies.push(JSON.parse(init.body));
-      return bodies.length === 1 ? toolReply({ ...base, craft: {} }) : toolReply({ ...base, craft: { opening: { score: 2, note: 'Apologised and was vague.' } } });
+      return !/left out/.test(bodies[bodies.length - 1].messages[0].content) ? toolReply({ ...base, craft: {} }) : toolReply({ ...base, craft: { opening: { score: 2, note: 'Apologised and was vague.' } } });
     };
     const out = await analyseCall({ turns: shortTurns, call: { durationMin: 1 } }, { fetchImpl });
-    assert.equal(bodies.length, 2);
+    assert.equal(bodies.length, 4); // three parts, then the one with the gap asked again
     assert.equal(out.craft.opening.score, 2);
   });
 });
@@ -1591,8 +1593,8 @@ test('an answer still missing the opener after being told once fails with the re
       return toolReply({ call_type: 'conversation', coachable: true, opener_result: 'stayed_engaged', next_step_secured: false, craft: FULL.craft, positioning: FULL.positioning, objections: [] });
     };
     await assert.rejects(() => analyseCall({ turns: quoteTurns, call: { durationMin: 1 } }, { fetchImpl }), (err) => err.code === 'incomplete' && /opener/.test(err.message));
-    assert.equal(bodies.length, 2); // asked once more, naming what was missing, then gave up
-    assert.match(bodies[1].messages[0].content, /left out: "opener"/);
+    assert.equal(bodies.length, 4); // three parts, then the one with the gap asked again // asked once more, naming what was missing, then gave up
+    assert.match(bodies[3].messages[0].content, /left out: "opener"/);
   });
 });
 
@@ -1651,4 +1653,24 @@ test('each objection records its handling checks, a score, a brush-off marker an
   assert.equal(o.turnsAfter, 2); // found in turn 2 of 4
   assert.equal(o.endedSoon, true);
   assert.equal(out.aiScreener, false);
+});
+
+test('if Claude cannot take a part\'s enforced form, that part is asked again without it, and the answer is still checked for completeness', async () => {
+  const { analyseCall } = require('../src/lib/analysis');
+  await withKey(async () => {
+    const bodies = [];
+    const fetchImpl = async (_u, init) => {
+      const b = JSON.parse(init.body);
+      bodies.push(b);
+      if (b.output_config.format && /only these fields: craft/.test(b.messages[0].content)) {
+        return { ok: false, status: 400, text: async () => JSON.stringify({ error: { message: 'The compiled grammar is too large, which would cause performance issues.' } }) };
+      }
+      return toolReply({ ...FULL, call_type: 'conversation', coachable: true, opener_result: 'stayed_engaged', next_step_secured: false, objections: [] });
+    };
+    const out = await analyseCall({ turns: quoteTurns, call: { durationMin: 1 } }, { fetchImpl });
+    assert.equal(out.craft.opening.score, 3);
+    const coaching = bodies.filter((b) => /only these fields: craft/.test(b.messages[0].content));
+    assert.equal(coaching.length, 2);
+    assert.equal(coaching[1].output_config.format, undefined); // second time without the enforced form
+  });
 });

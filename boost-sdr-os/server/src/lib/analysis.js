@@ -191,6 +191,21 @@ function strictSchema(node) {
 }
 const OUTPUT_SCHEMA = strictSchema(ANALYSIS_TOOL.input_schema);
 
+// One enforced form for everything is too large for Claude to compile ("compiled grammar is too large"), so the
+// answer is asked for in three smaller parts at the same moment and put back together. Every field belongs to
+// exactly one part.
+const ALL_FIELDS = Object.keys(ANALYSIS_TOOL.input_schema.properties);
+const PART_FIELDS = {
+  call: ['call_type', 'language', 'coachable', 'summary', 'opener_result', 'ended_by', 'next_step_secured', 'ai_screener', 'prospect', 'opener', 'positioning'],
+  objections: ['objections'],
+};
+PART_FIELDS.coaching = ALL_FIELDS.filter((f) => !PART_FIELDS.call.includes(f) && !PART_FIELDS.objections.includes(f));
+const PART_SCHEMAS = Object.fromEntries(Object.entries(PART_FIELDS).map(([part, fields]) => [part, strictSchema({
+  type: 'object',
+  properties: Object.fromEntries(fields.map((f) => [f, ANALYSIS_TOOL.input_schema.properties[f]])),
+})]));
+const pick = (obj, fields) => Object.fromEntries(fields.filter((f) => obj && f in obj).map((f) => [f, obj[f]]));
+
 const SYSTEM = `You are a sales coach reviewing a recorded call by an SDR (sales development rep) at boost, a monday.com partner that sells implementation and consulting services. Coach the way a good sales manager would: specific, fair, practical and kind, never harsh.
 
 You will get a transcript where the SDR is labelled "SDR" and the other person "PROSPECT". Transcripts are machine-generated and can contain errors; do not criticise transcription mistakes. Many calls are short. A prospect who hangs up or brushes the SDR off within the first few exchanges is useful data, so analyse it, do not dismiss it.
@@ -476,7 +491,7 @@ function extractJson(text) {
   return JSON.parse(cleaned.slice(start, end + 1));
 }
 
-async function askClaude(user, apiKey, fetchImpl) {
+async function askClaude(user, apiKey, fetchImpl, schema) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 120000);
   try {
@@ -490,9 +505,9 @@ async function askClaude(user, apiKey, fetchImpl) {
         // actually produced are paid for.
         max_tokens: 16000,
         system: SYSTEM,
-        // The answer must match OUTPUT_SCHEMA exactly (structured outputs). Effort is kept low: classifying and
+        // The answer must match the part's schema exactly (structured outputs). Effort is kept low: classifying and
         // coaching one call does not need long deliberation, and high effort is what made each call slow.
-        output_config: { effort: CLAUDE_EFFORT, format: { type: 'json_schema', schema: OUTPUT_SCHEMA } },
+        output_config: schema ? { effort: CLAUDE_EFFORT, format: { type: 'json_schema', schema } } : { effort: CLAUDE_EFFORT },
         messages: [{ role: 'user', content: user }],
       }),
     });
@@ -528,29 +543,49 @@ async function analyseCall({ turns, call, prospect = null }, { fetchImpl = fetch
   const crm = crmLines.length ? `\n\nCRM record for the person called (from our own database, may be incomplete):\n${crmLines.join('\n')}` : '';
   const user = `Call length: ${length}.${crm}\n\nTranscript:\n${renderForModel(turns)}\n\nReturn your analysis as JSON.`;
 
-  // One request. An unreadable answer (which structured outputs should prevent) is tried once more. An answer
-  // missing a required part is sent back once naming what is missing; if it is still missing, the call fails
-  // with the reason and is NOT saved, so an incomplete result can never be counted as analysed.
-  let note = '';
-  let unreadable = 0;
-  for (;;) {
-    const json = await askClaude(user + note, apiKey, fetchImpl);
-    let result;
-    try {
-      result = validate(readAnalysis(json), turns, prospect);
-    } catch (err) {
-      const isUnreadable = err instanceof SyntaxError || /did not return JSON/.test(err.message);
-      if (!isUnreadable || unreadable >= 1) throw err;
-      unreadable += 1;
-      continue;
+  // Asks for one part. If Claude cannot take the enforced form for it, that part is asked again without one
+  // (the completeness check below still applies). An unreadable answer is tried once more.
+  const askPart = async (part, note = '') => {
+    const ask = `${user}\n\nFor this request, return a JSON object with only these fields: ${PART_FIELDS[part].join(', ')}.${note}`;
+    let schema = PART_SCHEMAS[part];
+    for (let attempt = 0; ; attempt++) {
+      let json;
+      try {
+        json = await askClaude(ask, apiKey, fetchImpl, schema);
+      } catch (err) {
+        if (schema && /grammar is too large/i.test(err.message)) {
+          console.error(`[analyse] the ${part} form is too large for Claude; asking without it`);
+          schema = null;
+          continue;
+        }
+        throw err;
+      }
+      try {
+        return pick(readAnalysis(json), PART_FIELDS[part]);
+      } catch (err) {
+        const isUnreadable = err instanceof SyntaxError || /did not return JSON/.test(err.message);
+        if (!isUnreadable || attempt >= 1) throw err;
+      }
     }
-    const missing = missingParts(result);
-    if (!missing.length) return result;
-    if (note) {
-      throw Object.assign(new Error(`incomplete: ${missing.map((m) => m.split(':')[0]).join(', ')}`), { code: 'incomplete' });
-    }
-    note = `\n\nYour previous answer left out: ${missing.join('; and ')}. Please fill these in.`;
-  }
+  };
+
+  // The three parts go at the same moment, so the whole call takes about as long as one request. A required
+  // part that is still missing is asked for once more, naming it; if it is still missing the call fails with
+  // the reason and is NOT saved, so an incomplete result can never be counted as analysed.
+  const parts = Object.keys(PART_FIELDS);
+  const raw = Object.assign({}, ...(await Promise.all(parts.map((p) => askPart(p)))));
+  let result = validate(raw, turns, prospect);
+  let missing = missingParts(result);
+  if (!missing.length) return result;
+  const redo = [];
+  if (isThin(result)) redo.push('coaching');
+  if (!result.opener || !result.positioning) redo.push('call');
+  const note = `\n\nA previous answer left out: ${missing.join('; and ')}. Please fill these in.`;
+  Object.assign(raw, ...(await Promise.all(redo.map((p) => askPart(p, note)))));
+  result = validate(raw, turns, prospect);
+  missing = missingParts(result);
+  if (!missing.length) return result;
+  throw Object.assign(new Error(`incomplete: ${missing.map((m) => m.split(':')[0]).join(', ')}`), { code: 'incomplete' });
 }
 
 // A call with a person on the line and no craft scores at all has not been coached, however short it was.
@@ -591,29 +626,30 @@ function positioningUnrecorded(a) {
 async function ping({ fetchImpl = fetch } = {}) {
   const apiKey = getSecret('ANTHROPIC_API_KEY');
   if (!apiKey) throw new Error('The server is missing ANTHROPIC_API_KEY.');
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 15000);
-  try {
-    const res = await fetchImpl('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      signal: ctrl.signal,
-      headers: anthropicHeaders(apiKey),
-      // Sends the real answer schema too, so a format Anthropic would reject shows up here
-      // and not on every analysis. The tiny token limit keeps the cost negligible; running out
-      // of room is fine because only the request being accepted matters.
-      body: JSON.stringify({
-        model: CLAUDE_MODEL,
-        max_tokens: 16,
-        output_config: { effort: CLAUDE_EFFORT, format: { type: 'json_schema', schema: OUTPUT_SCHEMA } },
-        messages: [{ role: 'user', content: 'Check: return a test analysis.' }],
-      }),
-    });
-    if (!res.ok) throw new Error(await describeFailure(res));
-  } catch (err) {
-    throw new Error(err.name === 'AbortError' ? 'Claude did not answer within 15 seconds' : err.message);
-  } finally {
-    clearTimeout(timer);
-  }
+  // Sends each part's real form, so a form Anthropic would reject shows up here and not on every analysis. The
+  // tiny token limit keeps the cost negligible; running out of room is fine because only acceptance matters.
+  await Promise.all(Object.entries(PART_SCHEMAS).map(async ([part, schema]) => {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15000);
+    try {
+      const res = await fetchImpl('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        signal: ctrl.signal,
+        headers: anthropicHeaders(apiKey),
+        body: JSON.stringify({
+          model: CLAUDE_MODEL,
+          max_tokens: 16,
+          output_config: { effort: CLAUDE_EFFORT, format: { type: 'json_schema', schema } },
+          messages: [{ role: 'user', content: 'Check: return a test analysis.' }],
+        }),
+      });
+      if (!res.ok) throw new Error(`${part} form: ${await describeFailure(res)}`);
+    } catch (err) {
+      throw new Error(err.name === 'AbortError' ? 'Claude did not answer within 15 seconds' : err.message);
+    } finally {
+      clearTimeout(timer);
+    }
+  }));
 }
 
 const OBJECTION_LABELS = {
@@ -702,7 +738,7 @@ const CALL_TYPE_LABELS = {
 };
 
 module.exports = {
-  OUTPUT_SCHEMA,
+  OUTPUT_SCHEMA, PART_SCHEMAS, PART_FIELDS,
   analyseCall, isThin, missingParts, positioningUnrecorded, openerUnrecorded, ping, validate, extractJson, CRAFT, SYSTEM, ANALYSIS_SCHEMA, INDUSTRIES,
   OBJECTION_LABELS, OBJECTION_DESCRIPTIONS, HANDLING_CHECKS, HANDLING_CHECK_LABELS, POSITIONING_LABELS, POSITIONING_DESCRIPTIONS, OPENER_LABELS, OPENER_DESCRIPTIONS, modernCategory, modernOpener, SENIORITY_LABELS, CALL_TYPE_LABELS,
 };
