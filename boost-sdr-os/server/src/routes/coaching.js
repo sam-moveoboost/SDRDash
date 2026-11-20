@@ -284,18 +284,6 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now(),
       // Calls marked Analysed whose saved result could not be read just now (storage slow). They are
       // not offered for re-analysis, so nothing is paid for twice; Refresh reads them again.
       unreadableCount: unreadable.length,
-      // For managers: why calls are waiting, in plain counts.
-      diagnosis: req.viewer.isAdmin ? (() => {
-        const d = { current: 0, olderRules: 0, noOpener: 0, noPositioning: 0, notSaved: 0, unreadable: 0 };
-        for (const p of done) {
-          if (!p.analysis) { if (p.unreadable) d.unreadable += 1; else d.notSaved += 1; continue; }
-          if (!(p.analysis.schema >= ANALYSIS_SCHEMA)) d.olderRules += 1;
-          else if (openerUnrecorded(p.analysis)) d.noOpener += 1;
-          else if (positioningUnrecorded(p.analysis)) d.noPositioning += 1;
-          else d.current += 1;
-        }
-        return d;
-      })() : null,
       // Why, for managers: the distinct errors the stores gave, so a real fault is not hidden behind "slow".
       unreadableReasons: req.viewer.isAdmin ? [...new Set(unreadable.flatMap((p) => p.errors || []))].slice(0, 4) : [],
       transcriptTotals: { valid: analysedCalls.length + waiting.length, analysed: analysedCalls.length, waiting: waiting.length },

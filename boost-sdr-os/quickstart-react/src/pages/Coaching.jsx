@@ -98,7 +98,7 @@ export default function Coaching({ user }) {
           coachingApi.trends(userIdParam, days, fresh, temp),
         ]);
         if (!alive) return;
-        const nextMeta = { waitingCount: cl.waitingCount, refreshCount: cl.refreshCount ?? 0, unreadableCount: cl.unreadableCount ?? 0, unreadableReasons: cl.unreadableReasons ?? [], coverage: cl.coverage, rules: cl.rules, totals: cl.transcriptTotals ?? null, diagnosis: cl.diagnosis ?? null };
+        const nextMeta = { waitingCount: cl.waitingCount, refreshCount: cl.refreshCount ?? 0, unreadableCount: cl.unreadableCount ?? 0, unreadableReasons: cl.unreadableReasons ?? [], coverage: cl.coverage, rules: cl.rules, totals: cl.transcriptTotals ?? null };
         setOverview(ov);
         setCalls(cl.calls);
         setMeta(nextMeta);
@@ -406,17 +406,6 @@ export default function Coaching({ user }) {
                         {(redoCount > 0 || numbersCount > 0) && ` (${[redoCount > 0 && `${redoCount} to redo with the new rules`, numbersCount > 0 && `${numbersCount} only need their numbers updated, which costs nothing`].filter(Boolean).join(', ')})`}.
                       </>
                     )}
-                    {meta.diagnosis && waiting.length > 0 && (
-                      <div className="text-[12.5px] text-muted mt-1">
-                        What is saved for these: {[
-                          meta.diagnosis.olderRules > 0 && `${meta.diagnosis.olderRules} made under older rules`,
-                          meta.diagnosis.noOpener > 0 && `${meta.diagnosis.noOpener} with no opener recorded`,
-                          meta.diagnosis.noPositioning > 0 && `${meta.diagnosis.noPositioning} with no "what we say we are" recorded`,
-                          meta.diagnosis.notSaved > 0 && `${meta.diagnosis.notSaved} with nothing saved`,
-                          meta.diagnosis.unreadable > 0 && `${meta.diagnosis.unreadable} that could not be read just now`,
-                        ].filter(Boolean).join(', ') || 'nothing to report'}.
-                      </div>
-                    )}
                     {analysing.message && <div className="text-[12.5px] text-muted mt-1">{analysing.message}</div>}
                   </div>
                   <div className="flex items-center gap-2.5 flex-wrap">
@@ -539,11 +528,13 @@ export default function Coaching({ user }) {
           )}
 
           {isAdmin && !demo && (
-            <Section title="Check what is saved" sub="Sets what the board says against what is really saved for each call, so the numbers on this page can be trusted.">
-              <Card><AuditPanel /></Card>
-              <div className="h-3" />
-              <Card><TrialPanel /></Card>
-            </Section>
+            <details className="mt-2">
+              <summary className="cursor-pointer text-[12.5px] text-muted select-none">Admin tools (only managers see this)</summary>
+              <div className="mt-3 grid gap-3">
+                <Card><AuditPanel /></Card>
+                <Card><TrialPanel /></Card>
+              </div>
+            </details>
           )}
 
           <div id="calls-to-review" />
