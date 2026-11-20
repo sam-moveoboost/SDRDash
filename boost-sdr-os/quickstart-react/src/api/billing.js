@@ -1,3 +1,4 @@
+import { SERVER_URL, sessionToken } from './coaching';
 import {
   gql, BOARDS, fetchBoardColumns, paginateQuery, setRelation, uploadFileToColumn, idbGet, idbSet,
 } from './monday';
@@ -90,6 +91,7 @@ export async function fetchOpportunityBillingSource(oppId) {
     ownerIds: personIds(col(OPP.OWNER)?.value),
     company: text(OPP.COMPANY),
     accountIds: (col(OPP.ACCOUNT)?.linked_item_ids ?? []).map(String),
+    accountName: text(OPP.ACCOUNT),
     email: text(OPP.EMAIL),
     region: text(OPP.REGION),
     typeOfDeal: text(OPP.TYPE_OF_DEAL),
@@ -261,9 +263,24 @@ async function attachContract(itemId, assets) {
   return notes;
 }
 
+// Asks our server to copy the deal's signed agreement onto the new invoices. Monday has no copy-file
+// call and the file store does not let a browser download, so this has to happen server-side.
+async function attachContractOnServer(oppId, itemIds) {
+  const token = await sessionToken();
+  const res = await fetch(`${SERVER_URL}/billing/attach-contract`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ oppId, itemIds }),
+  });
+  let json = null;
+  try { json = await res.json(); } catch { /* not JSON */ }
+  if (!res.ok) throw new Error(json?.message || `server answered ${res.status}`);
+  return json;
+}
+
 // Creates one Booking item per row, in order. A row that already has `createdId`
 // is skipped, so retrying after a partial failure never doubles anything up.
-export async function createBookingInvoices({ rows, bdUserIds, project, email, client, accountIds = [], contractAssets = [], onRow }) {
+export async function createBookingInvoices({ rows, oppId, bdUserIds, project, email, client, accountIds = [], contractAssets = [], onRow }) {
   const results = [];
   for (const row of rows) {
     if (row.createdId) { results.push({ rowId: row.id, ok: true, itemId: row.createdId, skipped: true, notes: [] }); continue; }
@@ -294,13 +311,34 @@ export async function createBookingInvoices({ rows, bdUserIds, project, email, c
         try { await setRelation(BOOKING_BOARD_ID, itemId, BK.ACCOUNT_REL, accountIds); }
         catch (e) { notes.push(`Account link failed (${String(e.message).slice(0, 60)})`); }
       }
-      if (contractAssets.length) notes.push(...await attachContract(itemId, contractAssets));
+      // With a deal to copy from, the server attaches the contract once all rows exist (below).
+      if (contractAssets.length && !oppId) notes.push(...await attachContract(itemId, contractAssets));
       result = { rowId: row.id, ok: true, itemId, notes };
     } catch (e) {
       result = { rowId: row.id, ok: false, error: String(e.message).slice(0, 300), notes: [] };
     }
     results.push(result);
     onRow?.(result);
+  }
+
+  if (oppId && contractAssets.length) {
+    const created = results.filter(r => r.ok && r.itemId && !r.skipped);
+    if (created.length) {
+      try {
+        const out = await attachContractOnServer(oppId, created.map(r => r.itemId));
+        for (const r of created) {
+          const hit = out.results?.find(x => x.itemId === r.itemId && x.ok);
+          if (hit) r.contractAttached = true;
+          else r.notes.push(`Contract not attached (${out.results?.find(x => x.itemId === r.itemId && !x.ok)?.error ?? out.reason ?? 'unknown'})`);
+        }
+      } catch (e) {
+        // Fall back to trying from the browser; it usually cannot, so say so plainly.
+        for (const r of created) {
+          r.notes.push(`Contract not attached by the server (${String(e.message).slice(0, 80)})`);
+          r.notes.push(...await attachContract(r.itemId, contractAssets));
+        }
+      }
+    }
   }
   return results;
 }

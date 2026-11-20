@@ -6,6 +6,7 @@
 const express = require('express');
 const { getSecret } = require('./lib/secrets');
 const { createRouter } = require('./routes/coaching');
+const { createBillingRouter } = require('./routes/billing');
 
 const app = express();
 

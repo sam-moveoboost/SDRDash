@@ -70,7 +70,8 @@ export default function InvoiceBuilder({ oppId, project, mode, user, meta, bille
       .then(src => {
         if (!live) return;
         setSource(src);
-        setClient(src.client || deriveClient(src, meta.clientOptions));
+        // An existing label that fits, else the company or account name (the label is created if new).
+        setClient(src.client || deriveClient(src, meta.clientOptions) || src.company || src.accountName || '');
         const plan = defaultPaymentPlan(src);
         const c = mode === 'extra' ? 1 : plan.count;
         setCount(c);
@@ -126,11 +127,11 @@ export default function InvoiceBuilder({ oppId, project, mode, user, meta, bille
 
   async function handleCreate() {
     setAttempted(true);
-    if (invalidCount > 0) return;
+    if (invalidCount > 0 || !client.trim()) return;
     setCreating(true);
     try {
       const res = await createBookingInvoices({
-        rows, bdUserIds: bdIds, project: source.name, email: source.email, client: client.trim(),
+        rows, oppId: source.fromBoard ? null : source.id, bdUserIds: bdIds, project: source.name, email: source.email, client: client.trim(),
         accountIds: source.accountIds, contractAssets: source.contract.assets,
       });
       setResults(res);
@@ -186,17 +187,17 @@ export default function InvoiceBuilder({ oppId, project, mode, user, meta, bille
       {source.currency && !rows[0]?.currency && <Warn>The opportunity currency ({source.currency}) is not an option on the Booking board. Choose one on each invoice.</Warn>}
 
       <div className="flex items-center gap-3 mb-3 flex-wrap">
-        <label className="text-[12.5px] font-semibold text-ink">Client</label>
+        <label className="text-[12.5px] font-semibold text-ink">Client <span className="text-red">*</span></label>
         <input
           list="billing-client-options" value={client} onChange={e => setClient(e.target.value)}
           placeholder="Client on the Booking board"
           disabled={!!results}
-          className={`${cls(false)} max-w-[260px]`}
+          className={`${cls(attempted && !client.trim())} max-w-[260px]`}
         />
         <datalist id="billing-client-options">{sortAlpha(meta.clientOptions).map(o => <option key={o} value={o} />)}</datalist>
         {client.trim() && !meta.clientOptions.some(o => o.toLowerCase() === client.trim().toLowerCase())
           ? <span className="text-[12px] text-amber-ink">Not an existing client, a new one will be added to the board.</span>
-          : !client.trim() && <span className="text-[12px] text-muted">Optional, but it groups the invoices by client on the board.</span>}
+          : !client.trim() && <span className="text-[12px] text-muted">Required: it groups the invoices by client on the board.</span>}
       </div>
 
       {/* Payments */}
@@ -238,7 +239,7 @@ export default function InvoiceBuilder({ oppId, project, mode, user, meta, bille
                   disabled={!!r.createdId}
                   className={`${cls(bad('name'))} font-semibold`}
                 />
-                {res?.ok && <span className="text-[11px] font-bold text-emerald whitespace-nowrap">Created ✓</span>}
+                {res?.ok && <span className="text-[11px] font-bold text-emerald whitespace-nowrap">Created ✓{res.contractAttached ? ' · contract attached ✓' : ''}</span>}
                 {res && !res.ok && <span className="text-[11px] font-bold text-red whitespace-nowrap">Failed</span>}
               </div>
 
@@ -317,9 +318,9 @@ export default function InvoiceBuilder({ oppId, project, mode, user, meta, bille
         </div>
       </div>
 
-      {attempted && invalidCount > 0 && (
+      {attempted && (invalidCount > 0 || !client.trim()) && (
         <p className="text-[12.5px] text-red mt-2">
-          {invalidCount} required field{invalidCount === 1 ? '' : 's'} still to fill: {[...new Set(rows.flatMap(validateRow))].map(f => FIELD_LABEL[f]).join(', ')}.
+          Still to fill: {[...(client.trim() ? [] : ['Client']), ...new Set(rows.flatMap(validateRow).map(f => FIELD_LABEL[f]))].join(', ')}.
         </p>
       )}
 

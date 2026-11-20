@@ -65,11 +65,11 @@ export const OPP = {
   CLOSED:       'deal_close_date',
 };
 
-// SOW / contract file columns, in the order we trust them.
+// Contract file columns on the opportunity, in the order we trust them: the signed agreement first.
 export const CONTRACT_COLS = [
-  { id: 'file_mkzc2b6g', label: 'SOW/Contract' },
   { id: 'file_mm6tn0n1', label: 'Contract Signed' },
   { id: 'file_mm08w93r', label: 'Signed contracts' },
+  { id: 'file_mkzc2b6g', label: 'SOW/Contract' },
   { id: 'file_mm6hgp57', label: 'Contract Draft' },
 ];
 
