@@ -89,7 +89,7 @@ const ANALYSIS_TOOL = {
         type: 'object',
         properties: Object.fromEntries(CRAFT.map((c) => [c.key, {
           type: 'object',
-          properties: { score: { type: ['integer', 'null'], minimum: 1, maximum: 5 }, note: str },
+          properties: { score: { type: 'integer' }, note: str },
           required: ['score'],
         }])),
         required: CRAFT.map((c) => c.key),
@@ -97,11 +97,11 @@ const ANALYSIS_TOOL = {
       prospect: {
         type: 'object',
         properties: {
-          role_or_title: { type: ['string', 'null'] },
-          seniority: { type: 'string', enum: SENIORITY },
-          company_type_or_industry: { type: ['string', 'null'] },
-          industry: { type: 'string', enum: INDUSTRIES },
-          industry_source: { type: 'string', enum: INDUSTRY_SOURCES },
+          role_or_title: str,
+          seniority: str,
+          company_type_or_industry: str,
+          industry: str,
+          industry_source: str,
         },
       },
       opener: {
@@ -136,7 +136,7 @@ const ANALYSIS_TOOL = {
             response_quote_en: str,
             checks: {
               type: 'object',
-              properties: Object.fromEntries(HANDLING_CHECKS.map((k) => [k, { type: 'integer', enum: [0, 1, 2] }])),
+              properties: Object.fromEntries(HANDLING_CHECKS.map((k) => [k, { type: 'integer' }])),
             },
             why: str,
           },
@@ -148,7 +148,6 @@ const ANALYSIS_TOOL = {
         items: {
           type: 'object',
           properties: {
-            kind: { type: 'string', enum: KX_KINDS },
             prospect_quote: str,
             prospect_quote_en: str,
             sdr_quote: str,
@@ -160,8 +159,8 @@ const ANALYSIS_TOOL = {
           required: ['verdict', 'what_happened'],
         },
       },
-      best_moment: { type: ['object', 'null'], properties: { quote: str, quote_en: str, why: str } },
-      missed_moment: { type: ['object', 'null'], properties: { quote: str, quote_en: str, better: str } },
+      best_moment: { type: 'object', properties: { quote: str, quote_en: str, why: str } },
+      missed_moment: { type: 'object', properties: { quote: str, quote_en: str, better: str } },
       try_next_time: { type: 'array', items: str, minItems: 1 },
     },
     required: ['call_type', 'coachable', 'summary', 'opener_result', 'next_step_secured', 'craft', 'prospect', 'opener', 'objections', 'key_exchanges', 'positioning', 'try_next_time'],
@@ -212,7 +211,7 @@ Rules:
 - "try_next_time" must be one to three concrete actions for the next call, each tied to something that actually happened on this call. Quote the SDR's own words that should change (short, exact) and give the replacement wording the SDR could say, written as natural speech and not as a script. Never give generic advice such as "ask more open questions" or "build rapport". For early hang-ups, focus on the first ten seconds.
 - "summary": two or three plain sentences a manager could read in ten seconds: who the prospect was, what the SDR did well or badly, and how it ended. Name the single most important thing to coach.
 - "key_exchanges": the heart of the coaching. For every real conversation give 3 to 6 of the most teachable exchanges, in the order they happened. Each pairs what the PROSPECT said or asked (prospect_quote) with the SDR's actual answer (sdr_quote). Always include every time the prospect asked a direct question (for example "what do you actually offer?"), raised an objection or showed interest, and the exchange where the SDR asked for the next step. Give a verdict: "landed" (the answer worked), "partly" (some of it worked) or "missed" (it did not land, for example a long, shifting or vague answer to a simple question). In what_happened, critique specifically: say what the SDR did, quote the exact words that were weak or strong, and why that landed or did not. In better, say what to say instead, written as the natural words the SDR could use (for a "landed" exchange, say why it is worth repeating). Include one or two "landed" exchanges where they exist. For short calls give one or two. Never return an empty list for a real conversation.
-- "best_moment" and "missed_moment": pick the moment that teaches the most, quote it, and say specifically why it worked or what a stronger SDR would have said instead. Use null only when nothing on the call qualifies.
+- "best_moment" and "missed_moment": pick the moment that teaches the most, quote it, and say specifically why it worked or what a stronger SDR would have said instead. Use empty strings only when nothing on the call qualifies.
 - Coach on what the SDR controls (the opening, listening, how they answered the objection, the ask for the next step), not on the prospect's behaviour. Praise only specific things, and keep the tone of a manager who wants this person to improve.
 - Be honest. Praise only what happened.
 - "objections": see the objection rules below. Quote the prospect's exact words and the SDR's exact reply.
@@ -272,14 +271,14 @@ Return your analysis as one JSON object in exactly this shape:
   "ended_by": "prospect" | "sdr" | "unclear",
   "next_step_secured": boolean,
   "ai_screener": boolean,
-  "craft": { ${CRAFT.map((c) => `"${c.key}": { "score": 1-5 or null, "note": "one sentence" }`).join(', ')} },
-  "prospect": { "role_or_title": "as said on the call, or null", "seniority": ${list(SENIORITY)}, "company_type_or_industry": "as said or clearly implied, or null", "industry": ${list(INDUSTRIES)}, "industry_source": ${list(INDUSTRY_SOURCES)} },
+  "craft": { ${CRAFT.map((c) => `"${c.key}": { "score": 1-5, or 0 when that part of the call did not happen, "note": "one sentence" }`).join(', ')} },
+  "prospect": { "role_or_title": "as said on the call, or empty", "seniority": ${list(SENIORITY)}, "company_type_or_industry": "as said or clearly implied, or empty", "industry": ${list(INDUSTRIES)}, "industry_source": ${list(INDUSTRY_SOURCES)} },
   "positioning": { "lead": ${list(POSITIONING_LEADS)}, "other_kind": ${list(POSITIONING_OTHER_KINDS)}, "mentions_monday": true|false, "mentions_ai": true|false, "when": ${list(POSITIONING_WHEN)}, "quote": "verbatim, original language: how the SDR described who boost is, or empty", "quote_en": "English translation", "reaction": ${list(POSITIONING_REACTIONS)}, "note": "one sentence" },
   "opener": { "style": ${list(OPENER_STYLES)}, "quote": "verbatim, original language: how the SDR opened, the first thing said after the greeting", "quote_en": "English translation", "note": "one sentence" },
-  "objections": [ { "category": ${list(OBJECTION_CATEGORIES)}, "stage": ${list(STAGES)}, "quote": "verbatim prospect words, original language", "quote_en": "English translation", "response_quote": "verbatim SDR reply in the original language, or empty string", "response_quote_en": "English translation of the reply", "is_brush_off": true|false, "checks": { "acknowledged": 0|1|2, "asked_back": 0|1|2, "fit_the_objection": 0|1|2, "reason_to_continue": 0|1|2, "secured_something": 0|1|2 }, "why": "one sentence: what the SDR did and what would have been better" } ],
-  "key_exchanges": [ { "kind": ${list(KX_KINDS)}, "prospect_quote": "verbatim prospect words, original language", "prospect_quote_en": "English translation", "sdr_quote": "verbatim SDR answer, original language", "sdr_quote_en": "English translation", "verdict": ${list(KX_VERDICTS)}, "what_happened": "specific critique with the exact words", "better": "what to say instead" } ],
-  "best_moment": { "quote": "verbatim, original language", "quote_en": "English translation", "why": "one sentence" } | null,
-  "missed_moment": { "quote": "verbatim, original language", "quote_en": "English translation", "better": "what could have been said or asked instead" } | null,
+  "objections": [ { "category": ${list(OBJECTION_CATEGORIES)}, "stage": ${list(STAGES)}, "quote": "verbatim prospect words, original language", "quote_en": "English translation", "response_quote": "verbatim SDR reply in the original language, or empty string", "response_quote_en": "English translation of the reply", "is_brush_off": true|false, "checks": { "acknowledged": 0 to 2, "asked_back": 0 to 2, "fit_the_objection": 0 to 2, "reason_to_continue": 0 to 2, "secured_something": 0 to 2 }, "why": "one sentence: what the SDR did and what would have been better" } ],
+  "key_exchanges": [ { "prospect_quote": "verbatim prospect words, original language", "prospect_quote_en": "English translation", "sdr_quote": "verbatim SDR answer, original language", "sdr_quote_en": "English translation", "verdict": ${list(KX_VERDICTS)}, "what_happened": "specific critique with the exact words", "better": "what to say instead" } ],
+  "best_moment": { "quote": "verbatim, original language", "quote_en": "English translation", "why": "one sentence" } (all empty strings when nothing qualifies),
+  "missed_moment": { "quote": "verbatim, original language", "quote_en": "English translation", "better": "what could have been said or asked instead" } (all empty strings when nothing qualifies),
   "try_next_time": ["...", "..."]
 }`;
 
@@ -403,7 +402,7 @@ function validate(raw, turns, crm = null) {
 
   for (const { key } of CRAFT) {
     const c = raw.craft?.[key] || {};
-    out.craft[key] = { score: c.score == null ? null : clampScore(c.score, 1, 5), note: String(c.note || '').slice(0, 300) };
+    out.craft[key] = { score: Number(c.score) >= 1 ? clampScore(c.score, 1, 5) : null, note: String(c.note || '').slice(0, 300) };
   }
 
   // An objection only counts if the prospect's words really are in the transcript. Where it happened in the
@@ -422,7 +421,7 @@ function validate(raw, turns, crm = null) {
     .slice(0, 8)
     .map((o) => {
       const responseQuote = o.response_quote && quoteIsReal(tNorm, o.response_quote) ? String(o.response_quote) : null;
-      const checks = Object.fromEntries(HANDLING_CHECKS.map((k) => [k, [0, 1, 2].includes(o.checks?.[k]) ? o.checks[k] : 0]));
+      const checks = Object.fromEntries(HANDLING_CHECKS.map((k) => [k, clampScore(o.checks?.[k], 0, 2) ?? 0]));
       const score = Object.values(checks).reduce((n, v) => n + v, 0); // 0 to 10
       const at = turnOf(o.quote);
       const turnsAfter = at >= 0 ? turns.length - 1 - at : null;
