@@ -12,7 +12,7 @@ import {
 const DAY_OPTIONS = [14, 30, 60, 90];
 const fmtDay = (iso) => new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
 const BATCH = 5;
-const ALL_WORKERS = 8; // calls analysed at the same time when running them all (matches the server)
+const ALL_WORKERS = 4; // calls analysed at the same time when running them all (matches the server)
 const SECONDS_PER_CALL = 20; // rough guide for the time estimate (low effort, structured answer)
 
 // Turns a failed request into something a person can act on.
@@ -201,6 +201,7 @@ export default function Coaching({ user }) {
     let failed = 0;
     let lost = 0;
     let lastMessage = null;
+    const reasons = new Map(); // why calls could not be analysed, and how many each
     let pollErrors = 0;
     let gaveUp = false;
     let summaryAt = 0; // how many were done when the trends and focus panel were last refreshed
@@ -245,7 +246,11 @@ export default function Coaching({ user }) {
           if (r.saved) done += 1; else unsaved += 1;
         } else {
           failed += 1;
-          if (r?.message) lastMessage = r.message;
+          if (r?.message) {
+            lastMessage = r.message;
+            const why = String(r.message).replace(/^[^:]*: /, '').slice(0, 120);
+            reasons.set(why, (reasons.get(why) || 0) + 1);
+          }
         }
       }
       setAnalysing({ busy: true, message: progress() });
@@ -262,11 +267,12 @@ export default function Coaching({ user }) {
       try { await coachingApi.analyseCancel([...pending]); } catch { /* it will simply finish */ }
     }
 
-    let message = failed ? `${done} analysed, ${failed} could not be.` : `${done} analysed.`;
+    const why = [...reasons.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([w, n]) => `${n} × ${w}`).join('; ');
+    let message = failed ? `${done} analysed, ${failed} could not be${why ? ` (${why})` : ''}. They stay waiting; press the button again to retry them.` : `${done} analysed.`;
     if (unsaved) message += ` ${unsaved} could not be saved permanently, so ${unsaved === 1 ? 'it' : 'they'} will be offered again.`;
     if (lost) message += ` The server restarted part way, so ${lost} ${lost === 1 ? 'was' : 'were'} not finished. Press the button again; anything that finished is saved.`;
     if (gaveUp) message = `${done} analysed. The server did not answer for a while. Anything that finished is saved, so press the button again in a few minutes.`;
-    else if (stopRef.current) message = `Stopped. ${message} Up to two calls already running will still finish in the background.`;
+    else if (stopRef.current) message = `Stopped. ${message} Calls already running will still finish in the background.`;
     else if (!done && lastMessage) message = `Could not analyse. ${lastMessage}`;
     setAnalysing({ busy: false, message });
 

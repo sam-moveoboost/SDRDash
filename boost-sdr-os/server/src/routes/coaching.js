@@ -33,7 +33,7 @@ const RECHECK_OLD_MS = 6 * 60 * 60 * 1000;
 const MAX_PENDING_LOOKUPS = 400;
 const MAX_ROWS = 200;
 
-function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now(), maxJobWorkers = 8 } = {}) {
+function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now(), maxJobWorkers = 4 } = {}) {
   const { mondayApi, analysis, store } = { ...defaults, ...deps };
   const router = express.Router();
   router.use(auth);
@@ -454,7 +454,7 @@ function createRouter(deps = {}, { auth = requireViewer, now = () => Date.now(),
   // analysing on its own, a couple at a time, and the page only ever makes short requests. Results
   // are kept in memory for a while; the analyses themselves are saved permanently as before.
   const JOB_KEEP_MS = 30 * 60 * 1000;
-  const MAX_JOB_WORKERS = maxJobWorkers; // calls analysed at the same time (8 live); each takes seconds at low effort
+  const MAX_JOB_WORKERS = maxJobWorkers; // calls analysed at the same time (4 live, each three requests to Claude), to stay within Claude's rate limit
   const MAX_JOB_IDS = 200;
   const jobs = new Map(); // id -> { state, viewerId, result?, at }
   const jobQueue = [];

@@ -1687,3 +1687,23 @@ test('"How are you" on its own is its own opener type, not a permission ask; a c
   assert.match(SYSTEM, /Only saying the company name \("calling from monday\.com"\) does not count/);
   assert.match(SYSTEM, /who we are first, problem or result hook, permission ask, pleasantry/);
 });
+
+test('when Claude says it is too busy (429 or 529) the request waits and tries again instead of failing the call', async () => {
+  const { analyseCall, _setRetryPause } = require('../src/lib/analysis');
+  _setRetryPause(() => 1);
+  try {
+    await withKey(async () => {
+      let calls = 0;
+      const fetchImpl = async () => {
+        calls += 1;
+        if (calls <= 2) return { ok: false, status: calls === 1 ? 429 : 529, headers: { get: () => '1' }, text: async () => JSON.stringify({ error: { message: 'rate limited' } }) };
+        return toolReply({ ...FULL, call_type: 'conversation', coachable: true, opener_result: 'stayed_engaged', next_step_secured: false, objections: [] });
+      };
+      const out = await analyseCall({ turns: quoteTurns, call: { durationMin: 1 } }, { fetchImpl });
+      assert.equal(out.callType, 'conversation');
+      assert.equal(calls, 5); // three parts, two of the first tries were told to wait and went again
+    });
+  } finally {
+    _setRetryPause((attempt, retryAfter) => (retryAfter ? retryAfter * 1000 : 5000 * 2 ** attempt));
+  }
+});

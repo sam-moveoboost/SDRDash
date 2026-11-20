@@ -492,7 +492,7 @@ function extractJson(text) {
   return JSON.parse(cleaned.slice(start, end + 1));
 }
 
-async function askClaude(user, apiKey, fetchImpl, schema) {
+async function askClaudeOnce(user, apiKey, fetchImpl, schema) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 120000);
   try {
@@ -512,12 +512,35 @@ async function askClaude(user, apiKey, fetchImpl, schema) {
         messages: [{ role: 'user', content: user }],
       }),
     });
-    if (!res.ok) throw new Error(await describeFailure(res));
+    if (!res.ok) {
+      const err = new Error(await describeFailure(res));
+      err.status = res.status;
+      err.retryAfter = Number(res.headers?.get?.('retry-after')) || null;
+      throw err;
+    }
     return await res.json();
   } finally {
     clearTimeout(timer);
   }
 }
+
+// Claude asks callers to slow down when too many requests arrive at once (429) or when it is busy (529, 503,
+// 500). That is not a failure of the call: wait as long as it asks (or a growing pause) and try again.
+const BUSY_STATUSES = new Set([429, 500, 503, 529]);
+let retryPauseMs = (attempt, retryAfter) => (retryAfter ? retryAfter * 1000 : 5000 * 2 ** attempt);
+async function askClaude(user, apiKey, fetchImpl, schema) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await askClaudeOnce(user, apiKey, fetchImpl, schema);
+    } catch (err) {
+      if (!BUSY_STATUSES.has(err.status) || attempt >= 5) throw err;
+      const wait = Math.min(60000, retryPauseMs(attempt, err.retryAfter));
+      console.error(`[analyse] Claude is busy (${err.status}); trying again in ${Math.round(wait / 1000)}s`);
+      await new Promise((resolve) => { setTimeout(resolve, wait); });
+    }
+  }
+}
+const _setRetryPause = (fn) => { retryPauseMs = fn; };
 
 // The structured answer, or (if Claude replied in plain text instead) JSON pulled out of the text.
 function readAnalysis(json) {
@@ -741,7 +764,7 @@ const CALL_TYPE_LABELS = {
 };
 
 module.exports = {
-  OUTPUT_SCHEMA, PART_SCHEMAS, PART_FIELDS, OPENER_STYLES,
+  OUTPUT_SCHEMA, PART_SCHEMAS, PART_FIELDS, OPENER_STYLES, _setRetryPause,
   analyseCall, isThin, missingParts, positioningUnrecorded, openerUnrecorded, ping, validate, extractJson, CRAFT, SYSTEM, ANALYSIS_SCHEMA, INDUSTRIES,
   OBJECTION_LABELS, OBJECTION_DESCRIPTIONS, HANDLING_CHECKS, HANDLING_CHECK_LABELS, POSITIONING_LABELS, POSITIONING_DESCRIPTIONS, OPENER_LABELS, OPENER_DESCRIPTIONS, modernCategory, modernOpener, SENIORITY_LABELS, CALL_TYPE_LABELS,
 };
