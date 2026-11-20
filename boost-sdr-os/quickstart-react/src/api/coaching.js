@@ -6,11 +6,11 @@ import mondaySdk from 'monday-sdk-js';
 //
 // Each app version has its own server address. This one is v4. When v4 is promoted
 // to live, set VITE_COACHING_SERVER_URL to the live address (or change it here).
-const SERVER_URL = (import.meta.env.VITE_COACHING_SERVER_URL || 'https://fcbba-service-32182176-d6c59411.us.monday.app').replace(/\/$/, '');
+export const SERVER_URL = (import.meta.env.VITE_COACHING_SERVER_URL || 'https://fcbba-service-32182176-d6c59411.us.monday.app').replace(/\/$/, '');
 
 const monday = mondaySdk();
 
-async function sessionToken() {
+export async function sessionToken() {
   const res = await monday.get('sessionToken');
   if (!res?.data) throw Object.assign(new Error('Open this app from inside monday to sign in.'), { code: 'not_signed_in' });
   return res.data;
