@@ -63,6 +63,9 @@ export const coachingApi = {
   selftest: () => request('/selftest'),
   // Managers only: what is really saved for each call, set against the board.
   audit: (fresh) => request(`/audit${qs({ fresh: fresh ? 1 : undefined })}`),
+  // Managers only: run the analysis on a few real calls and show the raw result. Saves nothing.
+  trialStart: (ids) => request('/analyse/trial', { method: 'POST', body: { ids: ids || [] } }),
+  trialStatus: () => request('/analyse/trial'),
   analyse: (ids) => request('/analyse', { method: 'POST', body: { ids } }),
   // Background analysis: start it, then ask how it is going with short requests.
   analyseStart: (ids) => request('/analyse/start', { method: 'POST', body: { ids } }),

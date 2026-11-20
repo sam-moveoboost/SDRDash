@@ -17,6 +17,8 @@ const SAM = '97429928'; // admin
 const LUKE = '111'; // SDR
 const EMAD = '222'; // SDR
 
+// A complete answer's required parts, for pretend Claude replies.
+const FULL = { craft: { opening: { score: 3, note: 'x' } }, opener: { style: 'cold_permission_ask', quote: '', note: 'n' }, positioning: { lead: 'none', when: 'never', note: 'n' } };
 const token = (userId, secret = 'test-client-secret') => jwt.sign({ dat: { user_id: userId } }, secret, { expiresIn: '5m' });
 
 // A real conversation.
@@ -111,7 +113,7 @@ async function withServer(opts, fn) {
   if (typeof opts === 'function') { fn = opts; opts = {}; }
   const ctx = makeDeps(opts);
   const app = express();
-  app.use('/coaching', createRouter(ctx.deps, { now: () => Date.parse('2026-11-04T12:00:00Z') }));
+  app.use('/coaching', createRouter(ctx.deps, { now: () => Date.parse('2026-11-04T12:00:00Z'), maxJobWorkers: opts.jobWorkers }));
   const server = http.createServer(app);
   await new Promise((r) => server.listen(0, r));
   const base = `http://127.0.0.1:${server.address().port}/coaching`;
@@ -407,7 +409,7 @@ test('parses a call exactly as the monday API returns it, including the new stat
 test('the Claude call sends the right request and copes with fenced JSON', async () => {
   const { analyseCall } = require('../src/lib/analysis');
   const turns = [{ who: 'prospect', text: 'Just send me an email please.' }, { who: 'sdr', text: 'Happy to, what would make it worth reading?' }];
-  const reply = { call_type: 'conversation', coachable: true, opener_result: 'stayed_engaged', next_step_secured: false, meddpicc: {}, craft: {}, objections: [{ category: 'send_email', stage: 'middle', quote: 'Just send me an email please.', response_quote: 'Happy to, what would make it worth reading?', handled: 'well', why: 'asked a follow up' }] };
+  const reply = { ...FULL, call_type: 'conversation', coachable: true, opener_result: 'stayed_engaged', next_step_secured: false, objections: [{ category: 'send_email', stage: 'middle', quote: 'Just send me an email please.', response_quote: 'Happy to, what would make it worth reading?', handled: 'well', why: 'asked a follow up' }] };
   let seen;
   const fetchImpl = async (url, init) => {
     seen = { url, init, body: JSON.parse(init.body) };
@@ -592,20 +594,24 @@ const quoteTurns = [
 ];
 const toolReply = (input) => ({ ok: true, json: async () => ({ stop_reason: 'tool_use', content: [{ type: 'tool_use', name: 'record_call_analysis', input }] }) });
 
-test('Claude is made to answer through a tool, so quotes containing speech marks cannot break it', async () => {
+test('Claude must answer in the exact structured shape, so quotes containing speech marks cannot break it', async () => {
   const { analyseCall } = require('../src/lib/analysis');
   await withKey(async () => {
     let body;
     const fetchImpl = async (_url, init) => {
       body = JSON.parse(init.body);
       // A quote with speech marks in it: as free text this is exactly what produced "Expected ',' or '}'".
-      return toolReply({ call_type: 'conversation', coachable: true, opener_result: 'brushed_off', next_step_secured: true, meddpicc: {}, craft: {}, objections: [{ category: 'bad_timing', stage: 'middle', quote: 'He said "not now" and then "call back in March"', handled: 'well', why: 'x' }] });
+      return toolReply({ ...FULL, call_type: 'conversation', coachable: true, opener_result: 'brushed_off', next_step_secured: true, objections: [{ category: 'bad_timing', stage: 'middle', quote: 'He said "not now" and then "call back in March"', handled: 'well', why: 'x' }] });
     };
     const out = await analyseCall({ turns: quoteTurns, call: { durationMin: 1 } }, { fetchImpl });
-    // This model refuses a forced tool choice ("tool" or "any"), so the tool is offered and asked for.
-    assert.equal(body.tool_choice.type, 'auto');
-    assert.equal(body.tools[0].name, 'record_call_analysis');
-    assert.match(body.messages[0].content, /calling the record_call_analysis tool/);
+    // Structured outputs: the answer must match the schema exactly. No tool and no forced tool choice.
+    assert.equal(body.output_config.format.type, 'json_schema');
+    assert.equal(body.output_config.format.schema.properties.opener.additionalProperties, false);
+    assert.ok(body.output_config.format.schema.required.includes('opener'));
+    assert.equal(body.output_config.effort, 'low');
+    assert.equal(body.tools, undefined);
+    assert.equal(body.tool_choice, undefined);
+    assert.match(body.messages[0].content, /Return your analysis as JSON/);
     assert.equal(out.objections.length, 1);
     assert.match(out.objections[0].quote, /"not now"/);
   });
@@ -651,8 +657,8 @@ test('the connection check also proves Anthropic accepts the analysis format', a
   await withKey(async () => {
     let body;
     await ping({ fetchImpl: async (_u, init) => { body = JSON.parse(init.body); return { ok: true, json: async () => ({}) }; } });
-    assert.equal(body.tools[0].name, 'record_call_analysis');
-    assert.equal(body.tool_choice.type, 'auto'); // never forced: this model refuses that
+    assert.equal(body.output_config.format.type, 'json_schema'); // the real answer schema, so a rejected format shows here
+    assert.equal(body.tool_choice, undefined); // never forced: this model refuses that
     assert.ok(body.max_tokens <= 32);
   });
   await withKey(async () => {
@@ -711,7 +717,7 @@ test('Anthropic never receives a forced tool choice, which this model rejects', 
     const seen = [];
     const fetchImpl = async (_u, init) => {
       const b = JSON.parse(init.body);
-      seen.push(b.tool_choice);
+      seen.push(b.tool_choice ?? null);
       // Mimic the real refusal for any forced choice.
       if (b.tool_choice && b.tool_choice.type !== 'auto') {
         return { ok: false, status: 400, text: async () => JSON.stringify({ error: { message: 'tool_choice: type "tool" and "any" are not supported for this model.' } }) };
@@ -720,7 +726,7 @@ test('Anthropic never receives a forced tool choice, which this model rejects', 
     };
     await analyseCall({ turns: quoteTurns, call: { durationMin: 1 } }, { fetchImpl });
     await ping({ fetchImpl });
-    assert.deepEqual(seen.map((t) => t.type), ['auto', 'auto']);
+    assert.deepEqual(seen, [null, null]); // no tool choice is sent at all
   });
 });
 
@@ -744,7 +750,7 @@ test('Claude is given room for a long analysis', async () => {
   const { analyseCall } = require('../src/lib/analysis');
   await withKey(async () => {
     let body;
-    const fetchImpl = async (_u, init) => { body = JSON.parse(init.body); return toolReply({ call_type: 'conversation', coachable: true, meddpicc: {}, craft: {}, objections: [] }); };
+    const fetchImpl = async (_u, init) => { body = JSON.parse(init.body); return toolReply({ ...FULL, call_type: 'conversation', coachable: true, objections: [] }); };
     await analyseCall({ turns: quoteTurns, call: { durationMin: 1 } }, { fetchImpl });
     assert.ok(body.max_tokens >= 6000);
   });
@@ -989,7 +995,7 @@ test('the CRM record reaches Claude as context in the request', async () => {
   const { analyseCall } = require('../src/lib/analysis');
   await withKey(async () => {
     let body;
-    const fetchImpl = async (_u, init) => { body = JSON.parse(init.body); return toolReply({ call_type: 'conversation', coachable: true, opener_result: 'stayed_engaged', next_step_secured: false, meddpicc: {}, craft: {}, objections: [] }); };
+    const fetchImpl = async (_u, init) => { body = JSON.parse(init.body); return toolReply({ ...FULL, call_type: 'conversation', coachable: true, opener_result: 'stayed_engaged', next_step_secured: false, objections: [] }); };
     await analyseCall({ turns: quoteTurns, call: { durationMin: 1 }, prospect: { company: 'Acme Homes', industry: 'Real Estate', title: 'Sales Director' } }, { fetchImpl });
     assert.match(body.messages[0].content, /Company: Acme Homes/);
     assert.match(body.messages[0].content, /Industry \(CRM\): Real Estate/);
@@ -1163,8 +1169,8 @@ test('a real conversation that comes back with no coaching is sent back once for
       bodies.push(JSON.parse(init.body));
       // First answer: scored nothing and said nothing. Second: the real feedback.
       return bodies.length === 1
-        ? toolReply({ ...posBase, coachable: false, summary: 'Nothing much.' })
-        : toolReply({ ...posBase, craft: { discovery: { score: 2 } }, key_exchanges: [{ kind: 'prospect_question', prospect_quote: 'What exactly does boost offer?', sdr_quote: 'It is not a solution, well it is a solution', verdict: 'missed', what_happened: 'x', better: 'y' }] });
+        ? toolReply({ ...posBase, opener: FULL.opener, positioning: FULL.positioning, coachable: false, summary: 'Nothing much.' })
+        : toolReply({ ...posBase, opener: FULL.opener, positioning: FULL.positioning, craft: { discovery: { score: 2 } }, key_exchanges: [{ kind: 'prospect_question', prospect_quote: 'What exactly does boost offer?', sdr_quote: 'It is not a solution, well it is a solution', verdict: 'missed', what_happened: 'x', better: 'y' }] });
     };
     const out = await analyseCall({ turns: longTurns, call: { durationMin: 4 } }, { fetchImpl });
     assert.equal(bodies.length, 2);
@@ -1289,8 +1295,8 @@ test('an SDR cannot start analysis of someone else\'s call', async () => {
   });
 });
 
-test('only two analyses run at once in the background, and one that has not started can be cancelled', async () => {
-  await withServer({ hold: true }, async ({ call, json, release, log }) => {
+test('no more analyses run at once than allowed (8 live, 2 here), and one that has not started can be cancelled', async () => {
+  await withServer({ hold: true, jobWorkers: 2 }, async ({ call, json, release, log }) => {
     await call('/analyse/start', SAM, { method: 'POST', body: JSON.stringify({ ids: ['1', '2', '3'] }) });
     await new Promise((r) => setTimeout(r, 30));
     const st = await json('/analyse/status?ids=1,2,3', SAM);
@@ -1347,7 +1353,6 @@ test('a missing positioning is not recorded, and is not counted as "did not say"
   const omitted = validate({ ...base }, turns);
   assert.equal(omitted.positioning, null);
   assert.equal(positioningUnrecorded(omitted), true);
-  assert.equal(positioningUnrecorded({ ...omitted, askedTwice: true }), false); // asked twice and left out: not offered again
   const judged = validate({ ...base, positioning: { lead: 'none', when: 'never', reaction: 'ended', note: 'Hung up before the SDR said what we do.' } }, turns);
   assert.equal(judged.positioning.recorded, true);
   assert.equal(positioningUnrecorded(judged), false);
@@ -1425,7 +1430,7 @@ test('a real conversation with key moments but no craft scores is still sent bac
     const fetchImpl = async (_u, init) => {
       bodies.push(JSON.parse(init.body));
       // The first answer treated the call as not coachable: moments recorded, craft left blank.
-      return bodies.length === 1 ? toolReply({ ...posBase, coachable: false, ...withExchange }) : toolReply({ ...posBase, craft: { opening: { score: 3 }, discovery: { score: 1 } }, ...withExchange });
+      return bodies.length === 1 ? toolReply({ ...posBase, opener: FULL.opener, positioning: FULL.positioning, coachable: false, ...withExchange }) : toolReply({ ...posBase, opener: FULL.opener, positioning: FULL.positioning, craft: { opening: { score: 3 }, discovery: { score: 1 } }, ...withExchange });
     };
     const out = await analyseCall({ turns: longTurns, call: { durationMin: 4 } }, { fetchImpl });
     assert.equal(bodies.length, 2);
@@ -1452,7 +1457,7 @@ test('a short brushed-off call still gets its opening scored, and is sent back i
   assert.equal(isThin({ callType: 'voicemail', craft: {} }), false);
   await withKey(async () => {
     const bodies = [];
-    const base = { call_type: 'early_hangup', coachable: false, opener_result: 'brushed_off', next_step_secured: false, objections: [], key_exchanges: [], positioning: { lead: 'none', when: 'never' } };
+    const base = { call_type: 'early_hangup', coachable: false, opener_result: 'brushed_off', next_step_secured: false, objections: [], key_exchanges: [], positioning: { lead: 'none', when: 'never' }, opener: { style: 'apology', quote: '', note: 'n' } };
     const fetchImpl = async (_u, init) => {
       bodies.push(JSON.parse(init.body));
       return bodies.length === 1 ? toolReply({ ...base, craft: {} }) : toolReply({ ...base, craft: { opening: { score: 2, note: 'Apologised and was vague.' } } });
@@ -1470,7 +1475,6 @@ test('an analysis that came back with no opener is never counted as "Other", and
   const without = v({ ...base }, turns);
   assert.equal(without.opener, null);
   assert.equal(openerUnrecorded(without), true);
-  assert.equal(openerUnrecorded({ ...without, askedTwice: true }), false); // asked twice and left out: not offered again
   assert.ok(missingParts(without).some((p) => /"opener"/.test(p)));
   const withOne = v({ ...base, opener: { style: 'apology', quote: 'Hello' } }, turns);
   assert.equal(withOne.opener.style, 'apology');
@@ -1574,5 +1578,54 @@ test('the audit counts what is saved against the board and names the disagreemen
     assert.equal(audit.usedByOpeningCards, 2);
     const denied = await call('/audit', LUKE);
     assert.equal(denied.status, 403);
+  });
+});
+
+// ---- an incomplete answer is never saved ----
+test('an answer still missing the opener after being told once fails with the reason, so it can never count as analysed', async () => {
+  const { analyseCall } = require('../src/lib/analysis');
+  await withKey(async () => {
+    const bodies = [];
+    const fetchImpl = async (_u, init) => {
+      bodies.push(JSON.parse(init.body));
+      return toolReply({ call_type: 'conversation', coachable: true, opener_result: 'stayed_engaged', next_step_secured: false, craft: FULL.craft, positioning: FULL.positioning, objections: [] });
+    };
+    await assert.rejects(() => analyseCall({ turns: quoteTurns, call: { durationMin: 1 } }, { fetchImpl }), (err) => err.code === 'incomplete' && /opener/.test(err.message));
+    assert.equal(bodies.length, 2); // asked once more, naming what was missing, then gave up
+    assert.match(bodies[1].messages[0].content, /left out: "opener"/);
+  });
+});
+
+test('every part of the answer shape is required and nothing else is allowed', () => {
+  const { OUTPUT_SCHEMA } = require('../src/lib/analysis');
+  const check = (n) => {
+    if (Array.isArray(n)) return n.forEach(check);
+    if (!n || typeof n !== 'object') return;
+    if (n.type === 'object') {
+      assert.equal(n.additionalProperties, false);
+      assert.deepEqual(n.required, Object.keys(n.properties));
+    }
+    assert.equal('minimum' in n || 'maximum' in n || 'minItems' in n, false);
+    Object.values(n).forEach(check);
+  };
+  check(OUTPUT_SCHEMA);
+  for (const part of ['opener', 'positioning', 'objections', 'craft', 'key_exchanges']) assert.ok(OUTPUT_SCHEMA.required.includes(part));
+});
+
+test('the trial analyses real calls and reports them, but saves nothing and leaves the board alone; SDRs cannot run it', async () => {
+  await withServer(async ({ json, call, log, deps }) => {
+    assert.equal((await call('/analyse/trial', LUKE, { method: 'POST', body: '{}' })).status, 403);
+    const start = await json('/analyse/trial', SAM, { method: 'POST', body: JSON.stringify({ ids: ['1', '2'] }) });
+    assert.equal(start.started, true);
+    let t;
+    for (let i = 0; i < 50; i++) {
+      t = await json('/analyse/trial', SAM);
+      if (t.done >= t.total) break;
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    assert.equal(t.results.length, 2);
+    assert.ok(t.results.every((r) => typeof r.seconds === 'number'));
+    assert.deepEqual(log.marked, []); // the board was not touched
+    assert.equal((await deps.store.getAnalysisChecked('1')).analysis, null); // nothing saved
   });
 });
