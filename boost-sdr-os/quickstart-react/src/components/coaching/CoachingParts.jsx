@@ -13,7 +13,7 @@ export const CALL_TYPE_LABELS = {
 const OPENER_RESULT_LABELS = {
   stayed_engaged: 'Prospect stayed', brushed_off: 'Brushed off', hung_up: 'Prospect hung up', blocked_by_gatekeeper: 'Blocked by gatekeeper', unclear: 'Unclear',
 };
-const OPENER_STYLE_LABELS = { warm_followup: 'Warm reference', apology: 'Apology', role_check: 'Role check', cold_permission_ask: 'Permission ask', credentials_first: 'Who we are first', named_person_ask: 'Other', pain_question_hook: 'Problem or result hook', other: 'Other' };
+const OPENER_STYLE_LABELS = { warm_followup: 'Warm reference', apology: 'Apology', role_check: 'Role check', cold_permission_ask: 'Permission ask', credentials_first: 'Who we are first', named_person_ask: 'Other', pain_question_hook: 'Problem or result hook', pleasantry: 'How are you', other: 'Other' };
 const OBJECTION_GROUP_LABELS = {
   not_now_busy: 'Not now, busy', already_covered: 'Already covered', no_need_or_not_applicable: 'No need or does not fit', not_my_remit: 'Not my remit',
   send_info_deferral: 'Send me information', flat_no: 'Flat no', stale_contact: 'Left or wrong number', trust_identity_challenge: 'Who are you, how did you get my number',
@@ -406,7 +406,7 @@ export function TrendsPanel({ data }) {
         <WhatWorksCard
           title="How we open"
           note={t.openers?.length ? `${t.openers.reduce((n, o) => n + o.calls, 0)} calls` : 'the first line'}
-          intro="What the SDR says first, after checking who is on the line, in five types, and how often people stay on the line afterwards."
+          intro="What the SDR says first, after checking who is on the line, by type, and how often people stay on the line afterwards."
           rows={t.openers}
           keyOf={(o) => o.style}
           bestKey={t.bestOpener}

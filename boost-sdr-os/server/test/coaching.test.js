@@ -95,7 +95,7 @@ function makeDeps({ persist = true, claudeFails = false, claudePingFails = false
           log.analysed.push(call.id);
           log.prospects = log.prospects || {};
           log.prospects[call.id] = prospect;
-          return { callType: 'conversation', language: 'English', schema: 7, positioning: { recorded: true, lead: 'none', when: 'never' }, stats: { prospectWordsAfterOpening: 80, turnsAfterOpening: 10 }, opener: { recorded: true, style: 'other', quote: 'x' }, coachable: true, openerResult: 'stayed_engaged', nextStepSecured: true, meddpicc: {}, craft: {}, objections: [] };
+          return { callType: 'conversation', language: 'English', schema: 8, positioning: { recorded: true, lead: 'none', when: 'never' }, stats: { prospectWordsAfterOpening: 80, turnsAfterOpening: 10 }, opener: { recorded: true, style: 'other', quote: 'x' }, coachable: true, openerResult: 'stayed_engaged', nextStepSecured: true, meddpicc: {}, craft: {}, objections: [] };
         },
       },
       store: {
@@ -258,7 +258,7 @@ test('everyone can see the team trends, but nothing that points at an individual
     for (const id of ['1', '2']) {
       calls.find((c) => c.id === id).coachingStatus = 'Analysed';
       await deps.store.saveAnalysis(id, {
-        callType: 'conversation', language: 'English', schema: 7, positioning: { recorded: true, lead: 'none', when: 'never' }, stats: { prospectWordsAfterOpening: 80, turnsAfterOpening: 10 }, opener: { recorded: true, style: 'other', quote: 'x' }, coachable: true, openerResult: 'stayed_engaged', nextStepSecured: true, craft: {},
+        callType: 'conversation', language: 'English', schema: 8, positioning: { recorded: true, lead: 'none', when: 'never' }, stats: { prospectWordsAfterOpening: 80, turnsAfterOpening: 10 }, opener: { recorded: true, style: 'other', quote: 'x' }, coachable: true, openerResult: 'stayed_engaged', nextStepSecured: true, craft: {},
         prospect: { seniority: 'manager', role: 'Head of Sales', industry: 'software' },
         opener: { style: 'permission_based', quote: 'Got a minute?', quoteEn: 'Got a minute?' },
         objections: [{ category: 'no_time', stage: 'opener', quote: 'No time', quoteEn: 'No time', responseQuote: 'Ten minutes next week?', responseQuoteEn: 'Ten minutes next week?', handled: id === '1' ? 'well' : 'poorly', why: 'x' }],
@@ -351,7 +351,7 @@ test('focus areas need enough coachable calls, and short calls do not count agai
 test('trends cover hang-ups, openers and early objections, and leave out voicemail', () => {
   const mk = (id, sdrName, tags, a) => ({
     call: { id, sdrId: id, sdrName, tags, durationMin: 1, startedAt: '2026-11-02 10:00' },
-    analysis: { schema: 7, stats: { prospectWordsAfterOpening: 3, turnsAfterOpening: 2 }, coachable: false, callType: 'early_hangup', nextStepSecured: false, craft: {}, prospect: { seniority: 'unknown' }, objections: [], openerResult: 'hung_up', opener: { style: 'direct_pitch', quote: 'We help teams with monday.com' }, ...a },
+    analysis: { schema: 8, stats: { prospectWordsAfterOpening: 3, turnsAfterOpening: 2 }, coachable: false, callType: 'early_hangup', nextStepSecured: false, craft: {}, prospect: { seniority: 'unknown' }, objections: [], openerResult: 'hung_up', opener: { style: 'direct_pitch', quote: 'We help teams with monday.com' }, ...a },
   });
   const earlyObj = (handled, responseQuote) => [{ category: 'not_interested', stage: 'opener', quote: 'Not interested thanks', responseQuote, handled, why: 'x' }];
   const t = buildTrends([
@@ -572,7 +572,7 @@ test('an English call needs no translation and a missing translation falls back 
 test('manager trends show the English wording of quotes', () => {
   const mk = (id, analysis) => ({ call: { id, sdrId: id, sdrName: `SDR ${id}`, tags: [], durationMin: 1, startedAt: '2026-11-02 10:00' }, analysis });
   const t = buildTrends([mk('1', {
-    schema: 7, stats: { prospectWordsAfterOpening: 3, turnsAfterOpening: 2 }, coachable: false, callType: 'early_hangup', nextStepSecured: false, craft: {}, prospect: { seniority: 'unknown' }, openerResult: 'hung_up',
+    schema: 8, stats: { prospectWordsAfterOpening: 3, turnsAfterOpening: 2 }, coachable: false, callType: 'early_hangup', nextStepSecured: false, craft: {}, prospect: { seniority: 'unknown' }, openerResult: 'hung_up',
     opener: { style: 'direct_pitch', quote: 'שלום מבוסט', quoteEn: 'Hello from boost' },
     objections: [{ category: 'no_time', stage: 'opener', quote: 'אין לי זמן', quoteEn: 'I have no time', responseQuote: 'עשר דקות', responseQuoteEn: 'ten minutes', handled: 'well', why: 'x' }],
   })]);
@@ -692,7 +692,7 @@ test('an analysis saved before the English change is offered for redoing, and re
 test('a current analysis (with a language) is left alone and never redone', async () => {
   await withServer(async ({ json, log, calls, deps }) => {
     calls.find((c) => c.id === '3').coachingStatus = 'Analysed';
-    await deps.store.saveAnalysis('3', { callType: 'early_hangup', language: 'English', schema: 7, positioning: { recorded: true, lead: 'none', when: 'never' }, stats: { prospectWordsAfterOpening: 80, turnsAfterOpening: 10 }, opener: { recorded: true, style: 'other', quote: 'x' }, coachable: false });
+    await deps.store.saveAnalysis('3', { callType: 'early_hangup', language: 'English', schema: 8, positioning: { recorded: true, lead: 'none', when: 'never' }, stats: { prospectWordsAfterOpening: 80, turnsAfterOpening: 10 }, opener: { recorded: true, style: 'other', quote: 'x' }, coachable: false });
 
     const list = await json('/calls', LUKE);
     assert.equal(list.calls.find((c) => c.id === '3').status, 'analysed');
@@ -738,7 +738,7 @@ test('calls still waiting are always listed, even when many finished calls come 
     for (let i = 0; i < 210; i++) {
       const id = `done${i}`;
       calls.push(mkCall({ id, createdAt: '2026-11-10T10:00:00Z', startedAt: '2026-11-10 10:00', coachingStatus: 'Analysed', tags: ['Gatekeeper'] }));
-      await deps.store.saveAnalysis(id, { callType: 'conversation', language: 'English', schema: 7, positioning: { recorded: true, lead: 'none', when: 'never' }, stats: { prospectWordsAfterOpening: 80, turnsAfterOpening: 10 }, opener: { recorded: true, style: 'other', quote: 'x' }, coachable: true, meddpicc: {}, craft: {}, objections: [] });
+      await deps.store.saveAnalysis(id, { callType: 'conversation', language: 'English', schema: 8, positioning: { recorded: true, lead: 'none', when: 'never' }, stats: { prospectWordsAfterOpening: 80, turnsAfterOpening: 10 }, opener: { recorded: true, style: 'other', quote: 'x' }, coachable: true, meddpicc: {}, craft: {}, objections: [] });
     }
     const list = await json('/calls', LUKE);
     const waitingRows = list.calls.filter((c) => c.status === 'waiting');
@@ -831,7 +831,7 @@ test('scores always stay between 1 and 10', () => {
 test('finished calls come back with a priority, in the list the page shows', async () => {
   await withServer(async ({ json, calls, deps }) => {
     calls.find((c) => c.id === '3').coachingStatus = 'Analysed';
-    await deps.store.saveAnalysis('3', { callType: 'early_hangup', language: 'English', schema: 7, positioning: { recorded: true, lead: 'none', when: 'never' }, stats: { prospectWordsAfterOpening: 80, turnsAfterOpening: 10 }, opener: { recorded: true, style: 'other', quote: 'x' }, coachable: false, objections: [], craft: {} });
+    await deps.store.saveAnalysis('3', { callType: 'early_hangup', language: 'English', schema: 8, positioning: { recorded: true, lead: 'none', when: 'never' }, stats: { prospectWordsAfterOpening: 80, turnsAfterOpening: 10 }, opener: { recorded: true, style: 'other', quote: 'x' }, coachable: false, objections: [], craft: {} });
     const row = (await json('/calls', LUKE)).calls.find((c) => c.id === '3');
     assert.equal(row.status, 'analysed');
     assert.equal(row.priority.level, 'low');
@@ -853,7 +853,7 @@ test('the list says how many valid transcripts there are, analysed and waiting',
 test('"no time" and "bad timing" count as one objection, and older names fold into the new groups', () => {
   const mk = (id, category) => ({
     call: { id, sdrName: 'Luke', tags: [] },
-    analysis: { schema: 7, stats: { prospectWordsAfterOpening: 80, turnsAfterOpening: 10 }, opener: { recorded: true, style: 'other', quote: 'x' }, coachable: true, callType: 'conversation', openerResult: 'stayed_engaged', nextStepSecured: false, craft: {}, prospect: { seniority: 'unknown' },
+    analysis: { schema: 8, stats: { prospectWordsAfterOpening: 80, turnsAfterOpening: 10 }, opener: { recorded: true, style: 'other', quote: 'x' }, coachable: true, callType: 'conversation', openerResult: 'stayed_engaged', nextStepSecured: false, craft: {}, prospect: { seniority: 'unknown' },
       opener: { style: 'referral_or_context', quote: 'we spoke before' },
       objections: [{ category, stage: 'middle', quote: 'q', quoteEn: 'q', responseQuote: 'r', responseQuoteEn: 'r', handled: 'well', why: 'x' }] },
   });
@@ -1093,7 +1093,7 @@ test('what the SDR says boost is gets recorded with a checked quote and the pros
 test('trends compare saying monday.com, AI, both or something else, and leave out older analyses', () => {
   const mk = (id, pos, over = {}) => ({
     call: { id, sdrName: 'Luke', tags: over.booked ? ['MeetingBooked'] : [], durationMin: over.mins ?? 3 },
-    analysis: { schema: 7, stats: over.stayed === false ? { prospectWordsAfterOpening: 3, turnsAfterOpening: 2 } : { prospectWordsAfterOpening: 80, turnsAfterOpening: 10 }, coachable: true, callType: 'conversation', openerResult: over.stayed === false ? 'hung_up' : 'stayed_engaged', nextStepSecured: false, craft: {}, objections: [],
+    analysis: { schema: 8, stats: over.stayed === false ? { prospectWordsAfterOpening: 3, turnsAfterOpening: 2 } : { prospectWordsAfterOpening: 80, turnsAfterOpening: 10 }, coachable: true, callType: 'conversation', openerResult: over.stayed === false ? 'hung_up' : 'stayed_engaged', nextStepSecured: false, craft: {}, objections: [],
       prospect: { seniority: 'manager' }, opener: { style: 'warm_followup', quote: 'x' },
       ...(pos ? { positioning: { lead: 'none', mentionsMonday: false, mentionsAi: false, when: 'opening', quote: 'we are x', quoteEn: 'we are x', reaction: 'engaged', ...pos } } : {}) },
   });
@@ -1125,7 +1125,7 @@ test('what we say we are is shown to everyone without a name or a link to a call
   const { forEveryone } = require('../src/lib/trends');
   const t = buildTrends([{
     call: { id: '1', sdrName: 'Luke', sdrId: '111', tags: [], durationMin: 2 },
-    analysis: { schema: 7, stats: { prospectWordsAfterOpening: 80, turnsAfterOpening: 10 }, opener: { recorded: true, style: 'other', quote: 'x' }, coachable: true, callType: 'conversation', openerResult: 'stayed_engaged', nextStepSecured: false, craft: {}, objections: [], prospect: {}, opener: { style: 'other', quote: null },
+    analysis: { schema: 8, stats: { prospectWordsAfterOpening: 80, turnsAfterOpening: 10 }, opener: { recorded: true, style: 'other', quote: 'x' }, coachable: true, callType: 'conversation', openerResult: 'stayed_engaged', nextStepSecured: false, craft: {}, objections: [], prospect: {}, opener: { style: 'other', quote: null },
       positioning: { lead: 'ai', mentionsAi: true, mentionsMonday: false, when: 'opening', quote: 'we do AI', quoteEn: 'we do AI', reaction: 'engaged' } },
   }]);
   const text = JSON.stringify(forEveryone(t));
@@ -1195,7 +1195,7 @@ test('answers that did not land raise the review priority, and a landed one is a
 test('a vague company description counts as consultancy; only results, or only clients or partners, count as something else', () => {
   const mk = (id, kind) => ({
     call: { id, sdrName: 'Emad', tags: [], durationMin: 2 },
-    analysis: { schema: 7, stats: { prospectWordsAfterOpening: 80, turnsAfterOpening: 10 }, opener: { recorded: true, style: 'other', quote: 'x' }, coachable: true, callType: 'conversation', openerResult: 'stayed_engaged', nextStepSecured: false, craft: {}, objections: [], prospect: {}, opener: { style: 'other', quote: null },
+    analysis: { schema: 8, stats: { prospectWordsAfterOpening: 80, turnsAfterOpening: 10 }, opener: { recorded: true, style: 'other', quote: 'x' }, coachable: true, callType: 'conversation', openerResult: 'stayed_engaged', nextStepSecured: false, craft: {}, objections: [], prospect: {}, opener: { style: 'other', quote: null },
       positioning: { lead: 'other', otherKind: kind, mentionsMonday: false, mentionsAi: false, when: 'opening', quote: 'x', quoteEn: 'x', reaction: 'neutral' } },
   });
   const t = buildTrends([mk('1', 'generic_company'), mk('2', 'generic_company'), mk('3', 'results_only'), mk('4', 'credentials_only')]);
@@ -1315,7 +1315,7 @@ test('no more analyses run at once than allowed (8 live, 2 here), and one that h
 test('stayed on and hung up always add up to 100% of a group, measured from the transcript, with gatekeeper blocks counted separately', () => {
   const mk = (id, result, stats, callType = 'conversation') => ({
     call: { id, sdrName: 'Luke', tags: [], durationMin: 1 },
-    analysis: { schema: 7, stats, coachable: true, callType, openerResult: result, nextStepSecured: false, craft: {}, objections: [], prospect: {}, opener: { style: 'cold_permission_ask', quote: 'x' },
+    analysis: { schema: 8, stats, coachable: true, callType, openerResult: result, nextStepSecured: false, craft: {}, objections: [], prospect: {}, opener: { style: 'cold_permission_ask', quote: 'x' },
       positioning: { recorded: true, lead: 'ai', mentionsAi: true, when: 'opening', quote: 'x', quoteEn: 'x', reaction: 'neutral' } },
   });
   const LONG = { prospectWordsAfterOpening: 80, turnsAfterOpening: 10 };
@@ -1340,9 +1340,9 @@ test('calls analysed before the latest rules, or without the stay-on numbers, ar
     positioning: { recorded: true, lead: 'ai', mentionsAi: true, when: 'opening', quote: 'x', quoteEn: 'x', reaction: 'neutral' } };
   const pair = (id, extra) => ({ call: { id, sdrName: 'L', tags: [], durationMin: 1 }, analysis: { ...base, ...extra } });
   const t = buildTrends([
-    pair('new', { schema: 7, stats: { prospectWordsAfterOpening: 80, turnsAfterOpening: 10 } }),
+    pair('new', { schema: 8, stats: { prospectWordsAfterOpening: 80, turnsAfterOpening: 10 } }),
     pair('old', { schema: 3, stats: { prospectWordsAfterOpening: 80, turnsAfterOpening: 10 } }),
-    pair('nonumbers', { schema: 7 }),
+    pair('nonumbers', { schema: 8 }),
   ]);
   assert.deepEqual(t.latestRules, { used: 1, total: 3 });
   assert.equal(t.openers.reduce((n, o) => n + o.calls, 0), 1);
@@ -1378,7 +1378,7 @@ test('"apology" is an opener type, and the old "checking who it is" type now cou
 test('trends can be limited to warm or cold calls, and warm means an earlier contact', async () => {
   await withServer(async ({ json, calls, deps }) => {
     const save = (id, style) => deps.store.saveAnalysis(id, {
-      callType: 'conversation', language: 'English', schema: 7, positioning: { recorded: true, lead: 'none', when: 'never' }, stats: { prospectWordsAfterOpening: 80, turnsAfterOpening: 10 }, opener: { recorded: true, style: 'other', quote: 'x' },
+      callType: 'conversation', language: 'English', schema: 8, positioning: { recorded: true, lead: 'none', when: 'never' }, stats: { prospectWordsAfterOpening: 80, turnsAfterOpening: 10 }, opener: { recorded: true, style: 'other', quote: 'x' },
       coachable: true, openerResult: 'stayed_engaged', nextStepSecured: false, craft: {}, prospect: {}, objections: [], opener: { style, quote: 'x' },
     });
     for (const id of ['1', '2', '3']) calls.find((c) => c.id === id).coachingStatus = 'Analysed';
@@ -1403,7 +1403,7 @@ test('an analysis that only lacks the stay-on numbers is updated from the transc
   await withServer(async ({ json, calls, deps, log }) => {
     calls.find((c) => c.id === '1').coachingStatus = 'Analysed';
     await deps.store.saveAnalysis('1', {
-      callType: 'conversation', language: 'English', schema: 7, positioning: { recorded: true, lead: 'none', when: 'never' },
+      callType: 'conversation', language: 'English', schema: 8, positioning: { recorded: true, lead: 'none', when: 'never' },
       coachable: true, openerResult: 'stayed_engaged', nextStepSecured: false, craft: {}, prospect: {}, objections: [], opener: { recorded: true, style: 'other', quote: 'x' },
     });
     const list = await json('/calls', LUKE);
@@ -1482,9 +1482,9 @@ test('an analysis that came back with no opener is never counted as "Other", and
   assert.equal(withOne.opener.style, 'apology');
   assert.equal(openerUnrecorded(withOne), false);
   // An older stored analysis holding a default "other" with no words is also not an opener.
-  assert.equal(openerUnrecorded({ callType: 'conversation', schema: 7, opener: { style: 'other', quote: null, note: '' } }), true);
+  assert.equal(openerUnrecorded({ callType: 'conversation', schema: 8, opener: { style: 'other', quote: null, note: '' } }), true);
   // The opener cards leave those out instead of showing them as Other.
-  const t = buildTrends([{ call: { id: '1', sdrName: 'L', tags: [], durationMin: 1 }, analysis: { ...without, schema: 7, stats: { prospectWordsAfterOpening: 80, turnsAfterOpening: 10 }, positioning: { recorded: true, lead: 'ai', mentionsAi: true, when: 'opening', quote: 'x', quoteEn: 'x', reaction: 'neutral' }, prospect: {}, coachable: true, callType: 'conversation', objections: [] } }]);
+  const t = buildTrends([{ call: { id: '1', sdrName: 'L', tags: [], durationMin: 1 }, analysis: { ...without, schema: 8, stats: { prospectWordsAfterOpening: 80, turnsAfterOpening: 10 }, positioning: { recorded: true, lead: 'ai', mentionsAi: true, when: 'opening', quote: 'x', quoteEn: 'x', reaction: 'neutral' }, prospect: {}, coachable: true, callType: 'conversation', objections: [] } }]);
   assert.equal(t.openers.length, 0);
   assert.equal(t.positioningCalls, 1);
 });
@@ -1513,7 +1513,7 @@ test('a call analysed under an older version shows as waiting to be re-analysed,
   });
 });
 
-const CURRENT_ANALYSIS = { callType: 'conversation', language: 'English', schema: 7, positioning: { recorded: true, lead: 'none', when: 'never' }, stats: { prospectWordsAfterOpening: 80, turnsAfterOpening: 10 }, opener: { recorded: true, style: 'other', quote: 'x' }, coachable: true };
+const CURRENT_ANALYSIS = { callType: 'conversation', language: 'English', schema: 8, positioning: { recorded: true, lead: 'none', when: 'never' }, stats: { prospectWordsAfterOpening: 80, turnsAfterOpening: 10 }, opener: { recorded: true, style: 'other', quote: 'x' }, coachable: true };
 // ---- the board's status column is a read-out of the analysis version ----
 async function withBootServer(opts, fn) {
   if (typeof opts === 'function') { fn = opts; opts = {}; }
@@ -1673,4 +1673,37 @@ test('if Claude cannot take a part\'s enforced form, that part is asked again wi
     assert.equal(coaching.length, 2);
     assert.equal(coaching[1].output_config.format, undefined); // second time without the enforced form
   });
+});
+
+test('"How are you" on its own is its own opener type, not a permission ask; a company name alone is not "who we are first"', () => {
+  const { SYSTEM, OPENER_LABELS, OPENER_STYLES, PART_SCHEMAS } = require('../src/lib/analysis');
+  const turns = [{ who: 'sdr', text: "It's Sam calling from monday.com. How are you doing today?" }, { who: 'prospect', text: 'Fine thanks.' }];
+  const base = { call_type: 'early_hangup', coachable: false, opener_result: 'brushed_off', next_step_secured: false, craft: {}, objections: [] };
+  assert.equal(validate({ ...base, opener: { style: 'pleasantry', quote: 'How are you doing today?' } }, turns).opener.style, 'pleasantry');
+  assert.equal(OPENER_LABELS.pleasantry, 'How are you');
+  assert.ok(OPENER_STYLES.includes('pleasantry'));
+  assert.ok(PART_SCHEMAS.call.properties.opener.properties.style.enum.includes('pleasantry'));
+  assert.match(SYSTEM, /"how are you\?" on its own is not a request for time/);
+  assert.match(SYSTEM, /Only saying the company name \("calling from monday\.com"\) does not count/);
+  assert.match(SYSTEM, /who we are first, problem or result hook, permission ask, pleasantry/);
+});
+
+test('when Claude says it is too busy (429 or 529) the request waits and tries again instead of failing the call', async () => {
+  const { analyseCall, _setRetryPause } = require('../src/lib/analysis');
+  _setRetryPause(() => 1);
+  try {
+    await withKey(async () => {
+      let calls = 0;
+      const fetchImpl = async () => {
+        calls += 1;
+        if (calls <= 2) return { ok: false, status: calls === 1 ? 429 : 529, headers: { get: () => '1' }, text: async () => JSON.stringify({ error: { message: 'rate limited' } }) };
+        return toolReply({ ...FULL, call_type: 'conversation', coachable: true, opener_result: 'stayed_engaged', next_step_secured: false, objections: [] });
+      };
+      const out = await analyseCall({ turns: quoteTurns, call: { durationMin: 1 } }, { fetchImpl });
+      assert.equal(out.callType, 'conversation');
+      assert.equal(calls, 5); // three parts, two of the first tries were told to wait and went again
+    });
+  } finally {
+    _setRetryPause((attempt, retryAfter) => (retryAfter ? retryAfter * 1000 : 5000 * 2 ** attempt));
+  }
 });

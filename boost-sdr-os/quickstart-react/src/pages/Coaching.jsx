@@ -12,7 +12,7 @@ import {
 const DAY_OPTIONS = [14, 30, 60, 90];
 const fmtDay = (iso) => new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
 const BATCH = 5;
-const ALL_WORKERS = 8; // calls analysed at the same time when running them all (matches the server)
+const ALL_WORKERS = 4; // calls analysed at the same time when running them all (matches the server)
 const SECONDS_PER_CALL = 20; // rough guide for the time estimate (low effort, structured answer)
 
 // Turns a failed request into something a person can act on.
@@ -98,7 +98,7 @@ export default function Coaching({ user }) {
           coachingApi.trends(userIdParam, days, fresh, temp),
         ]);
         if (!alive) return;
-        const nextMeta = { waitingCount: cl.waitingCount, refreshCount: cl.refreshCount ?? 0, unreadableCount: cl.unreadableCount ?? 0, unreadableReasons: cl.unreadableReasons ?? [], coverage: cl.coverage, rules: cl.rules, totals: cl.transcriptTotals ?? null, diagnosis: cl.diagnosis ?? null };
+        const nextMeta = { waitingCount: cl.waitingCount, refreshCount: cl.refreshCount ?? 0, unreadableCount: cl.unreadableCount ?? 0, unreadableReasons: cl.unreadableReasons ?? [], coverage: cl.coverage, rules: cl.rules, totals: cl.transcriptTotals ?? null };
         setOverview(ov);
         setCalls(cl.calls);
         setMeta(nextMeta);
@@ -201,6 +201,7 @@ export default function Coaching({ user }) {
     let failed = 0;
     let lost = 0;
     let lastMessage = null;
+    const reasons = new Map(); // why calls could not be analysed, and how many each
     let pollErrors = 0;
     let gaveUp = false;
     let summaryAt = 0; // how many were done when the trends and focus panel were last refreshed
@@ -245,7 +246,11 @@ export default function Coaching({ user }) {
           if (r.saved) done += 1; else unsaved += 1;
         } else {
           failed += 1;
-          if (r?.message) lastMessage = r.message;
+          if (r?.message) {
+            lastMessage = r.message;
+            const why = String(r.message).replace(/^[^:]*: /, '').slice(0, 120);
+            reasons.set(why, (reasons.get(why) || 0) + 1);
+          }
         }
       }
       setAnalysing({ busy: true, message: progress() });
@@ -262,11 +267,12 @@ export default function Coaching({ user }) {
       try { await coachingApi.analyseCancel([...pending]); } catch { /* it will simply finish */ }
     }
 
-    let message = failed ? `${done} analysed, ${failed} could not be.` : `${done} analysed.`;
+    const why = [...reasons.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([w, n]) => `${n} × ${w}`).join('; ');
+    let message = failed ? `${done} analysed, ${failed} could not be${why ? ` (${why})` : ''}. They stay waiting; press the button again to retry them.` : `${done} analysed.`;
     if (unsaved) message += ` ${unsaved} could not be saved permanently, so ${unsaved === 1 ? 'it' : 'they'} will be offered again.`;
     if (lost) message += ` The server restarted part way, so ${lost} ${lost === 1 ? 'was' : 'were'} not finished. Press the button again; anything that finished is saved.`;
     if (gaveUp) message = `${done} analysed. The server did not answer for a while. Anything that finished is saved, so press the button again in a few minutes.`;
-    else if (stopRef.current) message = `Stopped. ${message} Up to two calls already running will still finish in the background.`;
+    else if (stopRef.current) message = `Stopped. ${message} Calls already running will still finish in the background.`;
     else if (!done && lastMessage) message = `Could not analyse. ${lastMessage}`;
     setAnalysing({ busy: false, message });
 
@@ -400,17 +406,6 @@ export default function Coaching({ user }) {
                         {(redoCount > 0 || numbersCount > 0) && ` (${[redoCount > 0 && `${redoCount} to redo with the new rules`, numbersCount > 0 && `${numbersCount} only need their numbers updated, which costs nothing`].filter(Boolean).join(', ')})`}.
                       </>
                     )}
-                    {meta.diagnosis && waiting.length > 0 && (
-                      <div className="text-[12.5px] text-muted mt-1">
-                        What is saved for these: {[
-                          meta.diagnosis.olderRules > 0 && `${meta.diagnosis.olderRules} made under older rules`,
-                          meta.diagnosis.noOpener > 0 && `${meta.diagnosis.noOpener} with no opener recorded`,
-                          meta.diagnosis.noPositioning > 0 && `${meta.diagnosis.noPositioning} with no "what we say we are" recorded`,
-                          meta.diagnosis.notSaved > 0 && `${meta.diagnosis.notSaved} with nothing saved`,
-                          meta.diagnosis.unreadable > 0 && `${meta.diagnosis.unreadable} that could not be read just now`,
-                        ].filter(Boolean).join(', ') || 'nothing to report'}.
-                      </div>
-                    )}
                     {analysing.message && <div className="text-[12.5px] text-muted mt-1">{analysing.message}</div>}
                   </div>
                   <div className="flex items-center gap-2.5 flex-wrap">
@@ -533,11 +528,13 @@ export default function Coaching({ user }) {
           )}
 
           {isAdmin && !demo && (
-            <Section title="Check what is saved" sub="Sets what the board says against what is really saved for each call, so the numbers on this page can be trusted.">
-              <Card><AuditPanel /></Card>
-              <div className="h-3" />
-              <Card><TrialPanel /></Card>
-            </Section>
+            <details className="mt-2">
+              <summary className="cursor-pointer text-[12.5px] text-muted select-none">Admin tools (only managers see this)</summary>
+              <div className="mt-3 grid gap-3">
+                <Card><AuditPanel /></Card>
+                <Card><TrialPanel /></Card>
+              </div>
+            </details>
           )}
 
           <div id="calls-to-review" />
